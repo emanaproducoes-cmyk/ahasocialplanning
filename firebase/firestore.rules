@@ -1,0 +1,141 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ──────────────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function isAdmin() {
+      return isAuth() && (
+        request.auth.token.email == 'emanaproducoes@gmail.com' ||
+        request.auth.token.admin == true
+      );
+    }
+
+    function isOwner(userId) {
+      return isAuth() && uid() == userId;
+    }
+
+    function isOwnerOrAdmin(userId) {
+      return isOwner(userId) || isAdmin();
+    }
+
+    // Bloqueia campos sensíveis que nunca devem vir do client
+    function noSensitiveFields() {
+      return !request.resource.data.keys().hasAny([
+        'accessToken', 'refreshToken', 'password',
+        'privateKey',  'secret',       'apiKey'
+      ]);
+    }
+
+    // Valida que updatedAt está presente em writes
+    function hasTimestamp() {
+      return request.resource.data.keys().hasAll(['updatedAt']);
+    }
+
+    // ── /users/{userId} ───────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read:   if isOwnerOrAdmin(userId);
+      allow create: if isAuth() && uid() == userId && noSensitiveFields();
+      allow update: if isOwnerOrAdmin(userId)   && noSensitiveFields();
+      allow delete: if isAdmin();
+
+      // ── /users/{userId}/connectedAccounts/{accountId} ─────────────────
+      match /connectedAccounts/{accountId} {
+        allow read:           if isOwnerOrAdmin(userId);
+        allow create, delete: if isAdmin();
+        allow update:         if isAdmin() && noSensitiveFields();
+      }
+
+      // ── /users/{userId}/posts/{postId} ────────────────────────────────
+      match /posts/{postId} {
+        allow read:   if isOwnerOrAdmin(userId);
+        allow create: if isOwnerOrAdmin(userId) && noSensitiveFields();
+        allow update: if isOwnerOrAdmin(userId) && noSensitiveFields();
+        allow delete: if isOwnerOrAdmin(userId);
+      }
+
+      // ── /users/{userId}/agendamentos/{docId} ──────────────────────────
+      match /agendamentos/{docId} {
+        allow read, write: if isOwnerOrAdmin(userId);
+      }
+
+      // ── /users/{userId}/emAnalise/{docId} ────────────────────────────
+      match /emAnalise/{docId} {
+        allow read, write: if isOwnerOrAdmin(userId);
+      }
+
+      // ── /users/{userId}/aprovados/{docId} ────────────────────────────
+      match /aprovados/{docId} {
+        allow read, write: if isOwnerOrAdmin(userId);
+      }
+
+      // ── /users/{userId}/rejeitados/{docId} ───────────────────────────
+      match /rejeitados/{docId} {
+        allow read, write: if isOwnerOrAdmin(userId);
+      }
+
+      // ── /users/{userId}/revisao/{docId} ──────────────────────────────
+      match /revisao/{docId} {
+        allow read, write: if isOwnerOrAdmin(userId);
+      }
+
+      // ── /users/{userId}/campanhas/{docId} ────────────────────────────
+      match /campanhas/{docId} {
+        allow read, write: if isOwnerOrAdmin(userId);
+      }
+
+      // ── /users/{userId}/trafegoPago/{docId} ──────────────────────────
+      match /trafegoPago/{docId} {
+        allow read, write: if isOwnerOrAdmin(userId);
+      }
+
+      // ── /users/{userId}/stats/{docId} ────────────────────────────────
+      match /stats/{docId} {
+        allow read:  if isOwnerOrAdmin(userId);
+        allow write: if false; // apenas Cloud Functions escrevem
+      }
+
+      // ── /users/{userId}/preferences/{docId} ──────────────────────────
+      match /preferences/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // ── /approvals/{token} ────────────────────────────────────────────────
+    // Leitura pública por token (página de aprovação sem login)
+    match /approvals/{token} {
+      allow read: if true;
+
+      allow create: if isAuth() && noSensitiveFields();
+
+      // Update: apenas campos permitidos e status válido
+      allow update: if
+        request.resource.data.keys().hasOnly([
+          'status', 'comentario', 'respondidoEm',
+          'agendamentoId', 'uid', 'creatives', 'caption',
+          'platforms', 'responsavel', 'createdAt', 'expiresAt'
+        ])
+        &&
+        request.resource.data.status in ['aprovado', 'correcao', 'rejeitado', 'pending']
+        &&
+        // Não permite alterar campos imutáveis
+        (!request.resource.data.keys().hasAny(['uid', 'agendamentoId', 'createdAt'])
+          || (request.resource.data.uid          == resource.data.uid
+              && request.resource.data.agendamentoId == resource.data.agendamentoId));
+
+      allow delete: if isAdmin();
+    }
+
+    // ── Deny all other paths ──────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

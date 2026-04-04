@@ -1,0 +1,82 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ── Helper functions ──────────────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    function isOwner(userId) {
+      return isAuth() && uid() == userId;
+    }
+
+    function isAdmin() {
+      return isAuth() && (
+        request.auth.token.email == 'emanaproducoes@gmail.com' ||
+        request.auth.token.admin == true
+      );
+    }
+
+    function isOwnerOrAdmin(userId) {
+      return isOwner(userId) || isAdmin();
+    }
+
+    function isValidImageType() {
+      return request.resource.contentType.matches('image/(jpeg|png|gif|webp)');
+    }
+
+    function isValidVideoType() {
+      return request.resource.contentType.matches('video/(mp4|quicktime)');
+    }
+
+    function isValidMediaType() {
+      return isValidImageType() || isValidVideoType();
+    }
+
+    function isUnder50MB() {
+      return request.resource.size <= 50 * 1024 * 1024;
+    }
+
+    function isUnder5MB() {
+      return request.resource.size <= 5 * 1024 * 1024;
+    }
+
+    // ── /users/{userId}/creatives/{postId}/{filename} ─────────────────────
+    match /users/{userId}/creatives/{postId}/{filename} {
+      allow read:   if isOwnerOrAdmin(userId);
+      allow create: if isOwnerOrAdmin(userId)
+                    && isValidMediaType()
+                    && isUnder50MB();
+      allow delete: if isOwnerOrAdmin(userId);
+      allow update: if false; // Criativos são imutáveis após upload
+    }
+
+    // ── /users/{userId}/avatars/{filename} ────────────────────────────────
+    match /users/{userId}/avatars/{filename} {
+      allow read:   if isAuth();
+      allow create: if isOwnerOrAdmin(userId)
+                    && isValidImageType()
+                    && isUnder5MB();
+      allow update: if isOwnerOrAdmin(userId)
+                    && isValidImageType()
+                    && isUnder5MB();
+      allow delete: if isOwnerOrAdmin(userId);
+    }
+
+    // ── /public/{filename} — assets públicos ─────────────────────────────
+    match /public/{filename} {
+      allow read:   if true;
+      allow write:  if isAdmin();
+    }
+
+    // ── Deny tudo que não está explícito ──────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

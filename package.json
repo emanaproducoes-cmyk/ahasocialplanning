@@ -1,0 +1,47 @@
+{
+  "name": "aha-social-planning",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "firebase:emulators": "firebase emulators:start",
+    "functions:dev": "cd firebase/functions && npm run dev",
+    "functions:deploy": "cd firebase/functions && npm run deploy"
+  },
+  "dependencies": {
+    "next": "14.2.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "firebase": "^10.11.0",
+    "firebase-admin": "^12.1.0",
+    "react-hook-form": "^7.51.3",
+    "zod": "^3.23.4",
+    "@hookform/resolvers": "^3.3.4",
+    "chart.js": "^4.4.2",
+    "react-chartjs-2": "^5.2.0",
+    "sortablejs": "^1.15.2",
+    "qrcode": "^1.5.3",
+    "date-fns": "^3.6.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.3.0",
+    "lucide-react": "^0.378.0",
+    "react-dropzone": "^14.2.3",
+    "react-day-picker": "^8.10.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "@types/node": "^20.12.7",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.0",
+    "@types/sortablejs": "^1.15.8",
+    "@types/qrcode": "^1.5.5",
+    "tailwindcss": "^3.4.3",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.3"
+  }
+}
