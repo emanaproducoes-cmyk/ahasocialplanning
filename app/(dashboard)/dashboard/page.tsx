@@ -3,6 +3,10 @@
 import { useState }            from 'react';
 import Link                    from 'next/link';
 import { useAuth }             from '@/lib/hooks/useAuth';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell,
+} from 'recharts';
 import { useUserCollection }   from '@/lib/hooks/useCollection';
 import { orderBy }             from 'firebase/firestore';
 import type { Post, Platform } from '@/lib/types';
@@ -152,12 +156,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Platform KPI cards — horizontal row */}
+      {/* Platform KPI cards */}
       <div className="flex gap-3 overflow-x-auto pb-1">
         {PLATFORM_DATA.map((p) => (
           <PlatformKPICard key={p.platform} {...p} />
         ))}
-        {/* Total posts card */}
         <div className="rounded-2xl p-4 text-white flex-1 min-w-0" style={{ background: 'linear-gradient(135deg,#FF5C00 0%,#FFB800 100%)' }}>
           <p className="text-[11px] font-bold opacity-70 tracking-wider mb-2">🚀 TOTAL DE POSTS</p>
           <p className="text-[26px] font-bold leading-none mb-1">{posts.length}</p>
@@ -192,22 +195,81 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Charts placeholder row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <h3 className="text-[15px] font-semibold text-gray-900 mb-1">Engajamento por Plataforma</h3>
-          <p className="text-[12px] text-gray-500 mb-4">Crescimento mensal</p>
-          <div className="h-48 flex items-center justify-center text-gray-300 bg-gray-50 rounded-xl">
-            <p className="text-sm">Gráfico de linha</p>
-          </div>
-        </div>
-        <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-          <h3 className="text-[15px] font-semibold text-gray-900 mb-1">Mix de Plataformas</h3>
-          <p className="text-[12px] text-gray-500 mb-4">Distribuição de posts</p>
-          <div className="h-48 flex items-center justify-center text-gray-300 bg-gray-50 rounded-xl">
-            <p className="text-sm">Gráfico donut</p>
-          </div>
-        </div>
+      {/* Charts row */}
+      <EngagementAndMixCharts posts={posts} />
+    </div>
+  );
+}
+
+// ─── Recharts data ────────────────────────────────────────────────────────────
+const ENGAGEMENT_DATA = [
+  { name: 'Sem 1', instagram: 4200, facebook: 3100, youtube: 2800, tiktok: 5200, linkedin: 1200 },
+  { name: 'Sem 2', instagram: 4800, facebook: 3400, youtube: 3000, tiktok: 5800, linkedin: 1400 },
+  { name: 'Sem 3', instagram: 4500, facebook: 3200, youtube: 3200, tiktok: 6200, linkedin: 1300 },
+  { name: 'Sem 4', instagram: 5200, facebook: 3800, youtube: 3500, tiktok: 6800, linkedin: 1600 },
+  { name: 'Sem 5', instagram: 5800, facebook: 4200, youtube: 3800, tiktok: 7200, linkedin: 1800 },
+  { name: 'Sem 6', instagram: 6500, facebook: 4800, youtube: 4200, tiktok: 7800, linkedin: 2000 },
+];
+
+const MIX_DATA = [
+  { name: 'Instagram', value: 45, color: '#E1306C' },
+  { name: 'Facebook',  value: 25, color: '#1877F2' },
+  { name: 'YouTube',   value: 15, color: '#FF0000' },
+  { name: 'TikTok',    value: 10, color: '#010101' },
+  { name: 'LinkedIn',  value: 5,  color: '#0A66C2' },
+];
+
+function EngagementAndMixCharts({ posts }: { posts: Post[] }) {
+  const mixData = posts.length > 0
+    ? (() => {
+        const counts: Record<string, number> = {};
+        posts.forEach((p) => {
+          (p.platforms ?? []).forEach((pl) => {
+            counts[pl] = (counts[pl] ?? 0) + 1;
+          });
+        });
+        const colors: Record<string, string> = {
+          instagram: '#E1306C', facebook: '#1877F2', youtube: '#FF0000',
+          tiktok: '#010101', linkedin: '#0A66C2', threads: '#000000',
+        };
+        return Object.entries(counts).map(([name, value]) => ({ name, value, color: colors[name] ?? '#FF5C00' }));
+      })()
+    : MIX_DATA;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+      <div className="lg:col-span-3 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <h3 className="text-[15px] font-semibold text-gray-900 mb-1">Engajamento por Plataforma</h3>
+        <p className="text-[12px] text-gray-500 mb-4">Crescimento mensal</p>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={ENGAGEMENT_DATA}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Legend wrapperStyle={{ fontSize: '11px' }} />
+            <Line type="monotone" dataKey="instagram" stroke="#E1306C" strokeWidth={2} dot={{ r: 2 }} />
+            <Line type="monotone" dataKey="facebook"  stroke="#1877F2" strokeWidth={2} dot={{ r: 2 }} />
+            <Line type="monotone" dataKey="youtube"   stroke="#FF0000" strokeWidth={2} dot={{ r: 2 }} />
+            <Line type="monotone" dataKey="tiktok"    stroke="#010101" strokeWidth={2} dot={{ r: 2 }} />
+            <Line type="monotone" dataKey="linkedin"  stroke="#0A66C2" strokeWidth={2} dot={{ r: 2 }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <h3 className="text-[15px] font-semibold text-gray-900 mb-1">Mix de Plataformas</h3>
+        <p className="text-[12px] text-gray-500 mb-4">Distribuição de posts</p>
+        <ResponsiveContainer width="100%" height={220}>
+          <PieChart>
+            <Pie data={mixData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
+              {mixData.map((entry, i) => (
+                <Cell key={i} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip />
+            <Legend wrapperStyle={{ fontSize: '11px' }} />
+          </PieChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
