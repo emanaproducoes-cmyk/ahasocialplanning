@@ -29,7 +29,8 @@
     "tailwind-merge": "^2.3.0",
     "lucide-react": "^0.378.0",
     "react-dropzone": "^14.2.3",
-    "react-day-picker": "^8.10.1"
+    "react-day-picker": "^8.10.1",
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
     "typescript": "^5.4.5",
