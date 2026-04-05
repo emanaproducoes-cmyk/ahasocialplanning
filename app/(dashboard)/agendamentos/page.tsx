@@ -15,6 +15,37 @@ import type { Post, ViewMode, Responsavel } from '@/lib/types';
 
 type View = 'lista' | 'grade' | 'calendario';
 
+const ListIcon  = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+    <line x1="8" y1="18" x2="21" y2="18"/>
+    <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/>
+    <line x1="3" y1="18" x2="3.01" y2="18"/>
+  </svg>
+);
+const GridIcon  = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+    <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+  </svg>
+);
+const CalIcon   = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="4" width="18" height="18" rx="2"/>
+    <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+    <line x1="3" y1="10" x2="21" y2="10"/>
+  </svg>
+);
+
+const STATUS_FILTERS = [
+  { value: 'todos',     label: 'Todos',      color: 'bg-gray-100 text-gray-700' },
+  { value: 'rascunho',  label: 'Rascunho',   color: 'bg-gray-100 text-gray-600' },
+  { value: 'revisao',   label: 'Revisão',    color: 'bg-yellow-100 text-yellow-700' },
+  { value: 'aprovado',  label: 'Aprovados',  color: 'bg-green-100 text-green-700' },
+  { value: 'rejeitado', label: 'Rejeitados', color: 'bg-red-100 text-red-700' },
+  { value: 'publicado', label: 'Publicados', color: 'bg-emerald-100 text-emerald-700' },
+];
+
 export default function AgendamentosPage() {
   const { user }               = useAuth();
   const { prefs, setViewMode } = usePreferences(user?.uid ?? null);
@@ -24,8 +55,10 @@ export default function AgendamentosPage() {
     [orderBy('createdAt', 'desc')]
   );
 
-  const [view, setView]       = useState<View>((prefs.viewModes?.agendamentos as View) ?? 'grade');
-  const [selected, setSelected] = useState<Post | null>(null);
+  const [view,          setView]         = useState<View>((prefs.viewModes?.agendamentos as View) ?? 'grade');
+  const [statusFilter,  setStatusFilter] = useState('todos');
+  const [platformFilter,setPlatFilter]   = useState('todos');
+  const [selected,      setSelected]     = useState<Post | null>(null);
 
   const handleViewChange = (v: View) => {
     setView(v);
@@ -38,108 +71,107 @@ export default function AgendamentosPage() {
     uid:    user?.uid ?? '',
   };
 
+  const filtered = posts
+    .filter((p) => statusFilter === 'todos' || p.status === statusFilter)
+    .filter((p) => platformFilter === 'todos' || (p.platforms ?? []).includes(platformFilter as Post['platforms'][0]));
+
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Page header */}
-      <div>
-        <h1 className="text-[22px] font-bold text-gray-900">Agendamentos</h1>
-        <p className="text-[14px] text-gray-500 mt-0.5">Planeje e organize todos os seus conteúdos</p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-[22px] font-bold text-gray-900">Agendamentos</h1>
+          <p className="text-[14px] text-gray-500 mt-0.5">Planeje e organize todos os seus conteúdos</p>
+        </div>
+        <Link
+          href="/criar-post"
+          className="flex items-center gap-1.5 px-4 py-2 bg-[#FF5C00] hover:bg-[#E54E00] text-white text-[13px] font-bold rounded-lg transition-colors shadow-lg shadow-[#FF5C00]/25"
+        >
+          <span className="text-lg leading-none">+</span>
+          Novo Agendamento
+        </Link>
       </div>
 
-      {/* Controls row */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        {/* Left: account filter */}
-        <div className="flex items-center gap-2">
-          <select className="px-3 py-2 text-[13px] border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30 min-w-[160px]">
-            <option>Todas as Contas</option>
-          </select>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {STATUS_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setStatusFilter(f.value)}
+              className={cn(
+                'px-3 py-1.5 text-[12px] font-medium rounded-full transition-colors border',
+                statusFilter === f.value
+                  ? 'bg-[#FF5C00] text-white border-[#FF5C00] shadow-sm'
+                  : `${f.color} border-transparent hover:border-gray-200`
+              )}
+            >
+              {f.label}
+              {f.value !== 'todos' && (
+                <span className="ml-1 text-[10px] opacity-70">
+                  ({posts.filter((p) => p.status === f.value).length})
+                </span>
+              )}
+            </button>
+          ))}
         </div>
 
-        {/* Right: view toggle + new button */}
-        <div className="flex items-center gap-2">
-          {/* View toggle — matches screenshot */}
-          <div className="flex items-center bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+        <div className="flex items-center bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          {([
+            { v: 'lista'      as View, icon: <ListIcon />, label: 'Lista' },
+            { v: 'grade'      as View, icon: <GridIcon />, label: 'Grade' },
+            { v: 'calendario' as View, icon: <CalIcon />,  label: 'Calendário' },
+          ]).map(({ v, icon, label }) => (
             <button
-              onClick={() => handleViewChange('lista')}
+              key={v}
+              onClick={() => handleViewChange(v)}
               className={cn(
-                'flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium transition-colors',
-                view === 'lista'
-                  ? 'bg-gray-100 text-gray-800'
-                  : 'text-gray-500 hover:text-gray-700'
-              )}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-                <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-              </svg>
-              Lista
-            </button>
-            <button
-              onClick={() => handleViewChange('grade')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium transition-colors border-x border-gray-200',
-                view === 'grade'
+                'flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium transition-all',
+                view === v
                   ? 'bg-[#FF5C00] text-white'
-                  : 'text-gray-500 hover:text-gray-700'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50',
+                v !== 'lista' && 'border-l border-gray-200',
               )}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-              </svg>
-              Grade
+              {icon}
+              <span className="hidden sm:inline">{label}</span>
             </button>
-            <button
-              onClick={() => handleViewChange('calendario')}
-              className={cn(
-                'flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium transition-colors',
-                view === 'calendario'
-                  ? 'bg-gray-100 text-gray-800'
-                  : 'text-gray-500 hover:text-gray-700'
-              )}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-              Calendário
-            </button>
-          </div>
-
-          <Link
-            href="/criar-post"
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#FF5C00] hover:bg-[#E54E00] text-white text-[13px] font-bold rounded-lg transition-colors"
-          >
-            <span className="text-lg leading-none">+</span>
-            Novo Agendamento
-          </Link>
+          ))}
         </div>
       </div>
 
-      {/* Content */}
+      {!loading && posts.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Total',      value: posts.length,                                          color: 'text-gray-900' },
+            { label: 'Aprovados',  value: posts.filter((p) => p.status === 'aprovado').length,   color: 'text-green-600' },
+            { label: 'Em Revisão', value: posts.filter((p) => p.status === 'revisao').length,    color: 'text-yellow-600' },
+            { label: 'Publicados', value: posts.filter((p) => p.status === 'publicado').length,  color: 'text-emerald-600' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="bg-white rounded-xl border border-gray-100 p-3 text-center shadow-sm">
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
+              <p className={cn('text-2xl font-extrabold', color)}>{value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         view === 'lista' ? <SkeletonList count={6} /> : <SkeletonGrid count={8} />
-      ) : posts.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon="📅"
-          title="Nenhum agendamento ainda"
+          title={statusFilter === 'todos' ? 'Nenhum agendamento ainda' : `Nenhum post ${STATUS_FILTERS.find((f) => f.value === statusFilter)?.label.toLowerCase() ?? ''}`}
           subtitle="Crie seu primeiro post e agende para as suas redes sociais."
           actionLabel="Criar primeiro post"
           onAction={() => { window.location.href = '/criar-post'; }}
         />
       ) : view === 'calendario' ? (
-        <AgendamentoCalendario posts={posts} onSelect={setSelected} />
+        <AgendamentoCalendario posts={filtered} onSelect={setSelected} />
       ) : view === 'lista' ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 grid grid-cols-[40px_1fr_60px_140px_120px_140px] gap-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-            <div/>
-            <div>Título</div>
-            <div>Rede</div>
-            <div>Data</div>
-            <div>Status</div>
-            <div>Ações</div>
+          <div className="px-4 py-3 border-b border-gray-100 grid grid-cols-[40px_1fr_50px_140px_130px_150px] gap-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+            <div /><div>Título</div><div>Rede</div><div>Data</div><div>Status</div><div>Ações</div>
           </div>
-          {posts.map((post) => (
+          {filtered.map((post) => (
             <AgendamentoCard
               key={post.id}
               post={post}
@@ -150,9 +182,8 @@ export default function AgendamentosPage() {
           ))}
         </div>
       ) : (
-        /* Grade — 4 columns matching screenshot */
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {posts.map((post) => (
+          {filtered.map((post) => (
             <AgendamentoCard
               key={post.id}
               post={post}
