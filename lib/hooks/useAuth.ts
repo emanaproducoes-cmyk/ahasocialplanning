@@ -1,10 +1,10 @@
 'use client';
-
 import { useState, useEffect, useCallback } from 'react';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
   sendPasswordResetEmail,
   User,
@@ -16,18 +16,18 @@ import { humanizeFirebaseError } from '@/lib/utils/firebase-errors';
 const ADMIN_EMAIL = 'emanaproducoes@gmail.com';
 
 export interface AuthState {
-  user:        User | null;
-  loading:     boolean;
-  isAdmin:     boolean;
+  user:    User | null;
+  loading: boolean;
+  isAdmin: boolean;
 }
 
 export function useAuth(): AuthState & {
-  loginWithEmail:    (email: string, password: string) => Promise<void>;
-  loginWithGoogle:   () => Promise<void>;
-  logout:            () => Promise<void>;
-  resetPassword:     (email: string) => Promise<void>;
-  error:             string | null;
-  clearError:        () => void;
+  loginWithEmail:  (email: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
+  logout:          () => Promise<void>;
+  resetPassword:   (email: string) => Promise<void>;
+  error:           string | null;
+  clearError:      () => void;
 } {
   const [user,    setUser]    = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,7 +35,6 @@ export function useAuth(): AuthState & {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
-  // Persist user profile to Firestore on every login
   const persistProfile = useCallback(async (u: User) => {
     await setDoc(
       doc(db, 'users', u.uid),
@@ -49,6 +48,7 @@ export function useAuth(): AuthState & {
     );
   }, []);
 
+  // Escuta mudanças de auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
@@ -56,6 +56,18 @@ export function useAuth(): AuthState & {
       if (u) await persistProfile(u);
     });
     return unsubscribe;
+  }, [persistProfile]);
+
+  // Captura resultado do redirect do Google
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result?.user) await persistProfile(result.user);
+      })
+      .catch((err: { code?: string }) => {
+        const code = err.code ?? '';
+        setError(humanizeFirebaseError(code));
+      });
   }, [persistProfile]);
 
   const loginWithEmail = useCallback(async (email: string, password: string) => {
@@ -73,14 +85,13 @@ export function useAuth(): AuthState & {
   const loginWithGoogle = useCallback(async () => {
     setError(null);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      await persistProfile(result.user);
+      await signInWithRedirect(auth, googleProvider);
     } catch (err: unknown) {
       const code = (err as { code?: string }).code ?? '';
       setError(humanizeFirebaseError(code));
       throw err;
     }
-  }, [persistProfile]);
+  }, []);
 
   const logout = useCallback(async () => {
     await signOut(auth);
