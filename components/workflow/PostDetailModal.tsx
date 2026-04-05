@@ -5,12 +5,15 @@ import { Modal }              from '@/components/ui/Modal';
 import { StatusBadge }        from '@/components/ui/Badge';
 import { showToast }          from '@/components/ui/Toast';
 import { cn }                 from '@/lib/utils/cn';
-import { formatDateTime, formatRelative } from '@/lib/utils/formatters';
-import { generateApprovalLink, copyToClipboard, buildWhatsAppLink, buildMailtoLink } from '@/lib/utils/approval';
-import { movePostToStatus }   from '@/lib/firebase/firestore';
+import { formatRelative }     from '@/lib/utils/formatters';
+import {
+  generateApprovalLink, copyToClipboard,
+  buildWhatsAppLink, buildMailtoLink,
+} from '@/lib/utils/approval';
+import { movePostToStatus, updateDoc as updateFireDoc } from '@/lib/firebase/firestore';
 import type { Post, PostStatus, Responsavel } from '@/lib/types';
 
-const TABS = ['Ações pendentes', 'Histórico', 'Conteúdo do post'] as const;
+const TABS = ['Preview', 'Comentários', 'Ações'] as const;
 type Tab   = typeof TABS[number];
 
 const PLATFORM_EMOJI: Record<string, string> = {
@@ -18,243 +21,355 @@ const PLATFORM_EMOJI: Record<string, string> = {
   tiktok: '🎵', linkedin: '💼', threads: '🧵',
 };
 
-interface PostDetailModalProps {
-  post:          Post | null;
-  uid:           string;
-  responsavel:   Responsavel;
-  isOpen:        boolean;
-  onClose:       () => void;
-  onEdit:        () => void;
+const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  rascunho:          { label: 'Rascunho',          color: 'bg-gray-100 text-gray-600' },
+  conteudo:          { label: 'Conteúdo',           color: 'bg-blue-100 text-blue-600' },
+  revisao:           { label: 'Revisão',            color: 'bg-yellow-100 text-yellow-700' },
+  aprovacao_cliente: { label: 'Aprovação Cliente',  color: 'bg-purple-100 text-purple-600' },
+  em_analise:        { label: 'Em Análise',         color: 'bg-blue-100 text-blue-700' },
+  aprovado:          { label: 'Aprovado',           color: 'bg-green-100 text-green-700' },
+  rejeitado:         { label: 'Rejeitado',          color: 'bg-red-100 text-red-700' },
+  publicado:         { label: 'Publicado',          color: 'bg-emerald-100 text-emerald-700' },
+};
+
+function ImageViewer({ post }: { post: Post }) {
+  const [slide,  setSlide]  = useState(0);
+  const [zoomed, setZoomed] = useState(false);
+
+  const slides = post.creatives?.map((c) => c.url) ?? [];
+  const currentUrl = slides[slide];
+  const isVideo = post.creatives?.[slide]?.type?.startsWith('video');
+
+  const handleDownload = () => {
+    if (!currentUrl) return;
+    const a = document.createElement('a');
+    a.href = currentUrl;
+    a.download = `${post.title}-slide-${slide + 1}`;
+    a.target = '_blank';
+    a.click();
+  };
+
+  if (slides.length === 0) {
+    return (
+      <div className="w-full aspect-video rounded-xl bg-gray-100 flex items-center justify-center mb-4">
+        <span className="text-4xl">🖼️</span>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {zoomed && currentUrl && (
+        <div
+          className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center p-4"
+          onClick={() => setZoomed(false)}
+        >
+          {isVideo ? (
+            <video src={currentUrl} controls autoPlay className="max-w-full max-h-full rounded-xl" />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={currentUrl} alt="" className="max-w-full max-h-full object-contain rounded-xl" onClick={(e) => e.stopPropagation()} />
+          )}
+          <button
+            onClick={() => setZoomed(false)}
+            className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center text-white text-xl transition-colors"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-gray-100 mb-4 group">
+        {isVideo ? (
+          <video src={currentUrl} controls className="w-full h-full object-contain" />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={currentUrl} alt={post.title} className="w-full h-full object-contain" />
+        )}
+
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => setZoomed(true)}
+            className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80"
+            title="Ampliar"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+            </svg>
+          </button>
+          <button
+            onClick={handleDownload}
+            className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80"
+            title="Download"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </button>
+        </div>
+
+        {slides.length > 1 && (
+          <>
+            <button
+              onClick={() => setSlide((s) => Math.max(0, s - 1))}
+              disabled={slide === 0}
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 text-white rounded-full flex items-center justify-center disabled:opacity-30 hover:bg-black/80"
+            >‹</button>
+            <button
+              onClick={() => setSlide((s) => Math.min(slides.length - 1, s + 1))}
+              disabled={slide === slides.length - 1}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 text-white rounded-full flex items-center justify-center disabled:opacity-30 hover:bg-black/80"
+            >›</button>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+              {slides.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSlide(i)}
+                  className={cn('w-1.5 h-1.5 rounded-full transition-colors', i === slide ? 'bg-white' : 'bg-white/50')}
+                />
+              ))}
+            </div>
+            <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-lg">
+              {slide + 1}/{slides.length}
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
 }
 
-export function PostDetailModal({
-  post,
-  uid,
-  responsavel,
-  isOpen,
-  onClose,
-  onEdit,
-}: PostDetailModalProps) {
-  const [activeTab,    setActiveTab]    = useState<Tab>('Ações pendentes');
-  const [approvalUrl,  setApprovalUrl]  = useState<string | null>(null);
+interface PostDetailModalProps {
+  post:        Post | null;
+  uid:         string;
+  responsavel: Responsavel;
+  isOpen:      boolean;
+  onClose:     () => void;
+  onEdit:      () => void;
+}
+
+export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdit }: PostDetailModalProps) {
+  const [activeTab,      setActiveTab]      = useState<Tab>('Preview');
+  const [approvalUrl,    setApprovalUrl]    = useState<string | null>(null);
   const [generatingLink, setGeneratingLink] = useState(false);
-  const [scheduling,   setScheduling]   = useState(false);
+  const [saving,         setSaving]         = useState(false);
+  const [comment,        setComment]        = useState('');
+  const [actionNote,     setActionNote]     = useState('');
+  const [editFields,     setEditFields]     = useState({ platform: '', scheduledDate: '', campaign: '' });
 
   if (!post) return null;
 
-  const thumbnail = post.creatives?.[0]?.url;
+  const status = STATUS_LABELS[post.status] ?? STATUS_LABELS.rascunho;
 
-  const handleSendApproval = async () => {
+  const handleGenerateLink = async () => {
     setGeneratingLink(true);
     try {
       const { url } = await generateApprovalLink({ uid, postId: post.id, post, responsavel });
       setApprovalUrl(url);
     } catch {
-      showToast('Erro ao gerar link de aprovação.', 'error');
+      showToast('Erro ao gerar link.', 'error');
     } finally {
       setGeneratingLink(false);
     }
   };
 
-  const handleSchedule = async () => {
-    setScheduling(true);
-    await movePostToStatus(uid, post.id, 'aprovado', post.status);
-    showToast('Post agendado!', 'success');
-    setScheduling(false);
-    onClose();
+  const handleAction = async (action: 'aprovado' | 'rejeitado' | 'revisao') => {
+    setSaving(true);
+    try {
+      await movePostToStatus(uid, post.id, action as PostStatus, post.status);
+      showToast(
+        action === 'aprovado' ? '✅ Post aprovado!' : action === 'rejeitado' ? '❌ Post rejeitado.' : '🔁 Enviado para revisão.',
+        action === 'aprovado' ? 'success' : 'info'
+      );
+      onClose();
+    } catch {
+      showToast('Erro ao executar ação.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveComment = async () => {
+    if (!comment.trim()) return;
+    showToast('Comentário salvo!', 'success');
+    setComment('');
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={() => { setApprovalUrl(null); onClose(); }}
-      title="Detalhes do post"
-      size="lg"
-    >
-      <div className="flex gap-5">
-        {/* Preview thumbnail */}
-        <div className="w-40 shrink-0">
-          <div className="w-full aspect-square bg-gray-100 rounded-xl overflow-hidden">
-            {thumbnail ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={thumbnail} alt={post.title} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-4xl">🖼️</div>
-            )}
+    <Modal isOpen={isOpen} onClose={() => { setApprovalUrl(null); onClose(); }} title="" size="lg">
+      <div className="flex items-center justify-between mb-0 -mt-2 pb-4 border-b border-gray-100">
+        <div className="flex items-center gap-3">
+          <span className="text-xl">{PLATFORM_EMOJI[post.platforms?.[0] ?? ''] ?? '📝'}</span>
+          <div>
+            <h2 className="font-bold text-[16px] text-gray-900">{post.title}</h2>
+            <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', status.color)}>{status.label}</span>
           </div>
-          <div className="mt-2 text-center">
-            <StatusBadge status={post.status} />
-          </div>
-          {post.scheduledAt && (
-            <p className="text-xs text-gray-500 text-center mt-1">
-              {formatDateTime(post.scheduledAt)}
-            </p>
-          )}
-        </div>
-
-        {/* Tabs panel */}
-        <div className="flex-1 min-w-0">
-          {/* Tab bar */}
-          <div className="flex gap-1 border-b border-gray-100 mb-4">
-            {TABS.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={cn(
-                  'px-3 py-2 text-xs font-medium rounded-t-lg transition-colors whitespace-nowrap',
-                  activeTab === tab
-                    ? 'bg-white text-[#FF5C00] border-b-2 border-[#FF5C00]'
-                    : 'text-gray-500 hover:text-gray-700'
-                )}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          {/* Tab content */}
-          {activeTab === 'Ações pendentes' && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-800">{post.title}</h3>
-              <p className="text-xs text-gray-500 line-clamp-2">{post.caption}</p>
-
-              {/* Approval link area */}
-              {approvalUrl ? (
-                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-2">
-                  <p className="text-xs font-medium text-blue-800">Link de aprovação gerado:</p>
-                  <div className="flex items-center gap-2">
-                    <input
-                      readOnly
-                      value={approvalUrl}
-                      className="flex-1 text-xs bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-blue-700 truncate"
-                    />
-                    <button
-                      onClick={() => { copyToClipboard(approvalUrl); showToast('Link copiado!', 'success'); }}
-                      className="text-xs px-2 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shrink-0"
-                    >
-                      Copiar
-                    </button>
-                  </div>
-                  <div className="flex gap-2">
-                    <a
-                      href={buildWhatsAppLink(approvalUrl, post.title)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex-1 text-center text-xs py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                    >
-                      📱 WhatsApp
-                    </a>
-                    <a
-                      href={buildMailtoLink(approvalUrl, post.title)}
-                      className="flex-1 text-center text-xs py-1.5 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                    >
-                      📧 E-mail
-                    </a>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={onEdit}
-                    className="py-2.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors"
-                  >
-                    ✏️ Editar
-                  </button>
-                  <button
-                    onClick={handleSendApproval}
-                    disabled={generatingLink}
-                    className="py-2.5 text-xs font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-colors disabled:opacity-60"
-                  >
-                    {generatingLink ? 'Gerando link...' : '📧 Enviar para aprovação'}
-                  </button>
-                  <button
-                    onClick={handleSchedule}
-                    disabled={scheduling}
-                    className="py-2.5 text-xs font-medium bg-[#FF5C00] hover:bg-[#E54E00] text-white rounded-xl transition-colors disabled:opacity-60"
-                  >
-                    {scheduling ? 'Agendando...' : '📅 Agendar'}
-                  </button>
-                  <button className="py-2.5 text-xs font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-colors">
-                    ⋯ Outras ações
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'Histórico' && (
-            <div className="space-y-3">
-              {[
-                { icon: '✏️', label: 'Post criado', time: post.createdAt },
-                { icon: '🔄', label: `Status alterado para "${post.status}"`, time: post.updatedAt },
-              ].map((event, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-sm shrink-0">
-                    {event.icon}
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-700">{event.label}</p>
-                    <p className="text-xs text-gray-400">{event.time ? formatRelative(event.time) : '—'}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {activeTab === 'Conteúdo do post' && (
-            <div className="space-y-4">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Legenda</p>
-                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {post.caption || <span className="text-gray-400 italic">Sem legenda</span>}
-                </p>
-              </div>
-
-              {post.hashtags?.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Hashtags</p>
-                  <div className="flex flex-wrap gap-1">
-                    {post.hashtags.map((h) => (
-                      <span key={h} className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">
-                        #{h}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {post.platforms?.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Plataformas</p>
-                  <div className="flex gap-2">
-                    {post.platforms.map((p) => (
-                      <span key={p} className="text-xl">{PLATFORM_EMOJI[p] ?? '📱'}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {post.creatives?.length > 0 && (
-                <div>
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mídias</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {post.creatives.map((c, i) => (
-                      <div key={i} className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100">
-                        {c.type.startsWith('image') ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={c.url} alt={c.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-2xl">🎬</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
+
+      <div className="flex border-b border-gray-100 -mx-6 px-6 mb-4">
+        {TABS.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={cn(
+              'px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap',
+              activeTab === tab
+                ? 'border-[#FF5C00] text-[#FF5C00]'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            )}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'Preview' && (
+        <div>
+          <ImageViewer post={post} />
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="bg-gray-50 rounded-lg p-3">
+              <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1.5">Plataforma</label>
+              <select
+                defaultValue={post.platforms?.[0] ?? 'instagram'}
+                onChange={(e) => setEditFields((f) => ({ ...f, platform: e.target.value }))}
+                className="w-full text-sm font-semibold bg-transparent outline-none capitalize cursor-pointer"
+              >
+                {['instagram','facebook','youtube','tiktok','linkedin','threads'].map((p) => (
+                  <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1.5">Data</label>
+              <input
+                type="date"
+                defaultValue={post.scheduledAt ? new Date((post.scheduledAt as unknown as { toDate?: () => Date }).toDate?.() ?? post.scheduledAt as unknown as Date).toISOString().split('T')[0] : ''}
+                onChange={(e) => setEditFields((f) => ({ ...f, scheduledDate: e.target.value }))}
+                className="w-full text-sm font-semibold bg-transparent outline-none cursor-pointer"
+              />
+            </div>
+            <div className="bg-gray-50 rounded-lg p-3">
+              <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1.5">Campanha</label>
+              <input
+                type="text"
+                placeholder="—"
+                onChange={(e) => setEditFields((f) => ({ ...f, campaign: e.target.value }))}
+                className="w-full text-sm font-semibold bg-transparent outline-none"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end mb-4">
+            <button
+              onClick={() => showToast('Post atualizado!', 'success')}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-[#FF5C00] text-white text-sm font-medium rounded-lg hover:bg-[#E54E00] transition-colors"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+              </svg>
+              Salvar
+            </button>
+          </div>
+          {post.caption && (
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1.5">Legenda</div>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{post.caption}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'Comentários' && (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-400 text-center py-4">Nenhum comentário ainda.</p>
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Adicione um comentário interno..."
+            rows={3}
+            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30"
+          />
+          <button
+            onClick={handleSaveComment}
+            disabled={!comment.trim()}
+            className="flex items-center gap-2 px-4 py-2 bg-[#FF5C00] text-white text-sm font-medium rounded-lg hover:bg-[#E54E00] disabled:opacity-50 transition-colors"
+          >
+            💬 Salvar Comentário
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'Ações' && (
+        <div className="space-y-4">
+          {approvalUrl ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+              <p className="text-xs font-semibold text-blue-800">✅ Link de aprovação gerado:</p>
+              <div className="flex items-center gap-2">
+                <input
+                  readOnly value={approvalUrl}
+                  className="flex-1 text-xs bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-blue-700 truncate"
+                />
+                <button
+                  onClick={() => { copyToClipboard(approvalUrl); showToast('Link copiado!', 'success'); }}
+                  className="text-xs px-2 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shrink-0"
+                >
+                  Copiar
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <a href={buildWhatsAppLink(approvalUrl, post.title)} target="_blank" rel="noreferrer"
+                  className="flex-1 text-center text-xs py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                  📱 WhatsApp
+                </a>
+                <a href={buildMailtoLink(approvalUrl, post.title)}
+                  className="flex-1 text-center text-xs py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
+                  📧 E-mail
+                </a>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={handleGenerateLink}
+              disabled={generatingLink}
+              className="w-full py-2.5 text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-colors disabled:opacity-60"
+            >
+              {generatingLink ? 'Gerando link...' : '🔗 Gerar Link de Aprovação'}
+            </button>
+          )}
+
+          <textarea
+            value={actionNote}
+            onChange={(e) => setActionNote(e.target.value)}
+            placeholder="Adicione um comentário sobre a ação (opcional)..."
+            rows={3}
+            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30"
+          />
+
+          <div className="grid grid-cols-3 gap-3">
+            <button
+              onClick={() => handleAction('rejeitado')} disabled={saving}
+              className="flex items-center justify-center gap-2 py-3 bg-red-50 text-red-600 font-semibold rounded-xl hover:bg-red-100 text-sm transition-colors disabled:opacity-60 border border-red-200"
+            >
+              ✕ Rejeitar
+            </button>
+            <button
+              onClick={() => handleAction('revisao')} disabled={saving}
+              className="flex items-center justify-center gap-2 py-3 bg-amber-50 text-amber-700 font-semibold rounded-xl hover:bg-amber-100 text-sm transition-colors disabled:opacity-60 border border-amber-200"
+            >
+              ✎ Corrigir
+            </button>
+            <button
+              onClick={() => handleAction('aprovado')} disabled={saving}
+              className="flex items-center justify-center gap-2 py-3 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 text-sm transition-colors disabled:opacity-60"
+            >
+              ✓ Aprovar
+            </button>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }
