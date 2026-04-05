@@ -15,7 +15,9 @@ const ERROR_MAP: Record<string, string> = {
   'auth/requires-recent-login': 'Por segurança, faça login novamente para continuar.',
   'auth/expired-action-code':   'Este link expirou. Solicite um novo.',
   'auth/invalid-action-code':   'Link inválido. Solicite um novo.',
-
+  'auth/unauthorized-domain':   'Domínio não autorizado. Entre em contato com o suporte.',
+  'auth/cancelled-popup-request':    '',
+  'auth/redirect-cancelled-by-user': '',
   // Firestore
   'permission-denied':          'Sem permissão para realizar esta ação.',
   'unavailable':                'Serviço indisponível. Trabalhando offline.',
@@ -25,7 +27,6 @@ const ERROR_MAP: Record<string, string> = {
   'unauthenticated':            'Sessão expirada. Faça login novamente.',
   'internal':                   'Erro interno do servidor. Tente novamente.',
   'deadline-exceeded':          'A operação demorou muito. Verifique sua conexão.',
-
   // Storage
   'storage/unauthorized':       'Sem permissão para acessar este arquivo.',
   'storage/canceled':           'Upload cancelado.',
@@ -34,9 +35,6 @@ const ERROR_MAP: Record<string, string> = {
   'storage/object-not-found':   'Arquivo não encontrado.',
 };
 
-/**
- * Converts a Firebase error code to a human-readable pt-BR message.
- */
 export function humanizeFirebaseError(code: string): string {
   return ERROR_MAP[code] ?? 'Ocorreu um erro inesperado. Tente novamente.';
 }
