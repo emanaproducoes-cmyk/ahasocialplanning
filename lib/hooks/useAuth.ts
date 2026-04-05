@@ -48,7 +48,7 @@ export function useAuth(): AuthState & {
     );
   }, []);
 
-  // Escuta mudanças de auth
+  // Escuta mudanças de autenticação
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
@@ -58,7 +58,7 @@ export function useAuth(): AuthState & {
     return unsubscribe;
   }, [persistProfile]);
 
-  // Captura resultado do redirect do Google
+  // Captura resultado do redirect do Google (apenas se vier de um redirect)
   useEffect(() => {
     getRedirectResult(auth)
       .then(async (result) => {
@@ -66,7 +66,8 @@ export function useAuth(): AuthState & {
       })
       .catch((err: { code?: string }) => {
         const code = err.code ?? '';
-        setError(humanizeFirebaseError(code));
+        const message = humanizeFirebaseError(code);
+        if (message) setError(message);
       });
   }, [persistProfile]);
 
@@ -88,7 +89,8 @@ export function useAuth(): AuthState & {
       await signInWithRedirect(auth, googleProvider);
     } catch (err: unknown) {
       const code = (err as { code?: string }).code ?? '';
-      setError(humanizeFirebaseError(code));
+      const message = humanizeFirebaseError(code);
+      if (message) setError(message);
       throw err;
     }
   }, []);
