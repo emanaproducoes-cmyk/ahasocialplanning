@@ -16,7 +16,7 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const auth = getAuth(app);
 
-// Firestore com persistência offline (apenas no browser)
+// Firestore com persistência offline apenas no browser
 export const db = typeof window !== 'undefined'
   ? initializeFirestore(app, { localCache: persistentLocalCache() })
   : getFirestore(app);
