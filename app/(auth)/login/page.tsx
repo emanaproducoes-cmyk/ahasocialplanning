@@ -17,7 +17,6 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
-// ─── Feature pills ────────────────────────────────────────────────────────────
 const FEATURES = [
   '📅 Agendamento multi-plataforma',
   '✅ Aprovação com link direto',
@@ -26,13 +25,22 @@ const FEATURES = [
 ];
 
 export default function LoginPage() {
-  const router                          = useRouter();
-  const { user, loading, loginWithEmail, loginWithGoogle, resetPassword, error, clearError } = useAuth();
-  const [showPass,   setShowPass]       = useState(false);
-  const [googleLoad, setGoogleLoad]     = useState(false);
-  const [resetMode,  setResetMode]      = useState(false);
-  const [resetEmail, setResetEmail]     = useState('');
-  const [resetSent,  setResetSent]      = useState(false);
+  const router = useRouter();
+  const {
+    user,
+    loading,
+    loginWithEmail,
+    loginWithGoogle,
+    resetPassword,
+    error,
+    clearError,
+  } = useAuth();
+
+  const [showPass,   setShowPass]   = useState(false);
+  const [googleLoad, setGoogleLoad] = useState(false);
+  const [resetMode,  setResetMode]  = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSent,  setResetSent]  = useState(false);
 
   const {
     register,
@@ -41,7 +49,7 @@ export default function LoginPage() {
     getValues,
   } = useForm<LoginForm>({ resolver: zodResolver(loginSchema) });
 
-  // Redirect if already logged in
+  // Redireciona se já estiver logado
   useEffect(() => {
     if (!loading && user) router.replace('/dashboard');
   }, [loading, user, router]);
@@ -52,7 +60,7 @@ export default function LoginPage() {
       await loginWithEmail(data.email, data.password);
       router.replace('/dashboard');
     } catch {
-      // error already set by hook
+      // erro já setado pelo hook
     }
   };
 
@@ -61,9 +69,13 @@ export default function LoginPage() {
     setGoogleLoad(true);
     try {
       await loginWithGoogle();
+      // CORRIGIDO: com signInWithPopup o user fica disponível imediatamente.
+      // onAuthStateChanged no useAuth dispara e o useEffect acima
+      // redireciona para /dashboard automaticamente.
+      // Não precisamos de router.replace aqui — mas mantemos como fallback.
       router.replace('/dashboard');
     } catch {
-      // error already set by hook
+      // erro já setado pelo hook (exceto popup fechado pelo usuário)
     } finally {
       setGoogleLoad(false);
     }
@@ -77,7 +89,7 @@ export default function LoginPage() {
       setResetSent(true);
       showToast('E-mail de recuperação enviado!', 'success');
     } catch {
-      // error set by hook
+      // erro setado pelo hook
     }
   };
 
@@ -91,12 +103,12 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex">
-      {/* ── Left panel ───────────────────────────────────────────────────── */}
+      {/* ── Painel esquerdo ─────────────────────────────────────── */}
       <div
         className="hidden lg:flex lg:w-[60%] flex-col relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #FF5C00 0%, #FF8C00 50%, #FFB800 100%)' }}
       >
-        {/* Decoration circles */}
+        {/* Círculos decorativos */}
         <div className="absolute -top-24 -left-24 w-80 h-80 bg-white/10 rounded-full" />
         <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-white/10 rounded-full" />
         <div className="absolute top-1/3 -right-16 w-48 h-48 bg-white/5 rounded-full" />
@@ -113,7 +125,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Main content */}
+          {/* Conteúdo principal */}
           <div className="flex-1 flex flex-col justify-center mt-12">
             <div className="text-6xl mb-8 animate-[fadeIn_0.5s_ease-out]">🚀</div>
             <h1 className="font-display font-bold text-white text-4xl leading-tight mb-4">
@@ -124,7 +136,6 @@ export default function LoginPage() {
               A plataforma completa para agências que gerenciam redes sociais
             </p>
 
-            {/* Feature pills */}
             <div className="flex flex-wrap gap-3">
               {FEATURES.map((f) => (
                 <div
@@ -143,11 +154,11 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* ── Right panel ──────────────────────────────────────────────────── */}
+      {/* ── Painel direito ──────────────────────────────────────── */}
       <div className="flex-1 flex flex-col justify-center px-8 md:px-16 py-12 bg-white">
         <div className="w-full max-w-sm mx-auto">
 
-          {/* Mobile logo */}
+          {/* Logo mobile */}
           <div className="lg:hidden mb-8 flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl bg-gradient-aha flex items-center justify-center">
               <span className="font-display font-bold text-white">A</span>
@@ -158,7 +169,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Desktop logo text */}
+          {/* Logo desktop */}
           <div className="hidden lg:block mb-8">
             <div className="font-display font-bold text-[#FF5C00] text-2xl">AHA SOCIAL PLANNING</div>
           </div>
@@ -168,7 +179,7 @@ export default function LoginPage() {
             Entre na sua conta para gerenciar seus conteúdos.
           </p>
 
-          {/* Global error */}
+          {/* Erro global */}
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-start gap-2">
               <span>⚠️</span>
@@ -177,7 +188,7 @@ export default function LoginPage() {
           )}
 
           {resetMode ? (
-            /* ── Reset password form ── */
+            /* ── Recuperar senha ── */
             <div className="space-y-4">
               <p className="text-sm text-gray-600">
                 {resetSent
@@ -209,9 +220,9 @@ export default function LoginPage() {
               </button>
             </div>
           ) : (
-            /* ── Login form ── */
+            /* ── Formulário de login ── */
             <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
-              {/* Email */}
+              {/* E-mail */}
               <div>
                 <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
                   E-MAIL
@@ -234,7 +245,7 @@ export default function LoginPage() {
                 )}
               </div>
 
-              {/* Password */}
+              {/* Senha */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
@@ -273,7 +284,7 @@ export default function LoginPage() {
                 )}
               </div>
 
-              {/* Submit */}
+              {/* Botão entrar */}
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -289,14 +300,14 @@ export default function LoginPage() {
                 )}
               </button>
 
-              {/* Divider */}
+              {/* Separador */}
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-gray-200" />
                 <span className="text-xs text-gray-400">ou</span>
                 <div className="flex-1 h-px bg-gray-200" />
               </div>
 
-              {/* Google */}
+              {/* Botão Google */}
               <button
                 type="button"
                 onClick={handleGoogle}
