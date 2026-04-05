@@ -4,11 +4,10 @@ import { formatNumber, formatVariation } from '@/lib/utils/formatters';
 import { cn } from '@/lib/utils/cn';
 import type { Platform } from '@/lib/types';
 
-// Teal/cyan gradient from uploaded reference image for TikTok
 const PLATFORM_CONFIG: Record<Platform, {
   label:    string;
   gradient: string;
-  logo:     string; // path in /public/icons/
+  logo:     string;
 }> = {
   instagram:       { label: 'Instagram',          gradient: 'linear-gradient(135deg, #833AB4 0%, #FD1D1D 50%, #F77737 100%)', logo: '/icons/instagram.png'       },
   facebook:        { label: 'Facebook',           gradient: 'linear-gradient(135deg, #1877F2 0%, #0C5FD6 100%)',             logo: '/icons/facebook.png'        },
@@ -43,7 +42,6 @@ export function PlatformCard({ platform, followers, variation, metric }: Platfor
       style={{ background: cfg.gradient }}
     >
       <div className="flex items-center justify-between mb-3">
-        {/* Logo padronizado 32x32 */}
         <div className="w-8 h-8 flex items-center justify-center">
           {cfg.logo ? (
             // eslint-disable-next-line @next/next/no-img-element
