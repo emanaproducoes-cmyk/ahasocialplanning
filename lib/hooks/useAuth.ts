@@ -3,8 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signOut,
   sendPasswordResetEmail,
   User,
@@ -36,16 +35,21 @@ export function useAuth(): AuthState & {
   const isAdmin = user?.email === ADMIN_EMAIL;
 
   const persistProfile = useCallback(async (u: User) => {
-    await setDoc(
-      doc(db, 'users', u.uid),
-      {
-        name:      u.displayName,
-        email:     u.email,
-        photoURL:  u.photoURL,
-        lastLogin: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    try {
+      await setDoc(
+        doc(db, 'users', u.uid),
+        {
+          name:      u.displayName,
+          email:     u.email,
+          photoURL:  u.photoURL,
+          lastLogin: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      // Não bloqueia o login se persistProfile falhar
+      console.warn('[useAuth] persistProfile falhou:', e);
+    }
   }, []);
 
   // Escuta mudanças de autenticação
@@ -58,18 +62,10 @@ export function useAuth(): AuthState & {
     return unsubscribe;
   }, [persistProfile]);
 
-  // Captura resultado do redirect do Google (apenas se vier de um redirect)
-  useEffect(() => {
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (result?.user) await persistProfile(result.user);
-      })
-      .catch((err: { code?: string }) => {
-        const code = err.code ?? '';
-        const message = humanizeFirebaseError(code);
-        if (message) setError(message);
-      });
-  }, [persistProfile]);
+  // REMOVIDO: useEffect com getRedirectResult
+  // Motivo: signInWithRedirect foi substituído por signInWithPopup.
+  // getRedirectResult causava erros silenciosos no Vercel pois a
+  // página era recarregada antes do resultado ser capturado.
 
   const loginWithEmail = useCallback(async (email: string, password: string) => {
     setError(null);
@@ -86,14 +82,30 @@ export function useAuth(): AuthState & {
   const loginWithGoogle = useCallback(async () => {
     setError(null);
     try {
-      await signInWithRedirect(auth, googleProvider);
+      // CORRIGIDO: signInWithRedirect → signInWithPopup
+      // signInWithRedirect recarregava a página inteira e o Next.js
+      // perdia o estado — router.replace('/dashboard') nunca executava.
+      // signInWithPopup abre uma janela separada e retorna o resultado
+      // diretamente, sem recarregar a página principal.
+      const result = await signInWithPopup(auth, googleProvider);
+      await persistProfile(result.user);
+      // onAuthStateChanged é disparado automaticamente após o popup fechar,
+      // mas chamamos persistProfile aqui para garantir latência mínima.
     } catch (err: unknown) {
       const code = (err as { code?: string }).code ?? '';
+      // auth/cancelled-popup-request e auth/popup-closed-by-user
+      // são ações do usuário — não mostrar como erro
+      if (
+        code === 'auth/cancelled-popup-request' ||
+        code === 'auth/popup-closed-by-user'
+      ) {
+        return;
+      }
       const message = humanizeFirebaseError(code);
       if (message) setError(message);
       throw err;
     }
-  }, []);
+  }, [persistProfile]);
 
   const logout = useCallback(async () => {
     await signOut(auth);
