@@ -1,3 +1,14 @@
+/**
+ * lib/firebase/config.ts
+ *
+ * FIX: `initializeFirestore` can only be called once per Firebase app.
+ * During Next.js HMR (hot module replacement in dev mode) this module can be
+ * re-evaluated, causing:
+ *   "Firestore has already been started and its settings can no longer be changed"
+ *
+ * Guard: wrap in try/catch and fall back to getFirestore() on the second call.
+ */
+
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
@@ -24,32 +35,36 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Auth com persistência LOCAL (sobrevive a fechamento de aba/browser)
+// Auth with LOCAL persistence
 export const auth = getAuth(app);
 
-// CORRIGIDO: garante persistência LOCAL no browser (padrão já é LOCAL,
-// mas tornamos explícito para evitar que configurações do ambiente
-// sobrescrevam para SESSION — o que causaria perda de sessão no Vercel).
 if (typeof window !== 'undefined') {
   setPersistence(auth, browserLocalPersistence).catch(() => {
-    // Falha silenciosa — persistence já configurada
+    // already configured — safe to ignore
   });
 }
 
-// Firestore com persistência offline multi-aba
-export const db =
-  typeof window !== 'undefined'
-    ? initializeFirestore(app, {
-        localCache: persistentLocalCache({
-          tabManager: persistentMultipleTabManager(),
-        }),
-      })
-    : getFirestore(app);
+// FIX: guard against "Firestore has already been started" during HMR
+function initDb() {
+  if (typeof window === 'undefined') {
+    // Server-side: plain Firestore, no offline cache
+    return getFirestore(app);
+  }
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    });
+  } catch {
+    // Already initialized (e.g. HMR re-evaluation) — return existing instance
+    return getFirestore(app);
+  }
+}
 
+export const db      = initDb();
 export const storage = getStorage(app);
 
-// GoogleAuthProvider: sempre pede para o usuário selecionar a conta
-// e adiciona o scope de e-mail/perfil
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 googleProvider.addScope('email');
