@@ -74,11 +74,8 @@ function Step3Conclusion({
   saving:          string | null;
   approvalUrl:     string | null;
 }) {
-  // BUG FIX #2: use the first upload that has a completed URL (not the object URL preview)
-  // so the thumbnail is the actual Cloudinary URL stored in Firestore.
   const thumbnail = uploads.find((u) => u.url)?.url ?? uploads[0]?.preview ?? null;
 
-  // BUG FIX #2: block action buttons while any upload is still in flight
   const uploadsInFlight = uploads.some((u) => !u.url && !u.error);
   const uploadsDone     = uploads.length > 0 && !uploadsInFlight;
   const hasUploads      = uploads.length > 0;
@@ -92,7 +89,6 @@ function Step3Conclusion({
         <p className="text-sm text-gray-500">Aqui estão os principais dados dos posts que você criou</p>
       </div>
 
-      {/* Upload progress bar */}
       {uploadsInFlight && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
           <span className="w-5 h-5 border-2 border-amber-300 border-t-amber-600 rounded-full animate-spin shrink-0" />
@@ -108,11 +104,11 @@ function Step3Conclusion({
         </div>
       )}
 
-      {/* Post summary */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 flex items-center gap-4 shadow-card">
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 flex items-center gap-4 shadow-sm">
         <div className="w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0">
           {thumbnail
-            ? <img src={thumbnail} alt="" className="w-full h-full object-cover" /> // eslint-disable-line
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={thumbnail} alt="" className="w-full h-full object-cover" />
             : <div className="w-full h-full flex items-center justify-center text-2xl">🖼️</div>
           }
         </div>
@@ -129,7 +125,6 @@ function Step3Conclusion({
         </div>
       </div>
 
-      {/* Approval link (if generated) */}
       {approvalUrl && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
           <p className="text-sm font-semibold text-blue-900">🔗 Link de aprovação gerado!</p>
@@ -165,7 +160,6 @@ function Step3Conclusion({
         </div>
       )}
 
-      {/* Action buttons */}
       {!approvalUrl && (
         <div className="grid grid-cols-2 gap-3">
           {[
@@ -177,7 +171,6 @@ function Step3Conclusion({
             <button
               key={action}
               onClick={() => onAction(action)}
-              // BUG FIX #2: block save while uploads are in flight
               disabled={!!saving || uploadsInFlight}
               className={cn(
                 'flex flex-col items-center gap-2 p-5 text-white rounded-2xl transition-colors disabled:opacity-60',
@@ -204,7 +197,6 @@ export default function CriarPostPage() {
   const { user }         = useAuth();
   const { data: contas } = useUserCollection<ConnectedAccount>(user?.uid ?? null, 'connectedAccounts');
 
-  // BUG FIX #10: stable postId via useMemo — never regenerated on re-render
   const postId = useMemo(() => `post_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, []);
 
   const [step,            setStep]            = useState<1 | 2 | 3>(1);
@@ -222,7 +214,6 @@ export default function CriarPostPage() {
     uid:    user?.uid ?? '',
   };
 
-  // ── Format toggle ────────────────────────────────────────────────────────
   const toggleFormat = (platform: Platform, format: PostFormat) => {
     setSelectedFormats((prev) => {
       const exists = prev.some((s) => s.platform === platform && s.format === format);
@@ -231,9 +222,6 @@ export default function CriarPostPage() {
     });
   };
 
-  // ── File uploads ─────────────────────────────────────────────────────────
-  // BUG FIX #10: use the same stable postId for ALL uploads so Cloudinary paths
-  // match the Firestore document that will be created on save.
   const handleAddFiles = useCallback((files: File[]) => {
     files.forEach((file) => {
       const preview = URL.createObjectURL(file);
@@ -261,38 +249,44 @@ export default function CriarPostPage() {
     });
   }, [user?.uid, postId]);
 
-  // ── Save post to Firestore ────────────────────────────────────────────────
   const buildPostData = (status: string) => ({
     title,
     caption,
     hashtags:   hashtags.split(' ').filter(Boolean).map((h) => h.replace('#', '')),
     platforms:  [...new Set(selectedFormats.map((s) => s.platform))],
     format:     selectedFormats[0]?.format ?? 'feed',
-    // BUG FIX #2: only include uploads that finished successfully
+    /**
+     * CRITICAL FIX: `serverTimestamp()` (FieldValue sentinel) is NOT allowed inside
+     * array elements in Firestore. It throws:
+     *   "serverTimestamp() is not currently supported inside arrays"
+     * This was causing EVERY save to fail silently.
+     * Fix: use `new Date().toISOString()` — a plain string — for uploadedAt inside arrays.
+     */
     creatives:  uploads
       .filter((u) => u.url)
-      .map((u) => ({ url: u.url!, name: u.file.name, type: u.file.type, size: u.file.size, uploadedAt: serverTimestamp() })),
+      .map((u) => ({
+        url:        u.url!,
+        name:       u.file.name,
+        type:       u.file.type,
+        size:       u.file.size,
+        uploadedAt: new Date().toISOString(), // ← was serverTimestamp() — FIXED
+      })),
     status,
     responsavel,
     campaignId:    null,
     approvalToken: null,
     tags:          [],
     scheduledAt:   null,
-    createdAt:     serverTimestamp(),
-    updatedAt:     serverTimestamp(),
+    createdAt:     serverTimestamp(), // top-level field: OK
+    updatedAt:     serverTimestamp(), // top-level field: OK
   });
 
   const handleAction = async (action: 'agendar' | 'aprovacao' | 'rascunho' | 'publicar') => {
     if (!user) return;
     setSaving(action);
 
-    // BUG FIX #1: correct status mapping
-    // 'agendar' → 'conteudo' so the post enters the Kanban board correctly
-    // 'publicar' → 'publicado'
-    // 'rascunho' → 'rascunho'
-    // 'aprovacao' → 'em_analise' (set after approval doc is created)
     const statusMap: Record<typeof action, string> = {
-      agendar:   'conteudo',    // ← FIXED: was 'aprovado', enters Kanban column "Conteúdo"
+      agendar:   'conteudo',   // enters Kanban column "Conteúdo"
       rascunho:  'rascunho',
       publicar:  'publicado',
       aprovacao: 'em_analise',
@@ -301,12 +295,9 @@ export default function CriarPostPage() {
     const postData = buildPostData(statusMap[action]);
 
     try {
-      // Save the main post document using the stable postId
       await saveDoc(`users/${user.uid}/posts`, postId, postData);
 
       if (action === 'aprovacao') {
-        // BUG FIX #3: generateApprovalLink creates /approvals/{token} and updates
-        // the post's approvalToken field. The post is already saved above as 'em_analise'.
         const { url } = await generateApprovalLink({
           uid: user.uid,
           postId,
