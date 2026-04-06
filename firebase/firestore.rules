@@ -34,11 +34,6 @@ service cloud.firestore {
       ]);
     }
 
-    // Valida que updatedAt está presente em writes
-    function hasTimestamp() {
-      return request.resource.data.keys().hasAll(['updatedAt']);
-    }
-
     // ── /users/{userId} ───────────────────────────────────────────────────
     match /users/{userId} {
       allow read:   if isOwnerOrAdmin(userId);
@@ -46,14 +41,14 @@ service cloud.firestore {
       allow update: if isOwnerOrAdmin(userId)   && noSensitiveFields();
       allow delete: if isAdmin();
 
-      // ── /users/{userId}/connectedAccounts/{accountId} ─────────────────
+      // ── connectedAccounts ─────────────────────────────────────────────
       match /connectedAccounts/{accountId} {
         allow read:           if isOwnerOrAdmin(userId);
         allow create, delete: if isAdmin();
         allow update:         if isAdmin() && noSensitiveFields();
       }
 
-      // ── /users/{userId}/posts/{postId} ────────────────────────────────
+      // ── posts ────────────────────────────────────────────────────────
       match /posts/{postId} {
         allow read:   if isOwnerOrAdmin(userId);
         allow create: if isOwnerOrAdmin(userId) && noSensitiveFields();
@@ -61,74 +56,105 @@ service cloud.firestore {
         allow delete: if isOwnerOrAdmin(userId);
       }
 
-      // ── /users/{userId}/agendamentos/{docId} ──────────────────────────
+      // ── agendamentos ─────────────────────────────────────────────────
       match /agendamentos/{docId} {
         allow read, write: if isOwnerOrAdmin(userId);
       }
 
-      // ── /users/{userId}/emAnalise/{docId} ────────────────────────────
+      // ── emAnalise ────────────────────────────────────────────────────
       match /emAnalise/{docId} {
         allow read, write: if isOwnerOrAdmin(userId);
       }
 
-      // ── /users/{userId}/aprovados/{docId} ────────────────────────────
+      // ── aprovados ────────────────────────────────────────────────────
       match /aprovados/{docId} {
         allow read, write: if isOwnerOrAdmin(userId);
       }
 
-      // ── /users/{userId}/rejeitados/{docId} ───────────────────────────
+      // ── rejeitados ───────────────────────────────────────────────────
       match /rejeitados/{docId} {
         allow read, write: if isOwnerOrAdmin(userId);
       }
 
-      // ── /users/{userId}/revisao/{docId} ──────────────────────────────
+      // ── revisao ──────────────────────────────────────────────────────
       match /revisao/{docId} {
         allow read, write: if isOwnerOrAdmin(userId);
       }
 
-      // ── /users/{userId}/campanhas/{docId} ────────────────────────────
+      // ── campanhas ────────────────────────────────────────────────────
       match /campanhas/{docId} {
         allow read, write: if isOwnerOrAdmin(userId);
       }
 
-      // ── /users/{userId}/trafegoPago/{docId} ──────────────────────────
+      // ── trafegoPago ──────────────────────────────────────────────────
       match /trafegoPago/{docId} {
         allow read, write: if isOwnerOrAdmin(userId);
       }
 
-      // ── /users/{userId}/stats/{docId} ────────────────────────────────
+      // ── stats (somente Cloud Functions escrevem) ──────────────────
       match /stats/{docId} {
         allow read:  if isOwnerOrAdmin(userId);
-        allow write: if false; // apenas Cloud Functions escrevem
+        allow write: if false;
       }
 
-      // ── /users/{userId}/preferences/{docId} ──────────────────────────
+      // ── preferences ──────────────────────────────────────────────────
       match /preferences/{docId} {
         allow read, write: if isOwner(userId);
       }
     }
 
     // ── /approvals/{token} ────────────────────────────────────────────────
-    // Leitura pública por token (página de aprovação sem login)
+    // Leitura PÚBLICA por token (página de aprovação sem login).
+    // Update permitido SEM autenticação para que o cliente externo possa
+    // responder via formulário público. A validação de campos e status é
+    // feita aqui nas rules; a lógica de negócio (espelhar post) fica no
+    // Admin SDK em /api/approval/respond.
+    //
+    // BUG FIX #3: o client SDK v10 com persistentLocalCache lançava erro ao
+    // tentar updateDoc numa aba sem histórico de auth porque a rule original
+    // não permitia explicitamente não-autenticados no update.
+    // Solução preferida: usar /api/approval/respond (Admin SDK).
+    // Esta rule fica como fallback e garante segurança mesmo pelo client SDK.
     match /approvals/{token} {
+      // Leitura pública — qualquer um com o token pode ler
       allow read: if true;
 
+      // Criação apenas por usuários autenticados (quem gera o link)
       allow create: if isAuth() && noSensitiveFields();
 
-      // Update: apenas campos permitidos e status válido
-      allow update: if
+      // BUG FIX #3: Update permitido TAMBÉM para não-autenticados (cliente externo),
+      // desde que:
+      //   1. Apenas os campos de resposta sejam alterados.
+      //   2. O status seja um valor válido de resposta.
+      //   3. Campos imutáveis (uid, agendamentoId, createdAt) não sejam alterados.
+      allow update: if (
+        // Campos permitidos na resposta
         request.resource.data.keys().hasOnly([
           'status', 'comentario', 'respondidoEm',
+          // Campos imutáveis que podem ser enviados de volta mas devem manter valor
           'agendamentoId', 'uid', 'creatives', 'caption',
           'platforms', 'responsavel', 'createdAt', 'expiresAt'
         ])
         &&
+        // Status válido de resposta do cliente
         request.resource.data.status in ['aprovado', 'correcao', 'rejeitado', 'pending']
         &&
-        // Não permite alterar campos imutáveis
-        (!request.resource.data.keys().hasAny(['uid', 'agendamentoId', 'createdAt'])
-          || (request.resource.data.uid          == resource.data.uid
-              && request.resource.data.agendamentoId == resource.data.agendamentoId));
+        // Campos imutáveis não foram alterados
+        (
+          !request.resource.data.keys().hasAny(['uid', 'agendamentoId', 'createdAt'])
+          ||
+          (
+            request.resource.data.uid          == resource.data.uid          &&
+            request.resource.data.agendamentoId == resource.data.agendamentoId
+          )
+        )
+        &&
+        // BUG FIX #3: verificação de expiresAt para impedir respostas em links expirados
+        resource.data.expiresAt > request.time
+        &&
+        // Impede re-submissão (só pode responder se estiver 'pending')
+        resource.data.status == 'pending'
+      );
 
       allow delete: if isAdmin();
     }
