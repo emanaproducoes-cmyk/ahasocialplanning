@@ -1,25 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb }        from '@/lib/firebase/admin';
+import { getAdminDb, getAdminAuth }  from '@/lib/firebase/admin';
 import { FieldValue, Timestamp }     from 'firebase-admin/firestore';
 
 export async function POST(req: NextRequest) {
   try {
-    // Verify auth token
     const authHeader = req.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
 
     const idToken = authHeader.slice(7);
-    const decoded = await adminAuth.verifyIdToken(idToken);
+    const decoded = await getAdminAuth().verifyIdToken(idToken);
     const uid     = decoded.uid;
 
     const body = await req.json() as {
-      postId:     string;
-      creatives:  unknown[];
-      caption:    string;
-      platforms:  string[];
-      responsavel:{ nome: string; avatar: string; uid: string };
+      postId:      string;
+      creatives:   unknown[];
+      caption:     string;
+      platforms:   string[];
+      responsavel: { nome: string; avatar: string; uid: string };
     };
 
     const { postId, creatives, caption, platforms, responsavel } = body;
@@ -28,12 +27,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'postId é obrigatório.' }, { status: 400 });
     }
 
+    const adminDb   = getAdminDb();
     const token     = crypto.randomUUID();
     const expiresAt = Timestamp.fromDate(
       new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     );
 
-    // Create approval document
     await adminDb.doc(`approvals/${token}`).set({
       agendamentoId: postId,
       uid,
@@ -46,7 +45,6 @@ export async function POST(req: NextRequest) {
       expiresAt,
     });
 
-    // Update post status
     await adminDb.doc(`users/${uid}/posts/${postId}`).update({
       approvalToken: token,
       status:        'em_analise',
