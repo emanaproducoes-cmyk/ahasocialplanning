@@ -1,5 +1,14 @@
 'use client';
 
+/**
+ * PostCard.tsx — Card do Kanban com drag & drop nativo
+ * Melhorias:
+ *  - Props `isDragging`, `onDragStart`, `onDragEnd` para drag nativo
+ *  - Miniatura visível com aspect-ratio 16/9
+ *  - Indicador visual de "sendo arrastado" (opacity reduzida)
+ *  - Sem SortableJS
+ */
+
 import { useState }           from 'react';
 import { cn }                 from '@/lib/utils/cn';
 import { StatusBadge }        from '@/components/ui/Badge';
@@ -19,11 +28,18 @@ interface PostCardProps {
   uid:          string;
   responsavel:  Responsavel;
   columnColor:  string;
+  isDragging:   boolean;
+  onDragStart:  (e: React.DragEvent, post: Post) => void;
+  onDragEnd:    (e: React.DragEvent) => void;
   onOpenDetail: (post: Post) => void;
   onDelete:     (postId: string) => void;
 }
 
-export function PostCard({ post, uid, responsavel, columnColor, onOpenDetail, onDelete }: PostCardProps) {
+export function PostCard({
+  post, uid, responsavel, columnColor,
+  isDragging, onDragStart, onDragEnd,
+  onOpenDetail, onDelete,
+}: PostCardProps) {
   const [sendingApproval, setSendingApproval] = useState(false);
 
   const thumbnail = post.creatives?.[0]?.url;
@@ -45,15 +61,19 @@ export function PostCard({ post, uid, responsavel, columnColor, onOpenDetail, on
 
   return (
     <div
-      className={cn(
-        'bg-white rounded-xl shadow-sm overflow-hidden cursor-grab active:cursor-grabbing group',
-        'hover:shadow-md transition-all duration-150 border-t-2'
-      )}
-      style={{ borderTopColor: columnColor }}
+      draggable
+      onDragStart={(e) => onDragStart(e, post)}
+      onDragEnd={onDragEnd}
       onClick={() => onOpenDetail(post)}
       data-id={post.id}
+      className={cn(
+        'bg-white rounded-xl shadow-sm overflow-hidden cursor-grab active:cursor-grabbing group',
+        'hover:shadow-md transition-all duration-150 border-t-2 select-none',
+        isDragging && 'opacity-40 scale-95 shadow-lg ring-2 ring-[#FF5C00]/40',
+      )}
+      style={{ borderTopColor: columnColor }}
     >
-      {/* Thumbnail */}
+      {/* Miniatura 16:9 */}
       <div className="relative w-full overflow-hidden bg-gray-100" style={{ aspectRatio: '16/9' }}>
         {thumbnail ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -61,15 +81,25 @@ export function PostCard({ post, uid, responsavel, columnColor, onOpenDetail, on
             src={thumbnail}
             alt={post.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            draggable={false}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <span className="text-3xl opacity-30">🖼️</span>
+          <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 gap-1">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+            <span className="text-[10px]">Sem criativo</span>
           </div>
         )}
+
+        {/* Badge de status */}
         <div className="absolute top-2 left-2">
           <StatusBadge status={post.status} />
         </div>
+
+        {/* Ações — visíveis no hover */}
         <div
           className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={(e) => e.stopPropagation()}
@@ -80,8 +110,10 @@ export function PostCard({ post, uid, responsavel, columnColor, onOpenDetail, on
             title="Ver detalhes"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <line x1="11" y1="8" x2="11" y2="14"/>
+              <line x1="8" y1="11" x2="14" y2="11"/>
             </svg>
           </button>
           <button
@@ -105,21 +137,28 @@ export function PostCard({ post, uid, responsavel, columnColor, onOpenDetail, on
             title="Excluir"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
-              <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14H6L5 6"/>
+              <path d="M10 11v6"/><path d="M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
             </svg>
           </button>
         </div>
       </div>
 
-      {/* Content */}
+      {/* Conteúdo */}
       <div className="p-2.5">
         <h4 className="text-xs font-semibold text-gray-900 truncate mb-1.5">{post.title}</h4>
         <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
           {platform && <span>{PLATFORM_EMOJI[platform] ?? '📱'} {platform}</span>}
           {post.scheduledAt && <span>· 📅 {formatShortDate(post.scheduledAt)}</span>}
         </div>
-        <div className="flex items-center gap-1 mt-2 pt-2 border-t border-gray-50" onClick={(e) => e.stopPropagation()}>
+
+        {/* Barra de ações inferiores */}
+        <div
+          className="flex items-center gap-1 mt-2 pt-2 border-t border-gray-50"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             onClick={() => onOpenDetail(post)}
             className="w-6 h-6 rounded bg-amber-50 text-amber-500 flex items-center justify-center hover:bg-amber-100 transition-colors"
@@ -147,9 +186,20 @@ export function PostCard({ post, uid, responsavel, columnColor, onOpenDetail, on
             title="Excluir"
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14H6L5 6"/>
+              <path d="M10 11v6"/><path d="M14 11v6"/>
             </svg>
           </button>
+
+          {/* Ícone de grip — indicador de draggable */}
+          <div className="ml-auto text-gray-200 cursor-grab" title="Arraste para mover">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+              <circle cx="9" cy="7" r="1.5"/><circle cx="15" cy="7" r="1.5"/>
+              <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>
+              <circle cx="9" cy="17" r="1.5"/><circle cx="15" cy="17" r="1.5"/>
+            </svg>
+          </div>
         </div>
       </div>
     </div>
