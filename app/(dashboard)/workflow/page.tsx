@@ -1,19 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Script                  from 'next/script';
-import { useAuth }             from '@/lib/hooks/useAuth';
-import { useUserCollection }   from '@/lib/hooks/useCollection';
-import { KanbanBoard }         from '@/components/workflow/KanbanBoard';
+/**
+ * app/(dashboard)/workflow/page.tsx
+ * 
+ * Melhorias:
+ *  - Remove Script do SortableJS (não mais necessário)
+ *  - Drag & drop nativo via HTML5 API implementado em KanbanBoard
+ */
+
+import { useState }              from 'react';
+import { useAuth }               from '@/lib/hooks/useAuth';
+import { useUserCollection }     from '@/lib/hooks/useCollection';
+import { KanbanBoard }           from '@/components/workflow/KanbanBoard';
 import { PageHeader, PrimaryButton } from '@/components/layout/PageHeader';
-import { Modal }               from '@/components/ui/Modal';
-import { showToast }           from '@/components/ui/Toast';
-import { saveDoc }             from '@/lib/firebase/firestore';
-import { serverTimestamp }     from 'firebase/firestore';
-import { orderBy }             from 'firebase/firestore';
+import { Modal }                 from '@/components/ui/Modal';
+import { showToast }             from '@/components/ui/Toast';
+import { saveDoc }               from '@/lib/firebase/firestore';
+import { serverTimestamp, orderBy } from 'firebase/firestore';
 import type { Post, PostStatus, Responsavel } from '@/lib/types';
 
-// ─── Quick-add post form ──────────────────────────────────────────────────────
+// ─── Quick-add form ───────────────────────────────────────────────────────────
 function QuickAddForm({
   defaultStatus,
   onSave,
@@ -21,14 +27,14 @@ function QuickAddForm({
 }: {
   defaultStatus: PostStatus;
   onSave:  (data: Partial<Post>) => Promise<void>;
-  onCancel:() => void;
+  onCancel: () => void;
 }) {
-  const [title,  setTitle]  = useState('');
-  const [date,   setDate]   = useState('');
-  const [saving, setSaving] = useState(false);
+  const [title,    setTitle]    = useState('');
+  const [date,     setDate]     = useState('');
+  const [saving,   setSaving]   = useState(false);
+  const [platform, setPlatform] = useState('instagram');
 
   const PLATFORMS = ['instagram','facebook','youtube','tiktok','linkedin','threads'];
-  const [platform, setPlatform] = useState('instagram');
 
   const handleSave = async () => {
     if (!title.trim()) { showToast('Informe o título do post.', 'warning'); return; }
@@ -109,14 +115,14 @@ function QuickAddForm({
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function WorkflowPage() {
-  const { user }                    = useAuth();
-  const { data: posts, loading }    = useUserCollection<Post>(
+  const { user }                 = useAuth();
+  const { data: posts, loading } = useUserCollection<Post>(
     user?.uid ?? null,
     'posts',
     [orderBy('createdAt', 'desc')]
   );
 
-  const [addStatus, setAddStatus]   = useState<PostStatus | null>(null);
+  const [addStatus, setAddStatus] = useState<PostStatus | null>(null);
 
   const responsavel: Responsavel = {
     nome:   user?.displayName ?? user?.email ?? 'Usuário',
@@ -138,45 +144,33 @@ export default function WorkflowPage() {
   };
 
   return (
-    <>
-      {/* SortableJS from CDN */}
-      <Script
-        src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"
-        strategy="beforeInteractive"
+    <div className="space-y-5 animate-fade-in">
+      <PageHeader
+        title="Workflow"
+        subtitle="Arraste posts entre colunas para avançar no fluxo"
+        actions={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              🔄 Atualizar
+            </button>
+            <PrimaryButton icon="+" onClick={() => setAddStatus('rascunho')}>
+              Adicionar post
+            </PrimaryButton>
+          </div>
+        }
       />
 
-      <div className="space-y-5 animate-fade-in">
-        <PageHeader
-          title="Workflow"
-          subtitle="Kanban de gestão de conteúdo"
-          actions={
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => window.location.reload()}
-                className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                🔄 Atualizar
-              </button>
-              <PrimaryButton
-                icon="+"
-                onClick={() => setAddStatus('rascunho')}
-              >
-                Adicionar post
-              </PrimaryButton>
-            </div>
-          }
-        />
+      <KanbanBoard
+        posts={posts}
+        loading={loading}
+        uid={user?.uid ?? ''}
+        responsavel={responsavel}
+        onAddPost={(status) => setAddStatus(status)}
+      />
 
-        <KanbanBoard
-          posts={posts}
-          loading={loading}
-          uid={user?.uid ?? ''}
-          responsavel={responsavel}
-          onAddPost={(status) => setAddStatus(status)}
-        />
-      </div>
-
-      {/* Quick-add modal */}
       <Modal
         isOpen={!!addStatus}
         onClose={() => setAddStatus(null)}
@@ -191,6 +185,6 @@ export default function WorkflowPage() {
           />
         )}
       </Modal>
-    </>
+    </div>
   );
 }
