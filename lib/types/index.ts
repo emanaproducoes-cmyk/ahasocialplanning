@@ -69,6 +69,24 @@ export interface ConnectedAccount {
   status:      AccountStatus;
   connectedAt: Timestamp | null;
   updatedAt:   Timestamp | null;
+
+  // ── Campos Meta (Instagram / Facebook OAuth) ──────────────────────────────
+  /** ID da conta Instagram Business ou Facebook Page na Graph API */
+  metaAccountId?: string;
+  /** ID da Facebook Page (necessário para Insights de IG) */
+  metaPageId?:    string;
+  /** ID da conta de anúncios (act_XXXXXXXXX) */
+  adAccountId?:   string;
+  /** Última sincronização com a Meta API */
+  lastSyncedAt?:  Timestamp | null;
+  /** Alcance (campo sincronizado via /sync) */
+  reach?:         number;
+  /** Impressões (campo sincronizado via /sync) */
+  impressions?:   number;
+  /** Bio do perfil (campo sincronizado via /sync) */
+  biography?:     string;
+  // Nota: _accessToken e _pageToken existem no Firestore mas são PRIVADOS
+  // (prefixo _) e nunca devem ser retornados ao client.
 }
 
 // ─── POSTS / AGENDAMENTOS ──────────────────────────────────────────────────
@@ -151,11 +169,11 @@ export type CampaignObjective = 'awareness' | 'consideracao' | 'conversao' | 'en
 export type CampaignStatus    = 'ativa' | 'pausada' | 'concluida' | 'rascunho';
 
 export interface CampaignKPIs {
-  cpc:         number;
-  cpm:         number;
-  cac:         number;
-  ctr:         number;
-  roas:        number;
+  cpc:  number;
+  cpm:  number;
+  cac:  number;
+  ctr:  number;
+  roas: number;
 }
 
 export interface Campaign {
@@ -205,7 +223,7 @@ export interface PaidTrafficEntry {
 export type ApprovalStatus = 'pending' | 'aprovado' | 'rejeitado' | 'correcao';
 
 export interface Approval {
-  id:             string; // = token
+  id:             string;
   agendamentoId:  string;
   uid:            string;
   creatives:      Creative[];
@@ -230,10 +248,10 @@ export interface AppPreferences {
     campanhas:    ViewMode;
   };
   filters: {
-    periodo:   string;
+    periodo:    string;
     plataforma: Platform | 'todas';
-    tipo:      PostFormat | 'todos';
-    status:    PostStatus | 'todos';
+    tipo:       PostFormat | 'todos';
+    status:     PostStatus | 'todos';
   };
   sidebarCollapsed: boolean;
   updatedAt:        Timestamp | null;
