@@ -1,217 +1,434 @@
 'use client';
 
 /**
- * app/(dashboard)/agendamentos/page.tsx
- * 
- * Melhoria: passa uid e responsavel para AgendamentoCalendario,
- * permitindo o uso do AgendamentoCard (com lightbox) no modo calendário.
+ * Agendamentos – Página de Agendamentos
+ * Caminho: src/app/agendamentos/page.tsx
+ *
+ * Views: Grade | Calendário | Lista
+ * Todas as views suportam:
+ *   • Clicar no criativo/card → abre PostPreviewModal com as mesmas opções
+ *     de edição do Workflow (Preview / Comentários / Ações)
+ *   • Clicar no ícone de lápis → navega para /criar-post?edit={postId}
  */
 
-import { useState }          from 'react';
-import Link                  from 'next/link';
-import { useAuth }           from '@/lib/hooks/useAuth';
-import { useUserCollection } from '@/lib/hooks/useCollection';
-import { usePreferences }    from '@/lib/hooks/usePreferences';
-import { AgendamentoCard }   from '@/components/agendamentos/AgendamentoCard';
-import { AgendamentoCalendario } from '@/components/agendamentos/AgendamentoCalendario';
-import { EmptyState }        from '@/components/ui/EmptyState';
-import { SkeletonGrid, SkeletonList } from '@/components/ui/SkeletonCard';
-import { cn }                from '@/lib/utils/cn';
-import { orderBy }           from 'firebase/firestore';
-import type { Post, ViewMode, Responsavel } from '@/lib/types';
+import { useEffect, useState, useCallback } from 'react';
+import { useRouter }                        from 'next/navigation';
+import {
+  collection, query, orderBy,
+  getDocs,
+}                                           from 'firebase/firestore';
+import { db }                               from '@/lib/firebase/firestore';
+import { useAuth }                          from '@/lib/hooks/useAuth';
+import {
+  LayoutGrid, List, Calendar,
+  Plus, RefreshCw,
+  ChevronLeft, ChevronRight, Edit, ZoomIn,
+}                                           from 'lucide-react';
+import { cn }                               from '@/lib/utils/cn';
+import PostCard                             from '@/components/posts/PostCard';
+import PostPreviewModal                     from '@/components/modals/PostPreviewModal';
+import type { Post }                        from '@/lib/types';
 
-type View = 'lista' | 'grade' | 'calendario';
+/* ─── helpers ─────────────────────────────────────────────────── */
 
-const ListIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
-    <line x1="8" y1="18" x2="21" y2="18"/>
-    <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/>
-    <line x1="3" y1="18" x2="3.01" y2="18"/>
-  </svg>
-);
-const GridIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-    <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-  </svg>
-);
-const CalIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <rect x="3" y="4" width="18" height="18" rx="2"/>
-    <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
-    <line x1="3" y1="10" x2="21" y2="10"/>
-  </svg>
-);
+const PLATFORM_EMOJI: Record<string, string> = {
+  instagram: '📸', facebook: '👍', youtube: '▶️',
+  tiktok: '🎵', linkedin: '💼', threads: '🧵',
+  pinterest: '📌', google_business: '🏢',
+};
 
-const STATUS_FILTERS = [
-  { value: 'todos',     label: 'Todos',      color: 'bg-gray-100 text-gray-700' },
-  { value: 'rascunho',  label: 'Rascunho',   color: 'bg-gray-100 text-gray-600' },
-  { value: 'revisao',   label: 'Revisão',    color: 'bg-yellow-100 text-yellow-700' },
-  { value: 'aprovado',  label: 'Aprovados',  color: 'bg-green-100 text-green-700' },
-  { value: 'rejeitado', label: 'Rejeitados', color: 'bg-red-100 text-red-700' },
-  { value: 'publicado', label: 'Publicados', color: 'bg-emerald-100 text-emerald-700' },
+const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  rascunho:           { label: 'Rascunho',         color: 'bg-gray-100    text-gray-600'   },
+  conteudo:           { label: 'Conteúdo',          color: 'bg-blue-100   text-blue-600'   },
+  revisao:            { label: 'Revisão',           color: 'bg-yellow-100 text-yellow-700' },
+  aprovacao_cliente:  { label: 'Aprovação',         color: 'bg-purple-100 text-purple-600' },
+  em_analise:         { label: 'Em Análise',        color: 'bg-blue-100   text-blue-700'   },
+  aprovado:           { label: 'Aprovado',          color: 'bg-green-100  text-green-700'  },
+  rejeitado:          { label: 'Rejeitado',         color: 'bg-red-100    text-red-700'    },
+  publicado:          { label: 'Publicado',         color: 'bg-emerald-100 text-emerald-700'},
+};
+
+const STATUS_DOT: Record<string, string> = {
+  rascunho: 'bg-gray-400', conteudo: 'bg-blue-400', revisao: 'bg-yellow-400',
+  aprovacao_cliente: 'bg-purple-400', em_analise: 'bg-blue-500',
+  aprovado: 'bg-green-500', rejeitado: 'bg-red-500', publicado: 'bg-emerald-500',
+};
+
+const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const MONTHS   = [
+  'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro',
+];
+
+function getThumb(post: Post): string | null {
+  if (post.creatives?.length)        return post.creatives[0].url;
+  if ((post as any).image_url)       return (post as any).image_url;
+  if ((post as any).image_urls?.[0]) return (post as any).image_urls[0];
+  return null;
+}
+
+function getScheduledDate(post: Post): Date | null {
+  if (!post.scheduledAt) return null;
+  if (typeof post.scheduledAt === 'string') return new Date(post.scheduledAt);
+  if (typeof (post.scheduledAt as any)?.toDate === 'function') {
+    return (post.scheduledAt as any).toDate();
+  }
+  return null;
+}
+
+/* ─── CalendarView ────────────────────────────────────────────── */
+
+function CalendarView({
+  posts,
+  onPreview,
+}: {
+  posts: Post[];
+  onPreview: (post: Post) => void;
+}) {
+  const router = useRouter();
+  const today  = new Date();
+  const [current, setCurrent] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+
+  const year  = current.getFullYear();
+  const month = current.getMonth();
+
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const daysInMonth     = new Date(year, month + 1, 0).getDate();
+  const totalCells      = Math.ceil((firstDayOfMonth + daysInMonth) / 7) * 7;
+
+  const postsByDay: Record<string, Post[]> = {};
+  posts.forEach((p) => {
+    const d = getScheduledDate(p);
+    if (!d) return;
+    if (d.getFullYear() !== year || d.getMonth() !== month) return;
+    const key = String(d.getDate());
+    postsByDay[key] = [...(postsByDay[key] ?? []), p];
+  });
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+      {/* Cabeçalho de navegação */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <h3 className="font-semibold text-gray-900">{MONTHS[month]} {year}</h3>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setCurrent(new Date(year, month - 1, 1))}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <button
+            onClick={() => setCurrent(new Date(today.getFullYear(), today.getMonth(), 1))}
+            className="px-3 h-8 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            Hoje
+          </button>
+          <button
+            onClick={() => setCurrent(new Date(year, month + 1, 1))}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Dias da semana */}
+      <div className="grid grid-cols-7 border-b border-gray-100">
+        {WEEKDAYS.map((d) => (
+          <div key={d} className="py-2 text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* Células */}
+      <div className="grid grid-cols-7">
+        {Array.from({ length: totalCells }).map((_, idx) => {
+          const dayNum  = idx - firstDayOfMonth + 1;
+          const isValid = dayNum >= 1 && dayNum <= daysInMonth;
+          const isToday =
+            isValid &&
+            dayNum === today.getDate() &&
+            month  === today.getMonth() &&
+            year   === today.getFullYear();
+          const dayPosts = isValid ? (postsByDay[String(dayNum)] ?? []) : [];
+
+          return (
+            <div
+              key={idx}
+              className={cn(
+                'min-h-[90px] border-b border-r border-gray-100 p-1.5',
+                !isValid && 'bg-gray-50',
+              )}
+            >
+              {isValid && (
+                <>
+                  <div className={cn(
+                    'w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium mb-1',
+                    isToday ? 'bg-[#FF5C00] text-white' : 'text-gray-700',
+                  )}>
+                    {dayNum}
+                  </div>
+                  <div className="space-y-0.5">
+                    {dayPosts.slice(0, 2).map((post) => (
+                      <PostCard
+                        key={post.id}
+                        post={post}
+                        onPreview={onPreview}
+                        compact
+                      />
+                    ))}
+                    {dayPosts.length > 2 && (
+                      <div className="text-[10px] text-gray-400 pl-1">
+                        +{dayPosts.length - 2} mais
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ─── GridView ────────────────────────────────────────────────── */
+
+function GridView({ posts, onPreview }: { posts: Post[]; onPreview: (p: Post) => void }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      {posts.map((post) => (
+        <PostCard key={post.id} post={post} onPreview={onPreview} />
+      ))}
+    </div>
+  );
+}
+
+/* ─── ListView ────────────────────────────────────────────────── */
+
+function ListView({ posts, onPreview }: { posts: Post[]; onPreview: (p: Post) => void }) {
+  const router = useRouter();
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-gray-100">
+            {['Post', 'Status', 'Plataforma', 'Data', 'Campanha', 'Ações'].map((h) => (
+              <th
+                key={h}
+                className="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 py-3 px-4"
+              >
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {posts.length === 0 ? (
+            <tr>
+              <td colSpan={6} className="text-center py-12 text-gray-400 text-sm">
+                Nenhum post encontrado
+              </td>
+            </tr>
+          ) : posts.map((post) => {
+            const thumb     = getThumb(post);
+            const platform  = post.platforms?.[0] ?? (post as any).platform ?? '';
+            const sDate     = getScheduledDate(post);
+            const statusCfg = STATUS_LABELS[post.status ?? 'rascunho'] ?? STATUS_LABELS.rascunho;
+            const dotColor  = STATUS_DOT[post.status  ?? 'rascunho']  ?? 'bg-gray-400';
+
+            return (
+              <tr key={post.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                {/* Thumbnail + título */}
+                <td className="py-3 px-4">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => onPreview(post)}
+                      className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-[#FF5C00]/30 transition-all cursor-pointer flex-shrink-0 group"
+                      title="Ver preview"
+                    >
+                      {thumb
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={thumb} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                        : <span className="text-lg">🖼️</span>
+                      }
+                    </button>
+                    <span className="text-sm font-medium text-gray-900">{post.title}</span>
+                  </div>
+                </td>
+
+                {/* Status */}
+                <td className="py-3 px-4">
+                  <span className="flex items-center gap-1.5">
+                    <span className={cn('w-2 h-2 rounded-full', dotColor)} />
+                    <span className="text-sm">{statusCfg.label}</span>
+                  </span>
+                </td>
+
+                {/* Plataforma */}
+                <td className="py-3 px-4">
+                  <span className="text-sm">
+                    {platform ? `${PLATFORM_EMOJI[platform] ?? '📱'} ${platform}` : '—'}
+                  </span>
+                </td>
+
+                {/* Data */}
+                <td className="py-3 px-4 text-sm text-gray-500">
+                  {sDate ? sDate.toLocaleDateString('pt-BR') : '—'}
+                </td>
+
+                {/* Campanha */}
+                <td className="py-3 px-4 text-sm text-gray-500">
+                  {post.campaignId ?? (post as any).campaign ?? '—'}
+                </td>
+
+                {/* Ações */}
+                <td className="py-3 px-4">
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => onPreview(post)}
+                      className="w-8 h-8 rounded-lg bg-gray-100 text-gray-600 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                      title="Preview"
+                    >
+                      <ZoomIn size={14} />
+                    </button>
+                    <button
+                      onClick={() => router.push(`/criar-post?edit=${post.id}`)}
+                      className="w-8 h-8 rounded-lg bg-[#FF5C00]/10 text-[#FF5C00] flex items-center justify-center hover:bg-[#FF5C00]/20 transition-colors"
+                      title="Editar"
+                    >
+                      <Edit size={14} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ─── Agendamentos (page) ─────────────────────────────────────── */
+
+type ViewMode = 'grid' | 'calendar' | 'list';
+
+const VIEW_BUTTONS: { mode: ViewMode; icon: React.ReactNode; label: string }[] = [
+  { mode: 'grid',     icon: <LayoutGrid size={15} />, label: 'Grade'      },
+  { mode: 'calendar', icon: <Calendar   size={15} />, label: 'Calendário' },
+  { mode: 'list',     icon: <List       size={15} />, label: 'Lista'      },
 ];
 
 export default function AgendamentosPage() {
-  const { user }               = useAuth();
-  const { prefs, setViewMode } = usePreferences(user?.uid ?? null);
-  const { data: posts, loading } = useUserCollection<Post>(
-    user?.uid ?? null,
-    'posts',
-    [orderBy('createdAt', 'desc')]
-  );
+  const { user }   = useAuth();
+  const router     = useRouter();
 
-  const [view,          setView]         = useState<View>((prefs.viewModes?.agendamentos as View) ?? 'grade');
-  const [statusFilter,  setStatusFilter] = useState('todos');
-  const [platformFilter, setPlatFilter]  = useState('todos');
-  const [selected,      setSelected]     = useState<Post | null>(null);
+  const [posts,       setPosts]       = useState<Post[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [view,        setView]        = useState<ViewMode>('grid');
+  const [previewPost, setPreviewPost] = useState<Post | null>(null);
 
-  const handleViewChange = (v: View) => {
-    setView(v);
-    setViewMode('agendamentos', v as ViewMode);
-  };
+  const loadPosts = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const q    = query(collection(db, `users/${user.uid}/posts`), orderBy('createdAt', 'desc'));
+      const snap = await getDocs(q);
+      setPosts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post)));
+    } catch (err) {
+      console.error('[Agendamentos] loadPosts', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
-  const responsavel: Responsavel = {
-    nome:   user?.displayName ?? user?.email ?? 'Usuário',
-    avatar: user?.photoURL ?? '',
-    uid:    user?.uid ?? '',
-  };
-
-  const filtered = posts
-    .filter((p) => statusFilter === 'todos' || p.status === statusFilter)
-    .filter((p) => platformFilter === 'todos' || (p.platforms ?? []).includes(platformFilter as Post['platforms'][0]));
+  useEffect(() => { loadPosts(); }, [loadPosts]);
 
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Título + botão novo */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-bold text-gray-900">Agendamentos</h1>
-          <p className="text-[14px] text-gray-500 mt-0.5">Planeje e organize todos os seus conteúdos</p>
-        </div>
-        <Link
-          href="/criar-post"
-          className="flex items-center gap-1.5 px-4 py-2 bg-[#FF5C00] hover:bg-[#E54E00] text-white text-[13px] font-bold rounded-lg transition-colors shadow-lg shadow-[#FF5C00]/25"
-        >
-          <span className="text-lg leading-none">+</span>
-          Novo Agendamento
-        </Link>
-      </div>
-
-      {/* Filtros + toggle de view */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {STATUS_FILTERS.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setStatusFilter(f.value)}
-              className={cn(
-                'px-3 py-1.5 text-[12px] font-medium rounded-full transition-colors border',
-                statusFilter === f.value
-                  ? 'bg-[#FF5C00] text-white border-[#FF5C00] shadow-sm'
-                  : `${f.color} border-transparent hover:border-gray-200`,
-              )}
-            >
-              {f.label}
-              {f.value !== 'todos' && (
-                <span className="ml-1 text-[10px] opacity-70">
-                  ({posts.filter((p) => p.status === f.value).length})
-                </span>
-              )}
-            </button>
-          ))}
+          <h2 className="text-xl font-bold text-gray-900">Agendamentos</h2>
+          <p className="text-sm text-gray-400">
+            {loading ? 'Carregando...' : `${posts.length} post${posts.length !== 1 ? 's' : ''}`}
+          </p>
         </div>
 
-        <div className="flex items-center bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-          {([
-            { v: 'lista'      as View, icon: <ListIcon />, label: 'Lista' },
-            { v: 'grade'      as View, icon: <GridIcon />, label: 'Grade' },
-            { v: 'calendario' as View, icon: <CalIcon />,  label: 'Calendário' },
-          ]).map(({ v, icon, label }) => (
-            <button
-              key={v}
-              onClick={() => handleViewChange(v)}
-              className={cn(
-                'flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium transition-all',
-                view === v
-                  ? 'bg-[#FF5C00] text-white'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50',
-                v !== 'lista' && 'border-l border-gray-200',
-              )}
-            >
-              {icon}
-              <span className="hidden sm:inline">{label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* KPIs rápidos */}
-      {!loading && posts.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Total',      value: posts.length,                                          color: 'text-gray-900' },
-            { label: 'Aprovados',  value: posts.filter((p) => p.status === 'aprovado').length,   color: 'text-green-600' },
-            { label: 'Em Revisão', value: posts.filter((p) => p.status === 'revisao').length,    color: 'text-yellow-600' },
-            { label: 'Publicados', value: posts.filter((p) => p.status === 'publicado').length,  color: 'text-emerald-600' },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="bg-white rounded-xl border border-gray-100 p-3 text-center shadow-sm">
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">{label}</p>
-              <p className={cn('text-2xl font-extrabold', color)}>{value}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Conteúdo principal */}
-      {loading ? (
-        view === 'lista' ? <SkeletonList count={6} /> : <SkeletonGrid count={8} />
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon="📅"
-          title={statusFilter === 'todos' ? 'Nenhum agendamento ainda' : `Nenhum post ${STATUS_FILTERS.find((f) => f.value === statusFilter)?.label.toLowerCase() ?? ''}`}
-          subtitle="Crie seu primeiro post e agende para as suas redes sociais."
-          actionLabel="Criar primeiro post"
-          onAction={() => { window.location.href = '/criar-post'; }}
-        />
-      ) : view === 'calendario' ? (
-        /* ── Calendário — agora com uid + responsavel para lightbox ── */
-        <AgendamentoCalendario
-          posts={filtered}
-          uid={user?.uid ?? ''}
-          responsavel={responsavel}
-          onSelect={setSelected}
-        />
-      ) : view === 'lista' ? (
-        /* ── Lista ── */
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 grid grid-cols-[48px_1fr_50px_140px_130px_150px] gap-4 text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-            <div /><div>Título</div><div>Rede</div><div>Data</div><div>Status</div><div>Ações</div>
+        <div className="flex items-center gap-2">
+          {/* Seletor de view */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
+            {VIEW_BUTTONS.map(({ mode, icon, label }) => (
+              <button
+                key={mode}
+                onClick={() => setView(mode)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                  view === mode
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700',
+                )}
+                title={label}
+              >
+                {icon}
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            ))}
           </div>
-          {filtered.map((post) => (
-            <AgendamentoCard
-              key={post.id}
-              post={post}
-              uid={user?.uid ?? ''}
-              responsavel={responsavel}
-              view="lista"
-            />
-          ))}
+
+          {/* Refresh */}
+          <button
+            onClick={loadPosts}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-500 hover:text-gray-800 bg-white border border-gray-200 rounded-lg transition-colors"
+          >
+            <RefreshCw size={14} /> Atualizar
+          </button>
+
+          {/* Novo post */}
+          <button
+            onClick={() => router.push('/criar-post')}
+            className="flex items-center gap-1.5 bg-[#FF5C00] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-[#E54E00] transition-colors"
+          >
+            <Plus size={14} /> Novo Post
+          </button>
+        </div>
+      </div>
+
+      {/* Conteúdo */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="w-8 h-8 border-4 border-gray-200 border-t-[#FF5C00] rounded-full animate-spin" />
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="text-center py-20 text-gray-400">
+          <div className="text-5xl mb-3">📭</div>
+          <p className="font-medium">Nenhum post ainda.</p>
+          <button
+            onClick={() => router.push('/criar-post')}
+            className="mt-4 px-4 py-2 bg-[#FF5C00] text-white rounded-lg text-sm font-medium hover:bg-[#E54E00] transition-colors"
+          >
+            Criar primeiro post
+          </button>
         </div>
       ) : (
-        /* ── Grade ── */
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filtered.map((post) => (
-            <AgendamentoCard
-              key={post.id}
-              post={post}
-              uid={user?.uid ?? ''}
-              responsavel={responsavel}
-              view="grade"
-            />
-          ))}
-        </div>
+        <>
+          {view === 'grid'     && <GridView    posts={posts} onPreview={setPreviewPost} />}
+          {view === 'calendar' && <CalendarView posts={posts} onPreview={setPreviewPost} />}
+          {view === 'list'     && <ListView    posts={posts} onPreview={setPreviewPost} />}
+        </>
+      )}
+
+      {/* Modal de preview / edição */}
+      {previewPost && (
+        <PostPreviewModal
+          post={previewPost}
+          onClose={() => setPreviewPost(null)}
+          onUpdate={loadPosts}
+        />
       )}
     </div>
   );
