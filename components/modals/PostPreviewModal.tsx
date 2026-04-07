@@ -2,83 +2,64 @@
 
 /**
  * PostPreviewModal — VERSÃO CORRIGIDA
- * ─────────────────────────────────────────────────────────────────
- * Caminho de instalação no projeto:
- *   src/components/modals/PostPreviewModal.tsx
+ * Caminho: src/components/modals/PostPreviewModal.tsx
  *
- * Correções aplicadas nesta versão:
- *  ✅ Botão "Editar Post" (lápis) adicionado no header → navega para
- *     /criar-post?edit={postId} e fecha o modal
- *  ✅ Importação de toast corrigida para useToast (padrão shadcn/ui
- *     usado no projeto base44/AHA)
- *  ✅ Fallback para animate-fade-in (usa transition-opacity nativo)
- *  ✅ Lightbox usa z-[200] (acima do modal z-50)
- *  ✅ Compatível com modelos Firebase (creatives[]) e legado
- *     (image_url / image_urls)
- *
- * Props:
- *   post      – documento do Firestore (tipo Post de @/lib/types)
- *   onClose   – fecha o modal
- *   onUpdate  – callback chamado após salvar/deletar para recarregar
+ * Correções:
+ *  ✅ Toast usa showToast de @/components/ui/Toast (padrão do projeto)
+ *  ✅ Botão "Editar Post" navega para /criar-post?edit={id}
+ *  ✅ animate-fade-in substituído por @keyframes inline
+ *  ✅ Lightbox z-[200] (acima do modal z-50)
+ *  ✅ Suporte a creatives[], image_url e image_urls
  */
 
-import { useState }              from 'react';
-import { useRouter }             from 'next/navigation';
+import { useState }                          from 'react';
+import { useRouter }                         from 'next/navigation';
 import {
   X, ZoomIn, ChevronLeft, ChevronRight,
-  Download, Check, XCircle, Edit2, Edit, MessageSquare,
-  Trash2, Save,
+  Download, Check, XCircle, Edit2, Edit,
+  MessageSquare, Trash2, Save,
 } from 'lucide-react';
-import { updateDoc, doc, deleteDoc } from 'firebase/firestore';
-import { db }          from '@/lib/firebase/firestore';
-import { cn }          from '@/lib/utils/cn';
-import { useAuth }     from '@/lib/hooks/useAuth';
-import type { Post }   from '@/lib/types';
-
-// ── Toast: tenta useToast (shadcn, padrão do projeto AHA/base44)
-// Se o seu projeto usar showToast de @/components/ui/Toast, troque
-// as chamadas abaixo por showToast('msg', 'success' | 'error')
-import { useToast } from '@/components/ui/use-toast';
+import { updateDoc, doc, deleteDoc }         from 'firebase/firestore';
+import { db }                                from '@/lib/firebase/config';
+import { cn }                                from '@/lib/utils/cn';
+import { useAuth }                           from '@/lib/hooks/useAuth';
+import { showToast }                         from '@/components/ui/Toast';
+import type { Post }                         from '@/lib/types';
 
 /* ─── constantes ─────────────────────────────────────────────── */
 
 const PLATFORMS = [
-  'instagram', 'facebook', 'youtube', 'tiktok',
-  'linkedin', 'threads', 'pinterest', 'google_business',
+  'instagram','facebook','youtube','tiktok',
+  'linkedin','threads','pinterest','google_business',
 ];
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  rascunho:           { label: 'Rascunho',          color: 'bg-gray-100    text-gray-600'   },
-  conteudo:           { label: 'Conteúdo',           color: 'bg-blue-100   text-blue-600'   },
-  revisao:            { label: 'Revisão',            color: 'bg-yellow-100 text-yellow-700' },
-  aprovacao_cliente:  { label: 'Aprovação Cliente',  color: 'bg-purple-100 text-purple-600' },
-  em_analise:         { label: 'Em Análise',         color: 'bg-blue-100   text-blue-700'   },
-  aprovado:           { label: 'Aprovado',           color: 'bg-green-100  text-green-700'  },
-  rejeitado:          { label: 'Rejeitado',          color: 'bg-red-100    text-red-700'    },
-  publicado:          { label: 'Publicado',          color: 'bg-emerald-100 text-emerald-700' },
+  rascunho:          { label: 'Rascunho',         color: 'bg-gray-100    text-gray-600'    },
+  conteudo:          { label: 'Conteúdo',          color: 'bg-blue-100   text-blue-600'    },
+  revisao:           { label: 'Revisão',           color: 'bg-yellow-100 text-yellow-700'  },
+  aprovacao_cliente: { label: 'Aprovação Cliente', color: 'bg-purple-100 text-purple-600'  },
+  em_analise:        { label: 'Em Análise',        color: 'bg-blue-100   text-blue-700'    },
+  aprovado:          { label: 'Aprovado',          color: 'bg-green-100  text-green-700'   },
+  rejeitado:         { label: 'Rejeitado',         color: 'bg-red-100    text-red-700'     },
+  publicado:         { label: 'Publicado',         color: 'bg-emerald-100 text-emerald-700'},
 };
 
 const PLATFORM_ICONS: Record<string, string> = {
-  instagram: '📸', facebook: '👍', youtube: '▶️',
-  tiktok: '🎵', linkedin: '💼', threads: '🧵',
-  pinterest: '📌', google_business: '🏢',
+  instagram:'📸', facebook:'👍', youtube:'▶️',
+  tiktok:'🎵', linkedin:'💼', threads:'🧵',
+  pinterest:'📌', google_business:'🏢',
 };
 
 /* ─── ImageViewer ─────────────────────────────────────────────── */
 
-interface ImageViewerProps {
-  post: Post;
-}
-
-function ImageViewer({ post }: ImageViewerProps) {
+function ImageViewer({ post }: { post: Post }) {
   const [slide, setSlide]   = useState(0);
   const [zoomed, setZoomed] = useState(false);
 
-  // Suporte ao modelo Firebase (creatives[]) e legado (image_url / image_urls)
   const slides: string[] = (() => {
-    if (post.creatives?.length)            return post.creatives.map((c) => c.url);
-    if ((post as any).image_urls?.length)  return (post as any).image_urls;
-    if ((post as any).image_url)           return [(post as any).image_url];
+    if (post.creatives?.length)           return post.creatives.map((c) => c.url);
+    if ((post as any).image_urls?.length) return (post as any).image_urls;
+    if ((post as any).image_url)          return [(post as any).image_url];
     return [];
   })();
 
@@ -86,10 +67,10 @@ function ImageViewer({ post }: ImageViewerProps) {
 
   const handleDownload = () => {
     if (!currentUrl) return;
-    const a    = document.createElement('a');
-    a.href     = currentUrl;
+    const a = document.createElement('a');
+    a.href = currentUrl;
     a.download = `${post.title ?? 'criativo'}-${slide + 1}.jpg`;
-    a.target   = '_blank';
+    a.target = '_blank';
     a.click();
   };
 
@@ -103,41 +84,28 @@ function ImageViewer({ post }: ImageViewerProps) {
 
   return (
     <>
-      {/* ── Lightbox (fullscreen ao clicar na imagem) ── */}
       {zoomed && currentUrl && (
         <div
           className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center"
           onClick={() => setZoomed(false)}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={currentUrl}
-            alt=""
-            className="max-w-full max-h-full object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
-          <button
-            onClick={() => setZoomed(false)}
-            className="absolute top-4 right-4 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
-          >
+          <img src={currentUrl} alt="" className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()} />
+          <button onClick={() => setZoomed(false)}
+            className="absolute top-4 right-4 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors">
             <X size={20} />
           </button>
-
-          {/* Navegação no lightbox */}
           {slides.length > 1 && (
             <>
-              <button
-                onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.max(0, s - 1)); }}
+              <button onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.max(0, s - 1)); }}
                 disabled={slide === 0}
-                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white disabled:opacity-20 hover:bg-white/30 transition-colors"
-              >
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white disabled:opacity-20 hover:bg-white/30 transition-colors">
                 <ChevronLeft size={20} />
               </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.min(slides.length - 1, s + 1)); }}
+              <button onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.min(slides.length - 1, s + 1)); }}
                 disabled={slide === slides.length - 1}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white disabled:opacity-20 hover:bg-white/30 transition-colors"
-              >
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white disabled:opacity-20 hover:bg-white/30 transition-colors">
                 <ChevronRight size={20} />
               </button>
               <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/50 text-white text-xs px-3 py-1.5 rounded-full">
@@ -148,64 +116,38 @@ function ImageViewer({ post }: ImageViewerProps) {
         </div>
       )}
 
-      {/* ── Viewer principal (clicável para abrir lightbox) ── */}
-      <div
-        className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-100 mb-4 group cursor-zoom-in"
-        onClick={() => setZoomed(true)}
-      >
+      <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-100 mb-4 group cursor-zoom-in"
+        onClick={() => setZoomed(true)}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={currentUrl!} alt={post.title} className="w-full h-full object-contain" />
-
-        {/* Overlay de ações (hover) */}
         <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={(e) => { e.stopPropagation(); setZoomed(true); }}
-            className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors"
-            title="Ampliar"
-          >
+          <button onClick={(e) => { e.stopPropagation(); setZoomed(true); }}
+            className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors" title="Ampliar">
             <ZoomIn size={14} />
           </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); handleDownload(); }}
-            className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors"
-            title="Baixar"
-          >
+          <button onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+            className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors" title="Baixar">
             <Download size={14} />
           </button>
         </div>
-
-        {/* Navegação carrossel (apenas quando há múltiplos slides) */}
         {slides.length > 1 && (
           <>
-            <button
-              onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.max(0, s - 1)); }}
+            <button onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.max(0, s - 1)); }}
               disabled={slide === 0}
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 text-white rounded-full flex items-center justify-center disabled:opacity-30 hover:bg-black/80 transition-colors"
-            >
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 text-white rounded-full flex items-center justify-center disabled:opacity-30 hover:bg-black/80 transition-colors">
               <ChevronLeft size={16} />
             </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.min(slides.length - 1, s + 1)); }}
+            <button onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.min(slides.length - 1, s + 1)); }}
               disabled={slide === slides.length - 1}
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 text-white rounded-full flex items-center justify-center disabled:opacity-30 hover:bg-black/80 transition-colors"
-            >
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 text-white rounded-full flex items-center justify-center disabled:opacity-30 hover:bg-black/80 transition-colors">
               <ChevronRight size={16} />
             </button>
-
-            {/* Indicadores de slide */}
             <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
               {slides.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={(e) => { e.stopPropagation(); setSlide(i); }}
-                  className={cn(
-                    'w-1.5 h-1.5 rounded-full transition-colors',
-                    i === slide ? 'bg-white' : 'bg-white/50',
-                  )}
-                />
+                <button key={i} onClick={(e) => { e.stopPropagation(); setSlide(i); }}
+                  className={cn('w-1.5 h-1.5 rounded-full transition-colors', i === slide ? 'bg-white' : 'bg-white/50')} />
               ))}
             </div>
-
             <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded-lg">
               {slide + 1}/{slides.length}
             </div>
@@ -225,15 +167,13 @@ interface PostPreviewModalProps {
 }
 
 export default function PostPreviewModal({ post, onClose, onUpdate }: PostPreviewModalProps) {
-  const { user }                        = useAuth();
-  const router                          = useRouter();
-  const { toast }                       = useToast();
-  const [activeTab, setActiveTab]       = useState<'preview' | 'comentarios' | 'acoes'>('preview');
-  const [comment,   setComment]         = useState('');
-  const [loading,   setLoading]         = useState(false);
-  const [editSaving, setEditSaving]     = useState(false);
+  const { user }                    = useAuth();
+  const router                      = useRouter();
+  const [activeTab, setActiveTab]   = useState<'preview'|'comentarios'|'acoes'>('preview');
+  const [comment,   setComment]     = useState('');
+  const [loading,   setLoading]     = useState(false);
+  const [editSaving,setEditSaving]  = useState(false);
 
-  // Campos editáveis (compatível com modelo Firebase e legado)
   const [editFields, setEditFields] = useState({
     scheduledAt: post.scheduledAt ?? '',
     platforms:   post.platforms   ?? ((post as any).platform ? [(post as any).platform] : []),
@@ -244,8 +184,6 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
 
   const postRef = doc(db, `users/${user.uid}/posts`, post.id ?? '');
 
-  /* ── handlers ── */
-
   const handleSaveEdit = async () => {
     setEditSaving(true);
     try {
@@ -255,11 +193,11 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
         campaignId:  editFields.campaignId  || null,
         updatedAt:   new Date(),
       });
-      toast({ title: 'Post atualizado!', variant: 'default' });
+      showToast('Post atualizado!', 'success');
       onUpdate?.();
     } catch (err) {
       console.error(err);
-      toast({ title: 'Erro ao salvar.', variant: 'destructive' });
+      showToast('Erro ao salvar.', 'error');
     } finally {
       setEditSaving(false);
     }
@@ -270,44 +208,31 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
     setLoading(true);
     try {
       await deleteDoc(postRef);
-      toast({ title: 'Post deletado!', variant: 'default' });
+      showToast('Post deletado!', 'success');
       onUpdate?.();
       onClose();
     } catch {
-      toast({ title: 'Erro ao deletar.', variant: 'destructive' });
+      showToast('Erro ao deletar.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAction = async (action: 'aprovar' | 'corrigir' | 'rejeitar') => {
+  const handleAction = async (action: 'aprovar'|'corrigir'|'rejeitar') => {
     setLoading(true);
-    const statusMap = {
-      aprovar:  'aprovado',
-      corrigir: 'revisao',
-      rejeitar: 'rejeitado',
-    } as const;
+    const statusMap = { aprovar: 'aprovado', corrigir: 'revisao', rejeitar: 'rejeitado' } as const;
     try {
-      const updates: Record<string, unknown> = {
-        status:    statusMap[action],
-        updatedAt: new Date(),
-      };
-      if (comment) {
-        updates.approvalComment  = comment;
-        updates.approvalFeedback = action;
-      }
+      const updates: Record<string, unknown> = { status: statusMap[action], updatedAt: new Date() };
+      if (comment) { updates.approvalComment = comment; updates.approvalFeedback = action; }
       await updateDoc(postRef, updates);
-      toast({
-        title:
-          action === 'aprovar'  ? 'Post aprovado! ✅' :
-          action === 'rejeitar' ? 'Post rejeitado.'   :
-          'Enviado para revisão.',
-        variant: action === 'aprovar' ? 'default' : 'destructive',
-      });
+      showToast(
+        action === 'aprovar' ? 'Post aprovado! ✅' : action === 'rejeitar' ? 'Post rejeitado.' : 'Enviado para revisão.',
+        action === 'aprovar' ? 'success' : 'warning'
+      );
       onUpdate?.();
       onClose();
     } catch {
-      toast({ title: 'Erro ao salvar.', variant: 'destructive' });
+      showToast('Erro ao salvar.', 'error');
     } finally {
       setLoading(false);
     }
@@ -319,39 +244,28 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
     try {
       const existing = (post as any).internalComments ?? [];
       await updateDoc(postRef, {
-        internalComments: [
-          ...existing,
-          {
-            text:   comment,
-            author: user.displayName ?? 'Você',
-            date:   new Date().toISOString(),
-          },
-        ],
+        internalComments: [...existing, { text: comment, author: user.displayName ?? 'Você', date: new Date().toISOString() }],
         updatedAt: new Date(),
       });
-      toast({ title: 'Comentário salvo!', variant: 'default' });
+      showToast('Comentário salvo!', 'success');
       setComment('');
       onUpdate?.();
     } catch {
-      toast({ title: 'Erro ao salvar comentário.', variant: 'destructive' });
+      showToast('Erro ao salvar comentário.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  /* ── Abrir modo de edição ── */
-  const handleOpenEdit = () => {
-    onClose();
-    router.push(`/criar-post?edit=${post.id}`);
-  };
+  const handleOpenEdit = () => { onClose(); router.push(`/criar-post?edit=${post.id}`); };
 
   const status    = STATUS_LABELS[post.status ?? 'rascunho'] ?? STATUS_LABELS.rascunho;
   const platforms = post.platforms ?? ((post as any).platform ? [(post as any).platform] : []);
 
-  const tabs: { key: 'preview' | 'comentarios' | 'acoes'; label: string }[] = [
-    { key: 'preview',     label: 'Preview'     },
-    { key: 'comentarios', label: 'Comentários' },
-    { key: 'acoes',       label: 'Ações'        },
+  const tabs = [
+    { key: 'preview'     as const, label: 'Preview'     },
+    { key: 'comentarios' as const, label: 'Comentários' },
+    { key: 'acoes'       as const, label: 'Ações'       },
   ];
 
   return (
@@ -360,248 +274,150 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
       style={{ animation: 'fadeIn 0.15s ease' }}
       onClick={onClose}
     >
-      <style>{`@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
+      <style>{`@keyframes fadeIn { from { opacity:0 } to { opacity:1 } }`}</style>
 
-      <div
-        className="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* ── Header ── */}
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-200">
           <div className="flex items-center gap-3">
-            <span className="text-xl">
-              {platforms.length ? (PLATFORM_ICONS[platforms[0]] ?? '📝') : '📝'}
-            </span>
+            <span className="text-xl">{platforms.length ? (PLATFORM_ICONS[platforms[0]] ?? '📝') : '📝'}</span>
             <div>
               <h2 className="text-lg font-bold text-gray-900">{post.title || 'Sem título'}</h2>
-              <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', status.color)}>
-                {status.label}
-              </span>
+              <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', status.color)}>{status.label}</span>
             </div>
           </div>
-
           <div className="flex items-center gap-2">
-            {/* ✅ BOTÃO EDITAR — abre /criar-post?edit={id} */}
-            <button
-              onClick={handleOpenEdit}
+            <button onClick={handleOpenEdit}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[#FF5C00] hover:bg-orange-50 rounded-lg transition-colors font-medium"
-              title="Abrir modo de edição"
-            >
+              title="Abrir modo de edição">
               <Edit2 size={14} /> Editar Post
             </button>
-
-            {/* Deletar */}
-            <button
-              onClick={handleDelete}
-              disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium disabled:opacity-50"
-            >
+            <button onClick={handleDelete} disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium disabled:opacity-50">
               <Trash2 size={14} /> Deletar
             </button>
-
-            {/* Fechar */}
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
-            >
+            <button onClick={onClose}
+              className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
               <X size={18} />
             </button>
           </div>
         </div>
 
-        {/* ── Tabs ── */}
+        {/* Tabs */}
         <div className="flex border-b border-gray-200 px-5">
           {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={cn(
-                'px-4 py-3 text-sm font-medium border-b-2 transition-colors',
+            <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+              className={cn('px-4 py-3 text-sm font-medium border-b-2 transition-colors',
                 activeTab === tab.key
                   ? 'border-[#FF5C00] text-[#FF5C00]'
-                  : 'border-transparent text-gray-400 hover:text-gray-700',
-              )}
-            >
+                  : 'border-transparent text-gray-400 hover:text-gray-700')}>
               {tab.label}
             </button>
           ))}
         </div>
 
-        {/* ── Conteúdo das tabs ── */}
         <div className="p-5">
-
-          {/* ── Preview ── */}
+          {/* Preview tab */}
           {activeTab === 'preview' && (
             <>
               <ImageViewer post={post} />
-
-              {/* Campos editáveis */}
               <div className="grid grid-cols-3 gap-4 mb-4">
-                {/* Plataformas */}
                 <div className="bg-gray-50 rounded-lg p-3">
-                  <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1.5">
-                    Plataforma
-                  </div>
-                  <select
-                    value={editFields.platforms[0] ?? 'instagram'}
-                    onChange={(e) =>
-                      setEditFields((f) => ({ ...f, platforms: [e.target.value] }))
-                    }
-                    className="w-full text-sm font-semibold bg-transparent outline-none capitalize cursor-pointer"
-                  >
-                    {PLATFORMS.map((p) => (
-                      <option key={p} value={p}>
-                        {p.charAt(0).toUpperCase() + p.slice(1)}
-                      </option>
-                    ))}
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1.5">Plataforma</div>
+                  <select value={editFields.platforms[0] ?? 'instagram'}
+                    onChange={(e) => setEditFields((f) => ({ ...f, platforms: [e.target.value] }))}
+                    className="w-full text-sm font-semibold bg-transparent outline-none capitalize cursor-pointer">
+                    {PLATFORMS.map((p) => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
                   </select>
                 </div>
-
-                {/* Data */}
                 <div className="bg-gray-50 rounded-lg p-3">
-                  <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1.5">
-                    Data
-                  </div>
-                  <input
-                    type="date"
-                    value={
-                      editFields.scheduledAt
-                        ? typeof editFields.scheduledAt === 'string'
-                          ? editFields.scheduledAt.slice(0, 10)
-                          : (editFields.scheduledAt as any)?.toDate?.()?.toISOString().slice(0, 10) ?? ''
-                        : ''
-                    }
-                    onChange={(e) =>
-                      setEditFields((f) => ({ ...f, scheduledAt: e.target.value }))
-                    }
-                    className="w-full text-sm font-semibold bg-transparent outline-none cursor-pointer"
-                  />
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1.5">Data</div>
+                  <input type="date"
+                    value={editFields.scheduledAt ? typeof editFields.scheduledAt === 'string'
+                      ? editFields.scheduledAt.slice(0, 10)
+                      : (editFields.scheduledAt as any)?.toDate?.()?.toISOString().slice(0, 10) ?? '' : ''}
+                    onChange={(e) => setEditFields((f) => ({ ...f, scheduledAt: e.target.value }))}
+                    className="w-full text-sm font-semibold bg-transparent outline-none cursor-pointer" />
                 </div>
-
-                {/* Campanha */}
                 <div className="bg-gray-50 rounded-lg p-3">
-                  <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1.5">
-                    Campanha
-                  </div>
-                  <input
-                    type="text"
-                    value={editFields.campaignId ?? ''}
-                    onChange={(e) =>
-                      setEditFields((f) => ({ ...f, campaignId: e.target.value }))
-                    }
-                    placeholder="—"
-                    className="w-full text-sm font-semibold bg-transparent outline-none"
-                  />
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-1.5">Campanha</div>
+                  <input type="text" value={editFields.campaignId ?? ''}
+                    onChange={(e) => setEditFields((f) => ({ ...f, campaignId: e.target.value }))}
+                    placeholder="—" className="w-full text-sm font-semibold bg-transparent outline-none" />
                 </div>
               </div>
-
-              {/* Botão salvar */}
               <div className="flex justify-end mb-4">
-                <button
-                  onClick={handleSaveEdit}
-                  disabled={editSaving}
-                  className="flex items-center gap-1.5 px-4 py-1.5 bg-[#FF5C00] text-white text-sm font-medium rounded-lg hover:bg-[#E54E00] transition-colors disabled:opacity-50"
-                >
+                <button onClick={handleSaveEdit} disabled={editSaving}
+                  className="flex items-center gap-1.5 px-4 py-1.5 bg-[#FF5C00] text-white text-sm font-medium rounded-lg hover:bg-[#E54E00] transition-colors disabled:opacity-50">
                   <Save size={13} /> {editSaving ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
-
-              {/* Legenda */}
               {post.caption && (
                 <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">
-                    Legenda
-                  </div>
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wider mb-2">Legenda</div>
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{post.caption}</p>
                 </div>
               )}
             </>
           )}
 
-          {/* ── Comentários ── */}
+          {/* Comentários tab */}
           {activeTab === 'comentarios' && (
             <div className="space-y-4">
               {(post as any).approvalComment && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-1">
                     <MessageSquare size={14} className="text-yellow-600" />
-                    <span className="text-xs font-medium text-yellow-700">
-                      Feedback do Cliente
-                    </span>
+                    <span className="text-xs font-medium text-yellow-700">Feedback do Cliente</span>
                   </div>
                   <p className="text-sm text-yellow-800">{(post as any).approvalComment}</p>
                 </div>
               )}
-
               <div className="space-y-3">
                 {((post as any).internalComments ?? []).map((c: any, i: number) => (
                   <div key={i} className="bg-gray-50 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-semibold">{c.author}</span>
-                      <span className="text-[10px] text-gray-400">
-                        {new Date(c.date).toLocaleDateString('pt-BR')}
-                      </span>
+                      <span className="text-[10px] text-gray-400">{new Date(c.date).toLocaleDateString('pt-BR')}</span>
                     </div>
                     <p className="text-sm text-gray-700">{c.text}</p>
                   </div>
                 ))}
-                {!((post as any).internalComments?.length) &&
-                  !(post as any).approvalComment && (
-                    <p className="text-sm text-gray-400 text-center py-4">
-                      Nenhum comentário ainda.
-                    </p>
-                  )}
+                {!((post as any).internalComments?.length) && !(post as any).approvalComment && (
+                  <p className="text-sm text-gray-400 text-center py-4">Nenhum comentário ainda.</p>
+                )}
               </div>
-
               <div className="space-y-2 pt-2">
-                <textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  rows={3}
+                <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#FF5C00]/20 focus:border-[#FF5C00] outline-none resize-none"
-                  placeholder="Adicione um comentário interno..."
-                />
-                <button
-                  onClick={handleSaveComment}
-                  disabled={loading || !comment.trim()}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-[#FF5C00] text-white text-sm font-medium rounded-lg hover:bg-[#E54E00] transition-colors disabled:opacity-50"
-                >
+                  placeholder="Adicione um comentário interno..." />
+                <button onClick={handleSaveComment} disabled={loading || !comment.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-[#FF5C00] text-white text-sm font-medium rounded-lg hover:bg-[#E54E00] transition-colors disabled:opacity-50">
                   <MessageSquare size={14} /> Salvar Comentário
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── Ações ── */}
+          {/* Ações tab */}
           {activeTab === 'acoes' && (
             <div className="space-y-4">
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                rows={3}
+              <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#FF5C00]/20 focus:border-[#FF5C00] outline-none resize-none"
-                placeholder="Adicione um comentário sobre a ação..."
-              />
+                placeholder="Adicione um comentário sobre a ação..." />
               <div className="grid grid-cols-3 gap-3">
-                <button
-                  onClick={() => handleAction('rejeitar')}
-                  disabled={loading}
-                  className="flex items-center justify-center gap-2 py-3 bg-red-50 text-red-600 font-semibold rounded-xl hover:bg-red-100 transition-colors text-sm disabled:opacity-50"
-                >
+                <button onClick={() => handleAction('rejeitar')} disabled={loading}
+                  className="flex items-center justify-center gap-2 py-3 bg-red-50 text-red-600 font-semibold rounded-xl hover:bg-red-100 transition-colors text-sm disabled:opacity-50">
                   <XCircle size={16} /> Rejeitar
                 </button>
-                <button
-                  onClick={() => handleAction('corrigir')}
-                  disabled={loading}
-                  className="flex items-center justify-center gap-2 py-3 bg-yellow-50 text-yellow-700 font-semibold rounded-xl hover:bg-yellow-100 transition-colors text-sm disabled:opacity-50"
-                >
+                <button onClick={() => handleAction('corrigir')} disabled={loading}
+                  className="flex items-center justify-center gap-2 py-3 bg-yellow-50 text-yellow-700 font-semibold rounded-xl hover:bg-yellow-100 transition-colors text-sm disabled:opacity-50">
                   <Edit size={16} /> Corrigir
                 </button>
-                <button
-                  onClick={() => handleAction('aprovar')}
-                  disabled={loading}
-                  className="flex items-center justify-center gap-2 py-3 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 transition-colors text-sm disabled:opacity-50"
-                >
+                <button onClick={() => handleAction('aprovar')} disabled={loading}
+                  className="flex items-center justify-center gap-2 py-3 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 transition-colors text-sm disabled:opacity-50">
                   <Check size={16} /> Aprovar
                 </button>
               </div>
