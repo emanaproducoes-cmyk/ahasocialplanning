@@ -3,12 +3,11 @@
 import { useState, useCallback, useRef } from 'react';
 import { cn }                            from '@/lib/utils/cn';
 import { formatFileSize }                from '@/lib/firebase/storage';
-import type { Platform, PostFormat, ConnectedAccount } from '@/lib/types';
+import type { Platform, ConnectedAccount } from '@/lib/types';
 
-// ─── Types exportados ─────────────────────────────────────────────────────────
 export interface FormatSelection {
   platform: Platform;
-  format:   PostFormat;
+  format:   string;
 }
 
 export interface UploadItem {
@@ -21,7 +20,6 @@ export interface UploadItem {
 
 export type Step = 1 | 2;
 
-// ─── Plataformas disponíveis ───────────────────────────────────────────────────
 const PLATFORMS: { id: Platform; label: string; emoji: string }[] = [
   { id: 'instagram',       label: 'Instagram',          emoji: '📸' },
   { id: 'facebook',        label: 'Facebook',           emoji: '👍' },
@@ -33,25 +31,26 @@ const PLATFORMS: { id: Platform; label: string; emoji: string }[] = [
   { id: 'google_business', label: 'Google Meu Negócio', emoji: '🏢' },
 ];
 
-// ─── Step 1 — Conteúdo ────────────────────────────────────────────────────────
 export function Step1Content({
   platforms,
   onTogglePlatform,
   title,      setTitle,
   caption,    setCaption,
   hashtags,   setHashtags,
+  scheduledDate, setScheduledDate,
   uploads,
   onAddFiles,
   onNext,
 }: {
   platforms:        Platform[];
   onTogglePlatform: (p: Platform) => void;
-  title:       string; setTitle:    (v: string) => void;
-  caption:     string; setCaption:  (v: string) => void;
-  hashtags:    string; setHashtags: (v: string) => void;
-  uploads:     UploadItem[];
-  onAddFiles:  (files: File[]) => void;
-  onNext:      () => void;
+  title:         string; setTitle:         (v: string) => void;
+  caption:       string; setCaption:       (v: string) => void;
+  hashtags:      string; setHashtags:      (v: string) => void;
+  scheduledDate: string; setScheduledDate: (v: string) => void;
+  uploads:       UploadItem[];
+  onAddFiles:    (files: File[]) => void;
+  onNext:        () => void;
 }) {
   const MAX_CHARS = 2200;
 
@@ -71,7 +70,7 @@ export function Step1Content({
         <p className="text-sm text-gray-500">Selecione as redes, adicione mídias e escreva a legenda</p>
       </div>
 
-      {/* ── Plataformas ── */}
+      {/* Plataformas */}
       <div>
         <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
           Redes sociais *
@@ -80,17 +79,9 @@ export function Step1Content({
           {PLATFORMS.map((p) => {
             const active = platforms.includes(p.id);
             return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => onTogglePlatform(p.id)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
-                  active
-                    ? 'bg-[#FF5C00] text-white border-[#FF5C00]'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-[#FF5C00]/50'
-                )}
-              >
+              <button key={p.id} type="button" onClick={() => onTogglePlatform(p.id)}
+                className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+                  active ? 'bg-[#FF5C00] text-white border-[#FF5C00]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#FF5C00]/50')}>
                 <span>{p.emoji}</span>
                 <span>{p.label}</span>
               </button>
@@ -100,46 +91,40 @@ export function Step1Content({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ── Esquerda: inputs ── */}
+        {/* Esquerda */}
         <div className="space-y-4">
           {/* Título */}
           <div>
             <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
               Título interno *
             </label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+            <input value={title} onChange={(e) => setTitle(e.target.value)}
               placeholder="Ex: Post produto X — semana 3"
-              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30 focus:border-[#FF5C00]"
-            />
+              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30 focus:border-[#FF5C00]" />
+          </div>
+
+          {/* Data de agendamento */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+              📅 Data de publicação
+            </label>
+            <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)}
+              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30 focus:border-[#FF5C00]" />
           </div>
 
           {/* Upload */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-              Mídias
-            </label>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">Mídias</label>
             <p className="text-xs text-gray-400 mb-2">PNG, JPG, JPEG, MP4 — máx. 50 MB</p>
-            <div
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
+            <div onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}
               onClick={() => document.getElementById('file-input')?.click()}
-              className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-[#FF5C00]/40 hover:bg-orange-50/30 transition-all cursor-pointer"
-            >
+              className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center hover:border-[#FF5C00]/40 hover:bg-orange-50/30 transition-all cursor-pointer">
               <span className="text-3xl">📁</span>
               <p className="text-sm text-gray-500 mt-2">
-                Arraste arquivos aqui ou{' '}
-                <span className="text-[#FF5C00] font-medium">clique para selecionar</span>
+                Arraste arquivos aqui ou <span className="text-[#FF5C00] font-medium">clique para selecionar</span>
               </p>
-              <input
-                id="file-input"
-                type="file"
-                multiple
-                accept="image/png,image/jpeg,image/jpg,video/mp4"
-                onChange={handleFileInput}
-                className="hidden"
-              />
+              <input id="file-input" type="file" multiple accept="image/png,image/jpeg,image/jpg,video/mp4"
+                onChange={handleFileInput} className="hidden" />
             </div>
 
             {uploads.length > 0 && (
@@ -157,9 +142,7 @@ export function Step1Content({
                       </div>
                     )}
                     {item.url && (
-                      <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
-                        <span className="text-white text-[10px]">✓</span>
-                      </div>
+                      <div className="absolute bottom-1 right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white text-[10px]">✓</div>
                     )}
                     {item.error && (
                       <div className="absolute inset-0 bg-red-500/80 flex items-center justify-center p-1">
@@ -178,37 +161,26 @@ export function Step1Content({
           {/* Legenda */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                Legenda
-              </label>
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wider">Legenda</label>
               <span className={cn('text-xs', caption.length > MAX_CHARS ? 'text-red-500' : 'text-gray-400')}>
                 {caption.length}/{MAX_CHARS}
               </span>
             </div>
-            <textarea
-              value={caption}
-              onChange={(e) => setCaption(e.target.value)}
-              placeholder="Escreva a legenda do post..."
-              rows={5}
-              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30 focus:border-[#FF5C00]"
-            />
+            <textarea value={caption} onChange={(e) => setCaption(e.target.value)}
+              placeholder="Escreva a legenda do post..." rows={5}
+              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30 focus:border-[#FF5C00]" />
           </div>
 
           {/* Hashtags */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-              Hashtags
-            </label>
-            <input
-              value={hashtags}
-              onChange={(e) => setHashtags(e.target.value)}
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">Hashtags</label>
+            <input value={hashtags} onChange={(e) => setHashtags(e.target.value)}
               placeholder="#marketing #socialmedia #conteudo"
-              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30 focus:border-[#FF5C00]"
-            />
+              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30 focus:border-[#FF5C00]" />
           </div>
         </div>
 
-        {/* ── Direita: preview ── */}
+        {/* Preview */}
         <div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Preview</p>
           <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm max-w-xs mx-auto">
@@ -217,7 +189,9 @@ export function Step1Content({
               <div>
                 <p className="text-xs font-semibold text-gray-900">sua_conta</p>
                 <p className="text-[10px] text-gray-400">
-                  {platforms.length > 0 ? platforms.map(p => PLATFORMS.find(x => x.id === p)?.emoji).join(' ') : '📱'}
+                  {platforms.length > 0
+                    ? platforms.map((p) => PLATFORMS.find((x) => x.id === p)?.emoji).join(' ')
+                    : '📱'}
                 </p>
               </div>
               <span className="ml-auto text-gray-400 text-lg">⋯</span>
@@ -234,6 +208,9 @@ export function Step1Content({
               <span className="ml-auto text-xl">🔖</span>
             </div>
             <div className="px-3 pb-3">
+              {scheduledDate && (
+                <p className="text-[10px] text-gray-400 mb-1">📅 {new Date(scheduledDate + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+              )}
               <p className="text-xs text-gray-900 line-clamp-3">
                 <span className="font-semibold">sua_conta </span>
                 {caption || <span className="text-gray-400 italic">Sua legenda aparecerá aqui...</span>}
@@ -245,11 +222,8 @@ export function Step1Content({
       </div>
 
       <div className="flex justify-end pt-4">
-        <button
-          onClick={onNext}
-          disabled={!title.trim() || platforms.length === 0}
-          className="px-8 py-3 bg-[#FF5C00] hover:bg-[#E54E00] disabled:opacity-40 text-white font-medium rounded-xl transition-colors"
-        >
+        <button onClick={onNext} disabled={!title.trim() || platforms.length === 0}
+          className="px-8 py-3 bg-[#FF5C00] hover:bg-[#E54E00] disabled:opacity-40 text-white font-medium rounded-xl transition-colors">
           Continuar →
         </button>
       </div>
