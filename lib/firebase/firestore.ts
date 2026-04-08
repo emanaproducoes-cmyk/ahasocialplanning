@@ -278,6 +278,109 @@ export function listenBadgeCount(
   });
 }
 
+// ─── META INTEGRATION HELPERS (client-side — chamam as API routes) ───────────
+
+/**
+ * Inicia o OAuth Meta.
+ * Retorna a URL de login da Meta para redirecionar o usuário.
+ * O token NUNCA passa pelo client — tudo via API route no servidor.
+ */
+export async function initiateMetaOAuth(uid: string, accountId?: string): Promise<string> {
+  const res  = await fetch('/api/meta/connect', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ uid, accountId }),
+  });
+  const data = await res.json() as { url?: string; error?: string };
+  if (!res.ok || !data.url) throw new Error(data.error ?? 'Falha ao iniciar OAuth Meta.');
+  return data.url;
+}
+
+/**
+ * Sincroniza dados de uma conta Meta conectada.
+ * Respeita cache de 4 horas no servidor.
+ */
+export async function syncMetaAccount(
+  uid: string,
+  accountId: string
+): Promise<{ cached: boolean }> {
+  const res  = await fetch(`/api/meta/sync-account/${accountId}`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ uid }),
+  });
+  const data = await res.json() as { success?: boolean; cached?: boolean; error?: string };
+  if (!res.ok) throw new Error(data.error ?? 'Erro ao sincronizar conta Meta.');
+  return { cached: data.cached ?? false };
+}
+
+/**
+ * Busca insights da Meta Graph API (seguidores, engajamento, impressões).
+ */
+export async function getMetaInsights(
+  uid:       string,
+  accountId: string,
+  period:    '7d' | '30d' | '90d' = '30d'
+): Promise<{
+  totals:    { fans: number; impressions: number; engagement: number; postEngagement: number; pageViews: number };
+  chartData: { name: string; impressoes: number; engajamento: number }[];
+}> {
+  const res  = await fetch(`/api/meta/insights/${accountId}?uid=${uid}&period=${period}`);
+  const data = await res.json() as {
+    totals?: Record<string, number>;
+    chartData?: unknown[];
+    error?: string;
+  };
+  if (!res.ok) throw new Error(data.error ?? 'Erro ao buscar insights.');
+  return {
+    totals: {
+      fans:           (data.totals?.fans           as number) ?? 0,
+      impressions:    (data.totals?.impressions    as number) ?? 0,
+      engagement:     (data.totals?.engagement     as number) ?? 0,
+      postEngagement: (data.totals?.postEngagement as number) ?? 0,
+      pageViews:      (data.totals?.pageViews      as number) ?? 0,
+    },
+    chartData: (data.chartData ?? []) as { name: string; impressoes: number; engajamento: number }[],
+  };
+}
+
+/**
+ * Busca dados de anúncios da Meta Ads API (CPC, CPM, CTR, ROAS).
+ */
+export async function getMetaAdsData(
+  uid:       string,
+  accountId: string,
+  period:    '7d' | '30d' | '90d' = '30d'
+): Promise<{
+  summary:   { spend: number; impressions: number; reach: number; clicks: number; cpc: number; cpm: number; ctr: number; conversions: number; roas: number };
+  chartData: { name: string; CPC: number; CPM: number; Cliques: number; Investido: number }[];
+  campaigns: { id: string; name: string; status: string; objective: string; platform: string }[];
+}> {
+  const res  = await fetch(`/api/meta/ads/${accountId}?uid=${uid}&period=${period}`);
+  const data = await res.json() as {
+    summary?:   Record<string, number>;
+    chartData?: unknown[];
+    campaigns?: unknown[];
+    error?: string;
+  };
+  if (!res.ok) throw new Error(data.error ?? 'Erro ao buscar dados de anúncios.');
+  return {
+    summary: {
+      spend:       (data.summary?.spend       as number) ?? 0,
+      impressions: (data.summary?.impressions as number) ?? 0,
+      reach:       (data.summary?.reach       as number) ?? 0,
+      clicks:      (data.summary?.clicks      as number) ?? 0,
+      cpc:         (data.summary?.cpc         as number) ?? 0,
+      cpm:         (data.summary?.cpm         as number) ?? 0,
+      ctr:         (data.summary?.ctr         as number) ?? 0,
+      conversions: (data.summary?.conversions as number) ?? 0,
+      roas:        (data.summary?.roas        as number) ?? 0,
+    },
+    chartData: (data.chartData ?? []) as { name: string; CPC: number; CPM: number; Cliques: number; Investido: number }[],
+    campaigns: (data.campaigns ?? []) as { id: string; name: string; status: string; objective: string; platform: string }[],
+  };
+}
+
 // Re-exports for convenience
 export {
   serverTimestamp,
