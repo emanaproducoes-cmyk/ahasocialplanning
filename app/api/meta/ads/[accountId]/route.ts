@@ -1,58 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb }                from '@/lib/firebase/admin';
-import { FieldValue }                from 'firebase-admin/firestore';
 
-async function fetchPageFollowers(token: string, metaAccountId: string) {
-  const url = `https://graph.facebook.com/v19.0/${metaAccountId}?fields=followers_count,fan_count,name,picture&access_token=${token}`;
-  const res  = await fetch(url);
-  return res.json() as Promise<{
-    followers_count?: number; fan_count?: number;
-    name?: string; error?: { message: string };
-  }>;
-}
-
-async function fetchInsights(token: string, metaAccountId: string) {
-  const since = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60;
-  const until = Math.floor(Date.now() / 1000);
-
-  const url = `https://graph.facebook.com/v19.0/${metaAccountId}/insights?` +
-    `metric=page_fans,page_impressions,page_engaged_users,page_post_engagements` +
-    `&period=total_over_range&since=${since}&until=${until}` +
-    `&access_token=${token}`;
-
-  const res  = await fetch(url);
-  const data = await res.json() as {
-    data?: { name: string; values: { value: number }[] }[];
-    error?: { message: string };
-  };
-  if (!res.ok) throw new Error(data.error?.message ?? 'Erro ao buscar insights.');
-  return data.data ?? [];
-}
-
-async function fetchAdsData(token: string, adAccountId: string) {
-  const url = `https://graph.facebook.com/v19.0/${adAccountId}/insights?` +
-    `fields=impressions,reach,clicks,spend,cpc,cpm,ctr,actions&date_preset=last_30d` +
-    `&access_token=${token}`;
-
-  const res  = await fetch(url);
-  const data = await res.json() as {
-    data?: {
-      impressions?: string; reach?: string; clicks?: string;
-      spend?: string; cpc?: string; cpm?: string; ctr?: string;
-      actions?: { action_type: string; value: string }[];
-    }[];
-    error?: { message: string };
-  };
-  if (!res.ok) throw new Error(data.error?.message ?? 'Erro ao buscar dados de anúncios.');
-  return data.data?.[0] ?? null;
-}
-
-export async function POST(
+export async function GET(
   req: NextRequest,
   { params }: { params: { accountId: string } }
 ) {
   try {
-    const { uid } = await req.json() as { uid?: string };
+    const uid = req.nextUrl.searchParams.get('uid');
     const { accountId } = params;
 
     if (!uid || !accountId) {
@@ -60,84 +14,104 @@ export async function POST(
     }
 
     const adminDb = getAdminDb();
-    const ref     = adminDb.collection('users').doc(uid).collection('connectedAccounts').doc(accountId);
-    const snap    = await ref.get();
+    const snap    = await adminDb
+      .collection('users').doc(uid)
+      .collection('connectedAccounts').doc(accountId)
+      .get();
 
     if (!snap.exists()) {
       return NextResponse.json({ error: 'Conta não encontrada.' }, { status: 404 });
     }
 
-    const account       = snap.data() as Record<string, unknown>;
-    const token         = account.metaLongLivedToken as string | undefined;
-    const metaAccountId = account.metaAccountId     as string | undefined;
-    const adAccountId   = account.adAccountId       as string | undefined;
+    const account     = snap.data() as Record<string, unknown>;
+    const token       = account.metaLongLivedToken as string | undefined;
+    const adAccountId = account.adAccountId        as string | undefined;
 
-    if (!token || !metaAccountId) {
+    if (!token) {
+      return NextResponse.json({ error: 'Token Meta não encontrado.' }, { status: 400 });
+    }
+
+    if (!adAccountId) {
       return NextResponse.json(
-        { error: 'Conta Meta não conectada. Reconecte via OAuth.' },
+        { error: 'Nenhuma conta de anúncios (Ad Account) associada. Verifique permissões.' },
         { status: 400 }
       );
     }
 
-    // Cache de 4 horas
-    const lastSync    = account.lastSyncedAt as { _seconds?: number } | undefined;
-    const fourHoursAgo = Date.now() / 1000 - 4 * 60 * 60;
-    if (lastSync?._seconds && lastSync._seconds > fourHoursAgo) {
-      return NextResponse.json({ success: true, cached: true, message: 'Dados já atualizados nas últimas 4 horas.' });
-    }
+    const period     = req.nextUrl.searchParams.get('period') ?? '30d';
+    const datePreset =
+      period === '7d'  ? 'last_7d'  :
+      period === '90d' ? 'last_90d' : 'last_30d';
 
-    const [pageInfo, insights, adsData] = await Promise.allSettled([
-      fetchPageFollowers(token, metaAccountId),
-      fetchInsights(token, metaAccountId),
-      adAccountId ? fetchAdsData(token, adAccountId) : Promise.resolve(null),
+    const summaryUrl = `https://graph.facebook.com/v19.0/${adAccountId}/insights?` +
+      `fields=impressions,reach,clicks,spend,cpc,cpm,ctr,actions,conversions` +
+      `&date_preset=${datePreset}&access_token=${token}`;
+
+    const dailyUrl = `https://graph.facebook.com/v19.0/${adAccountId}/insights?` +
+      `fields=spend,impressions,clicks,cpc,cpm&time_increment=1` +
+      `&date_preset=${datePreset}&access_token=${token}`;
+
+    const campaignsUrl = `https://graph.facebook.com/v19.0/${adAccountId}/campaigns?` +
+      `fields=id,name,status,objective` +
+      `&effective_status=["ACTIVE","PAUSED"]` +
+      `&access_token=${token}`;
+
+    const [summaryRes, dailyRes, campaignsRes] = await Promise.all([
+      fetch(summaryUrl),
+      fetch(dailyUrl),
+      fetch(campaignsUrl),
     ]);
 
-    const insightMap: Record<string, number> = {};
-    if (insights.status === 'fulfilled') {
-      insights.value.forEach((item) => {
-        insightMap[item.name] = item.values?.[0]?.value ?? 0;
-      });
+    const [summaryData, dailyData, campaignsData] = await Promise.all([
+      summaryRes.json()   as Promise<{ data?: Record<string, unknown>[]; error?: { message: string } }>,
+      dailyRes.json()     as Promise<{ data?: { date_start: string; spend?: string; impressions?: string; clicks?: string; cpc?: string; cpm?: string }[] }>,
+      campaignsRes.json() as Promise<{ data?: { id: string; name: string; status: string; objective: string }[] }>,
+    ]);
+
+    if (!summaryRes.ok) {
+      throw new Error((summaryData as any).error?.message ?? 'Erro ao buscar dados de anúncios.');
     }
 
-    const pageData  = pageInfo.status === 'fulfilled' ? pageInfo.value : {};
-    const followers = pageData.followers_count ?? pageData.fan_count ?? 0;
+    const s       = (summaryData.data?.[0] ?? {}) as Record<string, unknown>;
+    const actions = (s.actions ?? []) as { action_type: string; value: string }[];
+    const purchases = actions.find((a) => a.action_type === 'offsite_conversion.fb_pixel_purchase');
 
-    const ads         = adsData.status === 'fulfilled' ? adsData.value : null;
-    const conversions = ads?.actions?.find(
-      (a) => a.action_type === 'offsite_conversion.fb_pixel_purchase'
-    )?.value ?? null;
+    const spend  = parseFloat(String(s.spend  ?? '0'));
+    const clicks = parseInt(String(s.clicks   ?? '0'), 10);
+    const roas   = spend > 0 && purchases ? (parseInt(purchases.value, 10) * 100) / spend : 0;
 
-    const update: Record<string, unknown> = {
-      followers,
-      engagement:   insightMap.page_post_engagements ?? 0,
-      impressions:  insightMap.page_impressions      ?? 0,
-      reach:        insightMap.page_engaged_users    ?? 0,
-      status:       'ativo',
-      lastSyncedAt: FieldValue.serverTimestamp(),
-      updatedAt:    FieldValue.serverTimestamp(),
+    const summary = {
+      spend,
+      impressions: parseInt(String(s.impressions ?? '0'), 10),
+      reach:       parseInt(String(s.reach       ?? '0'), 10),
+      clicks,
+      cpc:         parseFloat(String(s.cpc ?? '0')),
+      cpm:         parseFloat(String(s.cpm ?? '0')),
+      ctr:         parseFloat(String(s.ctr ?? '0')),
+      conversions: purchases ? parseInt(purchases.value, 10) : 0,
+      roas:        parseFloat(roas.toFixed(2)),
     };
 
-    if (ads && adAccountId) {
-      update.adsMetrics = {
-        spend:       parseFloat(ads.spend       ?? '0'),
-        impressions: parseInt(ads.impressions   ?? '0', 10),
-        reach:       parseInt(ads.reach         ?? '0', 10),
-        clicks:      parseInt(ads.clicks        ?? '0', 10),
-        cpc:         parseFloat(ads.cpc         ?? '0'),
-        cpm:         parseFloat(ads.cpm         ?? '0'),
-        ctr:         parseFloat(ads.ctr         ?? '0'),
-        conversions: conversions ? parseInt(conversions, 10) : 0,
-        roas:        0,
-        syncedAt:    new Date().toISOString(),
-      };
-    }
+    const chartData = (dailyData.data ?? []).map((d) => ({
+      name:      new Date(d.date_start).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+      CPC:       parseFloat(d.cpc        ?? '0'),
+      CPM:       parseFloat(d.cpm        ?? '0'),
+      Cliques:   parseInt(d.clicks       ?? '0', 10),
+      Investido: parseFloat(d.spend      ?? '0'),
+    }));
 
-    await ref.update(update);
+    const campaigns = (campaignsData.data ?? []).map((c) => ({
+      id:        c.id,
+      name:      c.name,
+      status:    c.status,
+      objective: c.objective,
+      platform:  'facebook',
+    }));
 
-    return NextResponse.json({ success: true, cached: false, followers });
+    return NextResponse.json({ success: true, summary, chartData, campaigns, period, adAccountId });
   } catch (err) {
-    console.error('[meta/sync-account] Error:', err);
-    const message = err instanceof Error ? err.message : 'Erro ao sincronizar conta Meta.';
+    console.error('[meta/ads] Error:', err);
+    const message = err instanceof Error ? err.message : 'Erro ao buscar dados de anúncios.';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
