@@ -1,17 +1,5 @@
 'use client';
 
-/**
- * PostPreviewModal — VERSÃO CORRIGIDA
- * Caminho: src/components/modals/PostPreviewModal.tsx
- *
- * Correções:
- *  ✅ Toast usa showToast de @/components/ui/Toast (padrão do projeto)
- *  ✅ Botão "Editar Post" navega para /criar-post?edit={id}
- *  ✅ animate-fade-in substituído por @keyframes inline
- *  ✅ Lightbox z-[200] (acima do modal z-50)
- *  ✅ Suporte a creatives[], image_url e image_urls
- */
-
 import { useState }                          from 'react';
 import { useRouter }                         from 'next/navigation';
 import {
@@ -25,8 +13,6 @@ import { cn }                                from '@/lib/utils/cn';
 import { useAuth }                           from '@/lib/hooks/useAuth';
 import { showToast }                         from '@/components/ui/Toast';
 import type { Post }                         from '@/lib/types';
-
-/* ─── constantes ─────────────────────────────────────────────── */
 
 const PLATFORMS = [
   'instagram','facebook','youtube','tiktok',
@@ -49,8 +35,6 @@ const PLATFORM_ICONS: Record<string, string> = {
   tiktok:'🎵', linkedin:'💼', threads:'🧵',
   pinterest:'📌', google_business:'🏢',
 };
-
-/* ─── ImageViewer ─────────────────────────────────────────────── */
 
 function ImageViewer({ post }: { post: Post }) {
   const [slide, setSlide]   = useState(0);
@@ -85,26 +69,19 @@ function ImageViewer({ post }: { post: Post }) {
   return (
     <>
       {zoomed && currentUrl && (
-        <div
-          className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center"
-          onClick={() => setZoomed(false)}
-        >
+        <div className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center" onClick={() => setZoomed(false)}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={currentUrl} alt="" className="max-w-full max-h-full object-contain"
-            onClick={(e) => e.stopPropagation()} />
-          <button onClick={() => setZoomed(false)}
-            className="absolute top-4 right-4 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors">
+          <img src={currentUrl} alt="" className="max-w-full max-h-full object-contain" onClick={(e) => e.stopPropagation()} />
+          <button onClick={() => setZoomed(false)} className="absolute top-4 right-4 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors">
             <X size={20} />
           </button>
           {slides.length > 1 && (
             <>
-              <button onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.max(0, s - 1)); }}
-                disabled={slide === 0}
+              <button onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.max(0, s - 1)); }} disabled={slide === 0}
                 className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white disabled:opacity-20 hover:bg-white/30 transition-colors">
                 <ChevronLeft size={20} />
               </button>
-              <button onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.min(slides.length - 1, s + 1)); }}
-                disabled={slide === slides.length - 1}
+              <button onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.min(slides.length - 1, s + 1)); }} disabled={slide === slides.length - 1}
                 className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white disabled:opacity-20 hover:bg-white/30 transition-colors">
                 <ChevronRight size={20} />
               </button>
@@ -116,29 +93,24 @@ function ImageViewer({ post }: { post: Post }) {
         </div>
       )}
 
-      <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-100 mb-4 group cursor-zoom-in"
-        onClick={() => setZoomed(true)}>
+      <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-100 mb-4 group cursor-zoom-in" onClick={() => setZoomed(true)}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={currentUrl!} alt={post.title} className="w-full h-full object-contain" />
         <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={(e) => { e.stopPropagation(); setZoomed(true); }}
-            className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors" title="Ampliar">
+          <button onClick={(e) => { e.stopPropagation(); setZoomed(true); }} className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors">
             <ZoomIn size={14} />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); handleDownload(); }}
-            className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors" title="Baixar">
+          <button onClick={(e) => { e.stopPropagation(); handleDownload(); }} className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors">
             <Download size={14} />
           </button>
         </div>
         {slides.length > 1 && (
           <>
-            <button onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.max(0, s - 1)); }}
-              disabled={slide === 0}
+            <button onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.max(0, s - 1)); }} disabled={slide === 0}
               className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 text-white rounded-full flex items-center justify-center disabled:opacity-30 hover:bg-black/80 transition-colors">
               <ChevronLeft size={16} />
             </button>
-            <button onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.min(slides.length - 1, s + 1)); }}
-              disabled={slide === slides.length - 1}
+            <button onClick={(e) => { e.stopPropagation(); setSlide((s) => Math.min(slides.length - 1, s + 1)); }} disabled={slide === slides.length - 1}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 text-white rounded-full flex items-center justify-center disabled:opacity-30 hover:bg-black/80 transition-colors">
               <ChevronRight size={16} />
             </button>
@@ -157,8 +129,6 @@ function ImageViewer({ post }: { post: Post }) {
     </>
   );
 }
-
-/* ─── PostPreviewModal ────────────────────────────────────────── */
 
 interface PostPreviewModalProps {
   post:      Post;
@@ -269,17 +239,13 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
   ];
 
   return (
-    <div
-      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
-      style={{ animation: 'fadeIn 0.15s ease' }}
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+      style={{ animation: 'fadeIn 0.15s ease' }} onClick={onClose}>
       <style>{`@keyframes fadeIn { from { opacity:0 } to { opacity:1 } }`}</style>
 
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}>
 
-        {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <span className="text-xl">{platforms.length ? (PLATFORM_ICONS[platforms[0]] ?? '📝') : '📝'}</span>
@@ -290,36 +256,30 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
           </div>
           <div className="flex items-center gap-2">
             <button onClick={handleOpenEdit}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[#FF5C00] hover:bg-orange-50 rounded-lg transition-colors font-medium"
-              title="Abrir modo de edição">
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[#FF5C00] hover:bg-orange-50 rounded-lg transition-colors font-medium">
               <Edit2 size={14} /> Editar Post
             </button>
             <button onClick={handleDelete} disabled={loading}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium disabled:opacity-50">
               <Trash2 size={14} /> Deletar
             </button>
-            <button onClick={onClose}
-              className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
+            <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 transition-colors">
               <X size={18} />
             </button>
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="flex border-b border-gray-200 px-5">
           {tabs.map((tab) => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className={cn('px-4 py-3 text-sm font-medium border-b-2 transition-colors',
-                activeTab === tab.key
-                  ? 'border-[#FF5C00] text-[#FF5C00]'
-                  : 'border-transparent text-gray-400 hover:text-gray-700')}>
+                activeTab === tab.key ? 'border-[#FF5C00] text-[#FF5C00]' : 'border-transparent text-gray-400 hover:text-gray-700')}>
               {tab.label}
             </button>
           ))}
         </div>
 
         <div className="p-5">
-          {/* Preview tab */}
           {activeTab === 'preview' && (
             <>
               <ImageViewer post={post} />
@@ -363,7 +323,6 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
             </>
           )}
 
-          {/* Comentários tab */}
           {activeTab === 'comentarios' && (
             <div className="space-y-4">
               {(post as any).approvalComment && (
@@ -401,7 +360,6 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
             </div>
           )}
 
-          {/* Ações tab */}
           {activeTab === 'acoes' && (
             <div className="space-y-4">
               <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3}
