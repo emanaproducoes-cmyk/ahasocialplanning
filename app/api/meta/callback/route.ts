@@ -1,14 +1,3 @@
-/**
- * app/api/meta/callback/route.ts
- *
- * Recebe o code do OAuth Meta, troca por short-lived token,
- * faz upgrade para long-lived token (60 dias), busca as Pages e
- * contas Instagram vinculadas, e salva tudo no Firestore via Admin SDK.
- *
- * O accessToken NUNCA é exposto ao client — fica só no Firestore
- * no campo _accessToken (prefixo _ = campo privado por convenção).
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb }                from '@/lib/firebase/admin';
 import { FieldValue }                from 'firebase-admin/firestore';
@@ -16,138 +5,128 @@ import { FieldValue }                from 'firebase-admin/firestore';
 const META_APP_ID     = process.env.META_APP_ID     ?? '';
 const META_APP_SECRET = process.env.META_APP_SECRET ?? '';
 const APP_URL         = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-const REDIRECT_URI    = `${APP_URL}/api/meta/callback`;
 
-interface MetaPage {
-  id:           string;
-  name:         string;
-  access_token: string;
-  instagram_business_account?: { id: string };
+async function exchangeCodeForToken(code: string): Promise<string> {
+  const redirectUri = `${APP_URL}/api/meta/callback`;
+  const url = new URL('https://graph.facebook.com/v19.0/oauth/access_token');
+  url.searchParams.set('client_id',     META_APP_ID);
+  url.searchParams.set('client_secret', META_APP_SECRET);
+  url.searchParams.set('redirect_uri',  redirectUri);
+  url.searchParams.set('code',          code);
+
+  const res  = await fetch(url.toString());
+  const data = await res.json() as { access_token?: string; error?: { message: string } };
+
+  if (!res.ok || !data.access_token) {
+    throw new Error(data.error?.message ?? 'Falha ao trocar código por token.');
+  }
+  return data.access_token;
 }
 
-interface MetaIGAccount {
-  id:               string;
-  name:             string;
-  username:         string;
-  profile_picture_url?: string;
-  followers_count:  number;
-  media_count:      number;
+async function getLongLivedToken(shortToken: string): Promise<string> {
+  const url = new URL('https://graph.facebook.com/v19.0/oauth/access_token');
+  url.searchParams.set('grant_type',        'fb_exchange_token');
+  url.searchParams.set('client_id',         META_APP_ID);
+  url.searchParams.set('client_secret',     META_APP_SECRET);
+  url.searchParams.set('fb_exchange_token', shortToken);
+
+  const res  = await fetch(url.toString());
+  const data = await res.json() as { access_token?: string; error?: { message: string } };
+
+  if (!res.ok || !data.access_token) {
+    throw new Error(data.error?.message ?? 'Falha ao obter long-lived token.');
+  }
+  return data.access_token;
+}
+
+async function fetchMetaUserInfo(token: string): Promise<{
+  metaUserId: string;
+  name:       string;
+  adAccounts: { id: string; name: string; currency: string }[];
+}> {
+  const url = `https://graph.facebook.com/v19.0/me?fields=id,name,adaccounts{id,name,currency}&access_token=${token}`;
+  const res  = await fetch(url);
+  const data = await res.json() as {
+    id?: string; name?: string;
+    adaccounts?: { data: { id: string; name: string; currency: string }[] };
+    error?: { message: string };
+  };
+
+  if (!res.ok || !data.id) {
+    throw new Error(data.error?.message ?? 'Falha ao obter dados do usuário Meta.');
+  }
+
+  return {
+    metaUserId: data.id,
+    name:       data.name ?? '',
+    adAccounts: data.adaccounts?.data ?? [],
+  };
 }
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const code             = searchParams.get('code');
-  const stateRaw         = searchParams.get('state') ?? '';
-  const errorParam       = searchParams.get('error');
+  const code     = searchParams.get('code');
+  const state    = searchParams.get('state');
+  const errParam = searchParams.get('error');
 
-  // Usuário cancelou
-  if (errorParam) {
-    return NextResponse.redirect(`${APP_URL}/contas?meta=cancelled`);
+  if (errParam) {
+    return NextResponse.redirect(`${APP_URL}/contas?meta_error=permission_denied`);
   }
 
-  if (!code) {
-    return NextResponse.redirect(`${APP_URL}/contas?meta=error&msg=no_code`);
-  }
-
-  // Decodifica state para recuperar uid
-  let uid = '';
-  try {
-    const parsed = JSON.parse(Buffer.from(stateRaw, 'base64url').toString());
-    uid = parsed.uid ?? '';
-  } catch {
-    return NextResponse.redirect(`${APP_URL}/contas?meta=error&msg=invalid_state`);
-  }
-
-  if (!uid) {
-    return NextResponse.redirect(`${APP_URL}/contas?meta=error&msg=no_uid`);
+  if (!code || !state) {
+    return NextResponse.redirect(`${APP_URL}/contas?meta_error=missing_params`);
   }
 
   try {
-    // 1. Troca code por short-lived token
-    const tokenRes = await fetch(
-      `https://graph.facebook.com/v19.0/oauth/access_token?` +
-      `client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-      `&client_secret=${META_APP_SECRET}&code=${code}`
+    const { uid, accountId } = JSON.parse(
+      Buffer.from(state, 'base64url').toString('utf-8')
+    ) as { uid: string; accountId: string | null };
+
+    if (!uid) throw new Error('UID inválido no state.');
+
+    const shortToken     = await exchangeCodeForToken(code);
+    const longToken      = await getLongLivedToken(shortToken);
+    const metaInfo       = await fetchMetaUserInfo(longToken);
+    const firstAdAccount = metaInfo.adAccounts[0] ?? null;
+
+    const accountDocId = accountId ?? `meta_${metaInfo.metaUserId}`;
+
+    // getAdminDb() usa lazy init — seguro em runtime
+    const adminDb = getAdminDb();
+    const ref = adminDb
+      .collection('users')
+      .doc(uid)
+      .collection('connectedAccounts')
+      .doc(accountDocId);
+
+    await ref.set(
+      {
+        platform:           'facebook',
+        name:               metaInfo.name,
+        handle:             metaInfo.name.toLowerCase().replace(/\s/g, ''),
+        avatar:             '',
+        followers:          0,
+        engagement:         0,
+        posts:              0,
+        status:             'ativo',
+        metaAccountId:      metaInfo.metaUserId,
+        metaLongLivedToken: longToken,           // somente server-side no Firestore
+        adAccountId:        firstAdAccount?.id   ?? null,
+        adAccountName:      firstAdAccount?.name ?? null,
+        allAdAccounts:      metaInfo.adAccounts,
+        lastSyncedAt:       FieldValue.serverTimestamp(),
+        connectedAt:        FieldValue.serverTimestamp(),
+        updatedAt:          FieldValue.serverTimestamp(),
+      },
+      { merge: true }
     );
-    const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) throw new Error('Falha ao obter short-lived token');
 
-    // 2. Upgrade para long-lived token (~60 dias)
-    const llRes = await fetch(
-      `https://graph.facebook.com/v19.0/oauth/access_token?` +
-      `grant_type=fb_exchange_token&client_id=${META_APP_ID}` +
-      `&client_secret=${META_APP_SECRET}&fb_exchange_token=${tokenData.access_token}`
+    return NextResponse.redirect(
+      `${APP_URL}/contas?meta_success=1&account=${accountDocId}`
     );
-    const llData = await llRes.json();
-    const longLivedToken: string = llData.access_token ?? tokenData.access_token;
-
-    // 3. Busca Pages vinculadas
-    const pagesRes = await fetch(
-      `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${longLivedToken}`
-    );
-    const pagesData = await pagesRes.json();
-    const pages: MetaPage[] = pagesData.data ?? [];
-
-    const db      = getAdminDb();
-    const batch   = db.batch();
-    const baseRef = db.collection(`users/${uid}/connectedAccounts`);
-    const now     = FieldValue.serverTimestamp();
-
-    for (const page of pages) {
-      // Salva conta Facebook Page
-      const fbDocId = `facebook_${page.id}`;
-      batch.set(baseRef.doc(fbDocId), {
-        platform:     'facebook',
-        name:         page.name,
-        handle:       page.name.toLowerCase().replace(/\s/g, ''),
-        avatar:       `https://graph.facebook.com/${page.id}/picture?type=square`,
-        followers:    0,
-        engagement:   0,
-        posts:        0,
-        status:       'ativo',
-        metaPageId:   page.id,
-        _pageToken:   page.access_token, // privado
-        _accessToken: longLivedToken,    // privado
-        connectedAt:  now,
-        updatedAt:    now,
-      }, { merge: true });
-
-      // Se tem IG Business vinculado, busca dados e salva
-      if (page.instagram_business_account?.id) {
-        const igId  = page.instagram_business_account.id;
-        const igRes = await fetch(
-          `https://graph.facebook.com/v19.0/${igId}?` +
-          `fields=id,name,username,profile_picture_url,followers_count,media_count` +
-          `&access_token=${page.access_token}`
-        );
-        const ig: MetaIGAccount = await igRes.json();
-
-        const igDocId = `instagram_${igId}`;
-        batch.set(baseRef.doc(igDocId), {
-          platform:        'instagram',
-          name:            ig.name    ?? page.name,
-          handle:          ig.username ?? '',
-          avatar:          ig.profile_picture_url ?? '',
-          followers:       ig.followers_count ?? 0,
-          engagement:      0,
-          posts:           ig.media_count ?? 0,
-          status:          'ativo',
-          metaAccountId:   igId,
-          metaPageId:      page.id,
-          _pageToken:      page.access_token, // privado
-          _accessToken:    longLivedToken,    // privado
-          connectedAt:     now,
-          updatedAt:       now,
-          lastSyncedAt:    now,
-        }, { merge: true });
-      }
-    }
-
-    await batch.commit();
-
-    return NextResponse.redirect(`${APP_URL}/contas?meta=success`);
-  } catch (err: any) {
-    console.error('[Meta callback error]', err);
-    return NextResponse.redirect(`${APP_URL}/contas?meta=error&msg=${encodeURIComponent(err.message)}`);
+  } catch (err) {
+    console.error('[meta/callback] Error:', err);
+    const msg = err instanceof Error ? encodeURIComponent(err.message) : 'unknown';
+    return NextResponse.redirect(`${APP_URL}/contas?meta_error=${msg}`);
   }
 }
