@@ -1,33 +1,19 @@
 'use client';
 
-/**
- * Agendamentos – Página de Agendamentos
- * Caminho: src/app/agendamentos/page.tsx
- *
- * Views: Grade | Calendário | Lista
- * Todas as views suportam:
- *   • Clicar no criativo/card → abre PostPreviewModal com as mesmas opções
- *     de edição do Workflow (Preview / Comentários / Ações)
- *   • Clicar no ícone de lápis → navega para /criar-post?edit={postId}
- */
-
-import { useEffect, useState, useCallback } from 'react';
-import { useRouter }                        from 'next/navigation';
-import {
-  collection, query, orderBy,
-  getDocs,
-}                                           from 'firebase/firestore';
-import { db }                               from '@/lib/firebase/firestore';
-import { useAuth }                          from '@/lib/hooks/useAuth';
+import { useState }                         from 'react';
+import { useRouter }                         from 'next/navigation';
+import { orderBy }                           from 'firebase/firestore';
+import { useAuth }                           from '@/lib/hooks/useAuth';
+import { useUserCollection }                 from '@/lib/hooks/useCollection';
 import {
   LayoutGrid, List, Calendar,
   Plus, RefreshCw,
   ChevronLeft, ChevronRight, Edit, ZoomIn,
-}                                           from 'lucide-react';
-import { cn }                               from '@/lib/utils/cn';
-import PostCard                             from '@/components/posts/PostCard';
-import PostPreviewModal                     from '@/components/modals/PostPreviewModal';
-import type { Post }                        from '@/lib/types';
+} from 'lucide-react';
+import { cn }               from '@/lib/utils/cn';
+import PostCard             from '@/components/posts/PostCard';
+import PostPreviewModal     from '@/components/modals/PostPreviewModal';
+import type { Post }        from '@/lib/types';
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 
@@ -38,14 +24,14 @@ const PLATFORM_EMOJI: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  rascunho:           { label: 'Rascunho',         color: 'bg-gray-100    text-gray-600'   },
-  conteudo:           { label: 'Conteúdo',          color: 'bg-blue-100   text-blue-600'   },
-  revisao:            { label: 'Revisão',           color: 'bg-yellow-100 text-yellow-700' },
-  aprovacao_cliente:  { label: 'Aprovação',         color: 'bg-purple-100 text-purple-600' },
-  em_analise:         { label: 'Em Análise',        color: 'bg-blue-100   text-blue-700'   },
-  aprovado:           { label: 'Aprovado',          color: 'bg-green-100  text-green-700'  },
-  rejeitado:          { label: 'Rejeitado',         color: 'bg-red-100    text-red-700'    },
-  publicado:          { label: 'Publicado',         color: 'bg-emerald-100 text-emerald-700'},
+  rascunho:          { label: 'Rascunho',         color: 'bg-gray-100    text-gray-600'    },
+  conteudo:          { label: 'Conteúdo',          color: 'bg-blue-100   text-blue-600'    },
+  revisao:           { label: 'Revisão',           color: 'bg-yellow-100 text-yellow-700'  },
+  aprovacao_cliente: { label: 'Aprovação',         color: 'bg-purple-100 text-purple-600'  },
+  em_analise:        { label: 'Em Análise',        color: 'bg-blue-100   text-blue-700'    },
+  aprovado:          { label: 'Aprovado',          color: 'bg-green-100  text-green-700'   },
+  rejeitado:         { label: 'Rejeitado',         color: 'bg-red-100    text-red-700'     },
+  publicado:         { label: 'Publicado',         color: 'bg-emerald-100 text-emerald-700'},
 };
 
 const STATUS_DOT: Record<string, string> = {
@@ -78,20 +64,12 @@ function getScheduledDate(post: Post): Date | null {
 
 /* ─── CalendarView ────────────────────────────────────────────── */
 
-function CalendarView({
-  posts,
-  onPreview,
-}: {
-  posts: Post[];
-  onPreview: (post: Post) => void;
-}) {
-  const router = useRouter();
-  const today  = new Date();
+function CalendarView({ posts, onPreview }: { posts: Post[]; onPreview: (p: Post) => void }) {
+  const today   = new Date();
   const [current, setCurrent] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
 
   const year  = current.getFullYear();
   const month = current.getMonth();
-
   const firstDayOfMonth = new Date(year, month, 1).getDay();
   const daysInMonth     = new Date(year, month + 1, 0).getDate();
   const totalCells      = Math.ceil((firstDayOfMonth + daysInMonth) / 7) * 7;
@@ -99,89 +77,54 @@ function CalendarView({
   const postsByDay: Record<string, Post[]> = {};
   posts.forEach((p) => {
     const d = getScheduledDate(p);
-    if (!d) return;
-    if (d.getFullYear() !== year || d.getMonth() !== month) return;
+    if (!d || d.getFullYear() !== year || d.getMonth() !== month) return;
     const key = String(d.getDate());
     postsByDay[key] = [...(postsByDay[key] ?? []), p];
   });
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-      {/* Cabeçalho de navegação */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <h3 className="font-semibold text-gray-900">{MONTHS[month]} {year}</h3>
         <div className="flex gap-1">
-          <button
-            onClick={() => setCurrent(new Date(year, month - 1, 1))}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
-          >
+          <button onClick={() => setCurrent(new Date(year, month - 1, 1))} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
             <ChevronLeft size={16} />
           </button>
-          <button
-            onClick={() => setCurrent(new Date(today.getFullYear(), today.getMonth(), 1))}
-            className="px-3 h-8 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors"
-          >
+          <button onClick={() => setCurrent(new Date(today.getFullYear(), today.getMonth(), 1))} className="px-3 h-8 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100 transition-colors">
             Hoje
           </button>
-          <button
-            onClick={() => setCurrent(new Date(year, month + 1, 1))}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
-          >
+          <button onClick={() => setCurrent(new Date(year, month + 1, 1))} className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
             <ChevronRight size={16} />
           </button>
         </div>
       </div>
 
-      {/* Dias da semana */}
       <div className="grid grid-cols-7 border-b border-gray-100">
         {WEEKDAYS.map((d) => (
-          <div key={d} className="py-2 text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-            {d}
-          </div>
+          <div key={d} className="py-2 text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{d}</div>
         ))}
       </div>
 
-      {/* Células */}
       <div className="grid grid-cols-7">
         {Array.from({ length: totalCells }).map((_, idx) => {
           const dayNum  = idx - firstDayOfMonth + 1;
           const isValid = dayNum >= 1 && dayNum <= daysInMonth;
-          const isToday =
-            isValid &&
-            dayNum === today.getDate() &&
-            month  === today.getMonth() &&
-            year   === today.getFullYear();
+          const isToday = isValid && dayNum === today.getDate() && month === today.getMonth() && year === today.getFullYear();
           const dayPosts = isValid ? (postsByDay[String(dayNum)] ?? []) : [];
 
           return (
-            <div
-              key={idx}
-              className={cn(
-                'min-h-[90px] border-b border-r border-gray-100 p-1.5',
-                !isValid && 'bg-gray-50',
-              )}
-            >
+            <div key={idx} className={cn('min-h-[90px] border-b border-r border-gray-100 p-1.5', !isValid && 'bg-gray-50')}>
               {isValid && (
                 <>
-                  <div className={cn(
-                    'w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium mb-1',
-                    isToday ? 'bg-[#FF5C00] text-white' : 'text-gray-700',
-                  )}>
+                  <div className={cn('w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium mb-1', isToday ? 'bg-[#FF5C00] text-white' : 'text-gray-700')}>
                     {dayNum}
                   </div>
                   <div className="space-y-0.5">
                     {dayPosts.slice(0, 2).map((post) => (
-                      <PostCard
-                        key={post.id}
-                        post={post}
-                        onPreview={onPreview}
-                        compact
-                      />
+                      <PostCard key={post.id} post={post} onPreview={onPreview} compact />
                     ))}
                     {dayPosts.length > 2 && (
-                      <div className="text-[10px] text-gray-400 pl-1">
-                        +{dayPosts.length - 2} mais
-                      </div>
+                      <div className="text-[10px] text-gray-400 pl-1">+{dayPosts.length - 2} mais</div>
                     )}
                   </div>
                 </>
@@ -217,10 +160,7 @@ function ListView({ posts, onPreview }: { posts: Post[]; onPreview: (p: Post) =>
         <thead>
           <tr className="border-b border-gray-100">
             {['Post', 'Status', 'Plataforma', 'Data', 'Campanha', 'Ações'].map((h) => (
-              <th
-                key={h}
-                className="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 py-3 px-4"
-              >
+              <th key={h} className="text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 py-3 px-4">
                 {h}
               </th>
             ))}
@@ -238,11 +178,10 @@ function ListView({ posts, onPreview }: { posts: Post[]; onPreview: (p: Post) =>
             const platform  = post.platforms?.[0] ?? (post as any).platform ?? '';
             const sDate     = getScheduledDate(post);
             const statusCfg = STATUS_LABELS[post.status ?? 'rascunho'] ?? STATUS_LABELS.rascunho;
-            const dotColor  = STATUS_DOT[post.status  ?? 'rascunho']  ?? 'bg-gray-400';
+            const dotColor  = STATUS_DOT[post.status ?? 'rascunho']   ?? 'bg-gray-400';
 
             return (
               <tr key={post.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-                {/* Thumbnail + título */}
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-3">
                     <button
@@ -259,33 +198,21 @@ function ListView({ posts, onPreview }: { posts: Post[]; onPreview: (p: Post) =>
                     <span className="text-sm font-medium text-gray-900">{post.title}</span>
                   </div>
                 </td>
-
-                {/* Status */}
                 <td className="py-3 px-4">
                   <span className="flex items-center gap-1.5">
                     <span className={cn('w-2 h-2 rounded-full', dotColor)} />
                     <span className="text-sm">{statusCfg.label}</span>
                   </span>
                 </td>
-
-                {/* Plataforma */}
-                <td className="py-3 px-4">
-                  <span className="text-sm">
-                    {platform ? `${PLATFORM_EMOJI[platform] ?? '📱'} ${platform}` : '—'}
-                  </span>
+                <td className="py-3 px-4 text-sm">
+                  {platform ? `${PLATFORM_EMOJI[platform] ?? '📱'} ${platform}` : '—'}
                 </td>
-
-                {/* Data */}
                 <td className="py-3 px-4 text-sm text-gray-500">
                   {sDate ? sDate.toLocaleDateString('pt-BR') : '—'}
                 </td>
-
-                {/* Campanha */}
                 <td className="py-3 px-4 text-sm text-gray-500">
                   {post.campaignId ?? (post as any).campaign ?? '—'}
                 </td>
-
-                {/* Ações */}
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-1">
                     <button
@@ -313,7 +240,7 @@ function ListView({ posts, onPreview }: { posts: Post[]; onPreview: (p: Post) =>
   );
 }
 
-/* ─── Agendamentos (page) ─────────────────────────────────────── */
+/* ─── Page ────────────────────────────────────────────────────── */
 
 type ViewMode = 'grid' | 'calendar' | 'list';
 
@@ -327,29 +254,20 @@ export default function AgendamentosPage() {
   const { user }   = useAuth();
   const router     = useRouter();
 
-  const [posts,       setPosts]       = useState<Post[]>([]);
-  const [loading,     setLoading]     = useState(true);
   const [view,        setView]        = useState<ViewMode>('grid');
   const [previewPost, setPreviewPost] = useState<Post | null>(null);
 
-  const loadPosts = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const q    = query(collection(db, `users/${user.uid}/posts`), orderBy('createdAt', 'desc'));
-      const snap = await getDocs(q);
-      setPosts(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Post)));
-    } catch (err) {
-      console.error('[Agendamentos] loadPosts', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  useEffect(() => { loadPosts(); }, [loadPosts]);
+  // ✅ CORREÇÃO: usa useUserCollection (onSnapshot reativo) em vez de
+  // getDocs + import db errado de @/lib/firebase/firestore
+  const { data: posts, loading } = useUserCollection<Post>(
+    user?.uid ?? null,
+    'posts',
+    [orderBy('createdAt', 'desc')]
+  );
 
   return (
     <div className="space-y-5 animate-fade-in">
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -380,14 +298,6 @@ export default function AgendamentosPage() {
             ))}
           </div>
 
-          {/* Refresh */}
-          <button
-            onClick={loadPosts}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-500 hover:text-gray-800 bg-white border border-gray-200 rounded-lg transition-colors"
-          >
-            <RefreshCw size={14} /> Atualizar
-          </button>
-
           {/* Novo post */}
           <button
             onClick={() => router.push('/criar-post')}
@@ -416,18 +326,18 @@ export default function AgendamentosPage() {
         </div>
       ) : (
         <>
-          {view === 'grid'     && <GridView    posts={posts} onPreview={setPreviewPost} />}
+          {view === 'grid'     && <GridView     posts={posts} onPreview={setPreviewPost} />}
           {view === 'calendar' && <CalendarView posts={posts} onPreview={setPreviewPost} />}
-          {view === 'list'     && <ListView    posts={posts} onPreview={setPreviewPost} />}
+          {view === 'list'     && <ListView     posts={posts} onPreview={setPreviewPost} />}
         </>
       )}
 
-      {/* Modal de preview / edição */}
+      {/* Modal de preview */}
       {previewPost && (
         <PostPreviewModal
           post={previewPost}
           onClose={() => setPreviewPost(null)}
-          onUpdate={loadPosts}
+          onUpdate={() => {}} // onSnapshot já atualiza automaticamente
         />
       )}
     </div>
