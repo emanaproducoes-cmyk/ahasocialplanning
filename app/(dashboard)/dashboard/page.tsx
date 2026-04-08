@@ -1,62 +1,64 @@
 'use client';
 
-import { useState }            from 'react';
-import Link                    from 'next/link';
-import { useAuth }             from '@/lib/hooks/useAuth';
+import { useState, useEffect, useCallback } from 'react';
+import Link                                  from 'next/link';
+import { useAuth }                           from '@/lib/hooks/useAuth';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from 'recharts';
 import { useUserCollection }   from '@/lib/hooks/useCollection';
 import { orderBy }             from 'firebase/firestore';
-import type { Post, Platform } from '@/lib/types';
+import type { Post, ConnectedAccount, Platform } from '@/lib/types';
 
-// ─── Platform KPI Card ────────────────────────────────────────────────────────
-const PLATFORM_DATA: {
-  platform: Platform;
-  prefix: string;
-  label: string;
-  metric: string;
-  gradient: string;
-  value: number;
-  variation: number;
-}[] = [
-  { platform: 'instagram', prefix: 'IG', label: 'INSTAGRAM', metric: 'SEGUIDORES', gradient: 'linear-gradient(135deg,#833AB4 0%,#FD1D1D 50%,#F77737 100%)', value: 48200, variation: 1.8 },
-  { platform: 'facebook',  prefix: 'FB', label: 'FACEBOOK',  metric: 'CURTIDAS',   gradient: 'linear-gradient(135deg,#1877F2 0%,#0C5FD6 100%)',             value: 12400, variation: 1.6 },
-  { platform: 'youtube',   prefix: 'YT', label: 'YOUTUBE',   metric: 'INSCRITOS',  gradient: 'linear-gradient(135deg,#FF0000 0%,#CC0000 100%)',             value: 8900,  variation: -0.5 },
-  { platform: 'tiktok',    prefix: 'TT', label: 'TIKTOK',    metric: 'SEGUIDORES', gradient: 'linear-gradient(135deg,#006994 0%,#00CED1 50%,#40E0D0 100%)', value: 22100, variation: 8.4 },
-  { platform: 'linkedin',  prefix: 'LI', label: 'LINKEDIN',  metric: 'CONEXÕES',   gradient: 'linear-gradient(135deg,#0A66C2 0%,#004182 100%)',             value: 3600,  variation: 2.1 },
-];
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatNum(n: number) {
-  if (n >= 1000000) return `${(n/1000000).toFixed(1)}M`;
-  if (n >= 1000)    return `${(n/1000).toFixed(1)}K`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000)     return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
 
-function PlatformKPICard({ prefix, label, metric, gradient, value, variation }: typeof PLATFORM_DATA[0]) {
+// ─── Platform KPI Card ────────────────────────────────────────────────────────
+
+const PLATFORM_DISPLAY: {
+  platform: Platform; prefix: string; label: string; metric: string; gradient: string;
+}[] = [
+  { platform: 'instagram', prefix: 'IG', label: 'INSTAGRAM', metric: 'SEGUIDORES', gradient: 'linear-gradient(135deg,#833AB4 0%,#FD1D1D 50%,#F77737 100%)' },
+  { platform: 'facebook',  prefix: 'FB', label: 'FACEBOOK',  metric: 'CURTIDAS',   gradient: 'linear-gradient(135deg,#1877F2 0%,#0C5FD6 100%)'             },
+  { platform: 'youtube',   prefix: 'YT', label: 'YOUTUBE',   metric: 'INSCRITOS',  gradient: 'linear-gradient(135deg,#FF0000 0%,#CC0000 100%)'             },
+  { platform: 'tiktok',    prefix: 'TT', label: 'TIKTOK',    metric: 'SEGUIDORES', gradient: 'linear-gradient(135deg,#006994 0%,#00CED1 50%,#40E0D0 100%)' },
+  { platform: 'linkedin',  prefix: 'LI', label: 'LINKEDIN',  metric: 'CONEXÕES',   gradient: 'linear-gradient(135deg,#0A66C2 0%,#004182 100%)'             },
+];
+
+function PlatformKPICard({
+  prefix, label, metric, gradient, value, variation, isReal,
+}: {
+  prefix: string; label: string; metric: string; gradient: string;
+  value: number; variation: number; isReal: boolean;
+}) {
   const positive = variation >= 0;
   return (
-    <div
-      className="rounded-2xl p-4 text-white flex-1 min-w-0"
-      style={{ background: gradient }}
-    >
-      <p className="text-[11px] font-bold opacity-70 tracking-wider mb-2">
-        {prefix} {label}
-      </p>
+    <div className="rounded-2xl p-4 text-white flex-1 min-w-0" style={{ background: gradient }}>
+      <p className="text-[11px] font-bold opacity-70 tracking-wider mb-2">{prefix} {label}</p>
       <p className="text-[26px] font-bold leading-none mb-1">{formatNum(value)}</p>
       <p className="text-[11px] opacity-70 uppercase tracking-wider mb-1">{metric}</p>
-      <p className={`text-[12px] font-semibold ${positive ? 'text-white' : 'text-red-200'}`}>
-        {positive ? '↑' : '↓'} {Math.abs(variation)}%
-      </p>
+      <div className="flex items-center justify-between">
+        <p className={`text-[12px] font-semibold ${positive ? 'text-white' : 'text-red-200'}`}>
+          {positive ? '↑' : '↓'} {Math.abs(variation)}%
+        </p>
+        {!isReal && (
+          <span className="text-[9px] opacity-50 bg-white/10 px-1.5 py-0.5 rounded-full">simulado</span>
+        )}
+      </div>
     </div>
   );
 }
 
-// ─── KPI Card (white) ─────────────────────────────────────────────────────────
-function KPICard({
-  label, value, variation, icon, borderColor,
-}: {
+// ─── KPI Card branco ──────────────────────────────────────────────────────────
+
+function KPICard({ label, value, variation, icon, borderColor }: {
   label: string; value: number; variation: number; icon: string; borderColor: string;
 }) {
   const positive = variation >= 0;
@@ -80,9 +82,8 @@ function KPICard({
 }
 
 // ─── Funnel Step ──────────────────────────────────────────────────────────────
-function FunnelStep({
-  icon, value, label, pct, color, isLast,
-}: {
+
+function FunnelStep({ icon, value, label, pct, color, isLast }: {
   icon: string; value: number; label: string; pct: number; color: string; isLast: boolean;
 }) {
   return (
@@ -97,9 +98,9 @@ function FunnelStep({
       </div>
       {!isLast && (
         <div className="flex items-center mx-3 mb-4">
-          <div className="w-6 h-px bg-gray-200"/>
+          <div className="w-6 h-px bg-gray-200" />
           <svg width="8" height="12" viewBox="0 0 8 12" className="text-gray-300">
-            <polyline points="0,0 8,6 0,12" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+            <polyline points="0,0 8,6 0,12" fill="none" stroke="currentColor" strokeWidth="1.5" />
           </svg>
         </div>
       )}
@@ -107,32 +108,167 @@ function FunnelStep({
   );
 }
 
-// ─── Filters ──────────────────────────────────────────────────────────────────
-const PERIOD_OPTIONS  = ['Hoje','Esta semana','Este mês','Últimos 30 dias','Últimos 3 meses'];
-const PLATFORM_OPTIONS= ['Todas','Instagram','Facebook','YouTube','TikTok','LinkedIn'];
+// ─── Banner "Conecte sua conta Meta" ─────────────────────────────────────────
+
+function MetaConnectBanner() {
+  return (
+    <div className="flex items-center gap-4 px-5 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl">
+      <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white text-xl shrink-0">
+        🔵
+      </div>
+      <div className="flex-1">
+        <p className="text-sm font-semibold text-blue-900">Conecte sua conta Meta para ver dados reais</p>
+        <p className="text-xs text-blue-600 mt-0.5">
+          Instagram, Facebook e Ads — seguidores, engajamento, CPC, ROAS e mais.
+        </p>
+      </div>
+      <Link
+        href="/contas"
+        className="shrink-0 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+      >
+        Conectar →
+      </Link>
+    </div>
+  );
+}
+
+// ─── Tipos de dados Meta ──────────────────────────────────────────────────────
+
+interface MetaInsights {
+  totals: { fans: number; impressions: number; engagement: number; postEngagement: number; pageViews: number };
+  chartData: { name: string; impressoes: number; engajamento: number }[];
+}
+
+// ─── Dados mock (fallback quando não há Meta conectado) ───────────────────────
+
+const MOCK_ENGAGEMENT = [
+  { name: 'Sem 1', instagram: 4200, facebook: 3100, tiktok: 5200 },
+  { name: 'Sem 2', instagram: 4800, facebook: 3400, tiktok: 5800 },
+  { name: 'Sem 3', instagram: 4500, facebook: 3200, tiktok: 6200 },
+  { name: 'Sem 4', instagram: 5200, facebook: 3800, tiktok: 6800 },
+  { name: 'Sem 5', instagram: 5800, facebook: 4200, tiktok: 7200 },
+  { name: 'Sem 6', instagram: 6500, facebook: 4800, tiktok: 7800 },
+];
+
+const PERIOD_OPTIONS   = ['Hoje', 'Esta semana', 'Este mês', 'Últimos 30 dias', 'Últimos 3 meses'];
+const PLATFORM_OPTIONS = ['Todas', 'Instagram', 'Facebook', 'YouTube', 'TikTok', 'LinkedIn'];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function DashboardPage() {
-  const { user }    = useAuth();
-  const [period,    setPeriod]    = useState('Últimos 30 dias');
-  const [platform,  setPlatform]  = useState('Todas');
+  const { user }   = useAuth();
+  const [period,   setPeriod]   = useState('Últimos 30 dias');
+  const [platform, setPlatform] = useState('Todas');
+  const [loadingMeta, setLoadingMeta] = useState(false);
+  const [metaInsights, setMetaInsights] = useState<MetaInsights | null>(null);
+  const [syncingMeta,  setSyncingMeta]  = useState(false);
 
-  const { data: posts     } = useUserCollection<Post>(user?.uid ?? null, 'posts',     [orderBy('createdAt','desc')]);
-  const { data: aprovados } = useUserCollection<Post>(user?.uid ?? null, 'aprovados');
-  const { data: emAnalise } = useUserCollection<Post>(user?.uid ?? null, 'emAnalise');
-  const { data: rejeitados} = useUserCollection<Post>(user?.uid ?? null, 'rejeitados');
+  const { data: posts      } = useUserCollection<Post>(user?.uid ?? null, 'posts',     [orderBy('createdAt', 'desc')]);
+  const { data: aprovados  } = useUserCollection<Post>(user?.uid ?? null, 'aprovados');
+  const { data: emAnalise  } = useUserCollection<Post>(user?.uid ?? null, 'emAnalise');
+  const { data: rejeitados } = useUserCollection<Post>(user?.uid ?? null, 'rejeitados');
+  const { data: contas     } = useUserCollection<ConnectedAccount>(user?.uid ?? null, 'connectedAccounts');
 
+  // Conta Meta conectada (primeira encontrada)
+  const metaConta = contas.find((c) => c.metaAccountId);
+  const hasMetaConnected = !!metaConta;
+
+  // ── Buscar insights reais da Meta ────────────────────────────────────────
+  const fetchMetaInsights = useCallback(async () => {
+    if (!user?.uid || !metaConta) return;
+    setLoadingMeta(true);
+    try {
+      const apiPeriod = period === 'Esta semana' ? '7d' : period === 'Últimos 3 meses' ? '90d' : '30d';
+      const res  = await fetch(`/api/meta/insights/${metaConta.id}?uid=${user.uid}&period=${apiPeriod}`);
+      const data = await res.json() as MetaInsights & { error?: string };
+      if (res.ok && !data.error) {
+        setMetaInsights(data);
+      }
+    } catch {
+      // silently fall back to mock
+    } finally {
+      setLoadingMeta(false);
+    }
+  }, [user?.uid, metaConta, period]);
+
+  useEffect(() => {
+    if (hasMetaConnected) fetchMetaInsights();
+  }, [hasMetaConnected, fetchMetaInsights]);
+
+  // ── Sync manual ───────────────────────────────────────────────────────────
+  const handleSyncMeta = async () => {
+    if (!user?.uid || !metaConta) return;
+    setSyncingMeta(true);
+    try {
+      const res  = await fetch(`/api/meta/sync-account/${metaConta.id}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: user.uid }),
+      });
+      const data = await res.json() as { cached?: boolean; error?: string };
+      if (res.ok) {
+        await fetchMetaInsights();
+        const msg = data.cached ? 'Dados já atualizados (cache 4h).' : '✅ Dados atualizados da Meta!';
+        // inline toast via alert — ou showToast se preferir
+        console.log(msg);
+      }
+    } finally {
+      setSyncingMeta(false);
+    }
+  };
+
+  // ── Dados dos KPI cards de plataforma ─────────────────────────────────────
+  const platformKpis = PLATFORM_DISPLAY.map((p) => {
+    const conta = contas.find((c) => c.platform === p.platform);
+    return {
+      ...p,
+      value:    conta?.followers ?? (p.platform === 'instagram' ? 48200 : p.platform === 'facebook' ? 12400 : p.platform === 'youtube' ? 8900 : p.platform === 'tiktok' ? 22100 : 3600),
+      variation: conta ? 0 : (p.platform === 'instagram' ? 1.8 : p.platform === 'facebook' ? 1.6 : p.platform === 'youtube' ? -0.5 : p.platform === 'tiktok' ? 8.4 : 2.1),
+      isReal:   !!conta,
+    };
+  });
+
+  // ── Funil com dados reais do Firestore ────────────────────────────────────
+  const totalPosts = posts.length;
   const funnelSteps = [
-    { icon: '✏️', value: 48, label: 'Criados',    pct: 100, color: '#FF5C00' },
-    { icon: '📤', value: 42, label: 'Enviados',   pct: 87,  color: '#7C3AED' },
-    { icon: '👁️', value: 38, label: 'Revisão',    pct: 79,  color: '#3B82F6' },
-    { icon: '✅', value: 35, label: 'Aprovados',  pct: 73,  color: '#22C55E' },
-    { icon: '🚀', value: 30, label: 'Publicados', pct: 62,  color: '#F59E0B' },
+    { icon: '✏️', value: totalPosts,         label: 'Criados',    pct: 100,                                                               color: '#FF5C00' },
+    { icon: '📤', value: emAnalise.length,   label: 'Em Análise', pct: totalPosts > 0 ? Math.round((emAnalise.length / totalPosts) * 100) : 0, color: '#7C3AED' },
+    { icon: '✅', value: aprovados.length,   label: 'Aprovados',  pct: totalPosts > 0 ? Math.round((aprovados.length / totalPosts) * 100) : 0, color: '#22C55E' },
+    { icon: '❌', value: rejeitados.length,  label: 'Rejeitados', pct: totalPosts > 0 ? Math.round((rejeitados.length / totalPosts) * 100) : 0, color: '#EF4444' },
   ];
+
+  // ── Gráfico de engajamento: real se Meta conectada, mock se não ───────────
+  const engagementData = metaInsights?.chartData?.length
+    ? metaInsights.chartData.map((d) => ({
+        name:      d.name,
+        instagram: d.engajamento,
+        impressoes: d.impressoes,
+      }))
+    : MOCK_ENGAGEMENT;
+
+  // ── Mix de plataformas baseado nos posts reais ────────────────────────────
+  const mixColors: Record<string, string> = {
+    instagram: '#E1306C', facebook: '#1877F2', youtube: '#FF0000',
+    tiktok: '#010101', linkedin: '#0A66C2', threads: '#000000',
+  };
+  const mixRaw: Record<string, number> = {};
+  posts.forEach((p) => (p.platforms ?? []).forEach((pl) => { mixRaw[pl] = (mixRaw[pl] ?? 0) + 1; }));
+  const mixData = Object.keys(mixRaw).length > 0
+    ? Object.entries(mixRaw).map(([name, value]) => ({ name, value, color: mixColors[name] ?? '#FF5C00' }))
+    : [
+        { name: 'Instagram', value: 45, color: '#E1306C' },
+        { name: 'Facebook',  value: 25, color: '#1877F2' },
+        { name: 'YouTube',   value: 15, color: '#FF0000' },
+        { name: 'TikTok',    value: 10, color: '#010101' },
+        { name: 'LinkedIn',  value: 5,  color: '#0A66C2' },
+      ];
 
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Filters row */}
+
+      {/* Banner Meta (quando não conectado) */}
+      {!hasMetaConnected && <MetaConnectBanner />}
+
+      {/* Barra de filtros + botão Sync */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <label className="text-[13px] font-semibold text-gray-500 uppercase tracking-wider">PERÍODO:</label>
@@ -154,22 +290,31 @@ export default function DashboardPage() {
             {PLATFORM_OPTIONS.map((o) => <option key={o}>{o}</option>)}
           </select>
         </div>
+        {hasMetaConnected && (
+          <button
+            onClick={handleSyncMeta}
+            disabled={syncingMeta || loadingMeta}
+            className="ml-auto flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white text-[13px] font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors"
+          >
+            {syncingMeta ? '🔄 Atualizando...' : '🔄 Atualizar da Meta'}
+          </button>
+        )}
       </div>
 
-      {/* Platform KPI cards */}
+      {/* Cards de plataforma */}
       <div className="flex gap-3 overflow-x-auto pb-1">
-        {PLATFORM_DATA.map((p) => (
+        {platformKpis.map((p) => (
           <PlatformKPICard key={p.platform} {...p} />
         ))}
         <div className="rounded-2xl p-4 text-white flex-1 min-w-0" style={{ background: 'linear-gradient(135deg,#FF5C00 0%,#FFB800 100%)' }}>
           <p className="text-[11px] font-bold opacity-70 tracking-wider mb-2">🚀 TOTAL DE POSTS</p>
           <p className="text-[26px] font-bold leading-none mb-1">{posts.length}</p>
-          <p className="text-[11px] opacity-70 uppercase tracking-wider mb-1">ESTE MÊS</p>
-          <p className="text-[12px] font-semibold text-white">↑ 18%</p>
+          <p className="text-[11px] opacity-70 uppercase tracking-wider mb-1">NO PERÍODO</p>
+          <p className="text-[12px] font-semibold text-white">↑ real-time</p>
         </div>
       </div>
 
-      {/* White KPI cards */}
+      {/* KPI Cards brancos */}
       <div className="flex gap-4">
         <KPICard label="Total de Posts"  value={posts.length}      variation={18}  icon="📋" borderColor="#FF5C00" />
         <KPICard label="Aprovados"       value={aprovados.length}  variation={24}  icon="✅" borderColor="#22C55E" />
@@ -177,12 +322,34 @@ export default function DashboardPage() {
         <KPICard label="Rejeitados"      value={rejeitados.length} variation={-5}  icon="❌" borderColor="#EF4444" />
       </div>
 
-      {/* Funnel */}
+      {/* Insights Meta (quando conectado) */}
+      {hasMetaConnected && metaInsights && (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {[
+            { label: 'Fãs / Seguidores', value: metaInsights.totals.fans,           icon: '👥', color: '#1877F2' },
+            { label: 'Impressões',        value: metaInsights.totals.impressions,    icon: '👁️', color: '#7C3AED' },
+            { label: 'Engajamento',       value: metaInsights.totals.engagement,     icon: '❤️', color: '#EF4444' },
+            { label: 'Eng. em Posts',     value: metaInsights.totals.postEngagement, icon: '💬', color: '#FF5C00' },
+            { label: 'Visualizações',     value: metaInsights.totals.pageViews,      icon: '🔍', color: '#22C55E' },
+          ].map((item) => (
+            <div key={item.label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm text-center">
+              <div className="text-2xl mb-1">{item.icon}</div>
+              <p className="text-[20px] font-bold text-gray-900">{formatNum(item.value)}</p>
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-0.5">{item.label}</p>
+              <div className="w-full h-1 rounded-full mt-2" style={{ background: `${item.color}30` }}>
+                <div className="h-1 rounded-full" style={{ width: '60%', background: item.color }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Funil de conteúdo */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-5">
           <div>
             <h3 className="text-[15px] font-semibold text-gray-900">Funil de Conteúdo</h3>
-            <p className="text-[12px] text-gray-500">Ciclo de vida dos posts</p>
+            <p className="text-[12px] text-gray-500">Ciclo de vida dos posts — dados reais</p>
           </div>
           <Link href="/workflow" className="text-[13px] font-semibold text-[#FF5C00] hover:underline">
             Ver Workflow →
@@ -195,81 +362,54 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Charts row */}
-      <EngagementAndMixCharts posts={posts} />
-    </div>
-  );
-}
+      {/* Gráficos */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+        <div className="lg:col-span-3 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-1">
+            <div>
+              <h3 className="text-[15px] font-semibold text-gray-900">Engajamento por Plataforma</h3>
+              <p className="text-[12px] text-gray-500 mb-4">
+                {hasMetaConnected ? 'Dados reais da Meta API' : 'Dados simulados — conecte a Meta para dados reais'}
+              </p>
+            </div>
+            {loadingMeta && <span className="text-xs text-blue-500 animate-pulse">Carregando...</span>}
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={engagementData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: '11px' }} />
+              {hasMetaConnected ? (
+                <>
+                  <Line type="monotone" dataKey="instagram"  stroke="#E1306C" strokeWidth={2} dot={{ r: 2 }} name="Engajamento" />
+                  <Line type="monotone" dataKey="impressoes" stroke="#1877F2" strokeWidth={2} dot={{ r: 2 }} name="Impressões" />
+                </>
+              ) : (
+                <>
+                  <Line type="monotone" dataKey="instagram" stroke="#E1306C" strokeWidth={2} dot={{ r: 2 }} />
+                  <Line type="monotone" dataKey="facebook"  stroke="#1877F2" strokeWidth={2} dot={{ r: 2 }} />
+                  <Line type="monotone" dataKey="tiktok"    stroke="#010101" strokeWidth={2} dot={{ r: 2 }} />
+                </>
+              )}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
 
-// ─── Recharts data ────────────────────────────────────────────────────────────
-const ENGAGEMENT_DATA = [
-  { name: 'Sem 1', instagram: 4200, facebook: 3100, youtube: 2800, tiktok: 5200, linkedin: 1200 },
-  { name: 'Sem 2', instagram: 4800, facebook: 3400, youtube: 3000, tiktok: 5800, linkedin: 1400 },
-  { name: 'Sem 3', instagram: 4500, facebook: 3200, youtube: 3200, tiktok: 6200, linkedin: 1300 },
-  { name: 'Sem 4', instagram: 5200, facebook: 3800, youtube: 3500, tiktok: 6800, linkedin: 1600 },
-  { name: 'Sem 5', instagram: 5800, facebook: 4200, youtube: 3800, tiktok: 7200, linkedin: 1800 },
-  { name: 'Sem 6', instagram: 6500, facebook: 4800, youtube: 4200, tiktok: 7800, linkedin: 2000 },
-];
-
-const MIX_DATA = [
-  { name: 'Instagram', value: 45, color: '#E1306C' },
-  { name: 'Facebook',  value: 25, color: '#1877F2' },
-  { name: 'YouTube',   value: 15, color: '#FF0000' },
-  { name: 'TikTok',    value: 10, color: '#010101' },
-  { name: 'LinkedIn',  value: 5,  color: '#0A66C2' },
-];
-
-function EngagementAndMixCharts({ posts }: { posts: Post[] }) {
-  const mixData = posts.length > 0
-    ? (() => {
-        const counts: Record<string, number> = {};
-        posts.forEach((p) => {
-          (p.platforms ?? []).forEach((pl) => {
-            counts[pl] = (counts[pl] ?? 0) + 1;
-          });
-        });
-        const colors: Record<string, string> = {
-          instagram: '#E1306C', facebook: '#1877F2', youtube: '#FF0000',
-          tiktok: '#010101', linkedin: '#0A66C2', threads: '#000000',
-        };
-        return Object.entries(counts).map(([name, value]) => ({ name, value, color: colors[name] ?? '#FF5C00' }));
-      })()
-    : MIX_DATA;
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-      <div className="lg:col-span-3 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-        <h3 className="text-[15px] font-semibold text-gray-900 mb-1">Engajamento por Plataforma</h3>
-        <p className="text-[12px] text-gray-500 mb-4">Crescimento mensal</p>
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={ENGAGEMENT_DATA}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: '11px' }} />
-            <Line type="monotone" dataKey="instagram" stroke="#E1306C" strokeWidth={2} dot={{ r: 2 }} />
-            <Line type="monotone" dataKey="facebook"  stroke="#1877F2" strokeWidth={2} dot={{ r: 2 }} />
-            <Line type="monotone" dataKey="youtube"   stroke="#FF0000" strokeWidth={2} dot={{ r: 2 }} />
-            <Line type="monotone" dataKey="tiktok"    stroke="#010101" strokeWidth={2} dot={{ r: 2 }} />
-            <Line type="monotone" dataKey="linkedin"  stroke="#0A66C2" strokeWidth={2} dot={{ r: 2 }} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-        <h3 className="text-[15px] font-semibold text-gray-900 mb-1">Mix de Plataformas</h3>
-        <p className="text-[12px] text-gray-500 mb-4">Distribuição de posts</p>
-        <ResponsiveContainer width="100%" height={220}>
-          <PieChart>
-            <Pie data={mixData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
-              {mixData.map((entry, i) => (
-                <Cell key={i} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: '11px' }} />
-          </PieChart>
-        </ResponsiveContainer>
+        <div className="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+          <h3 className="text-[15px] font-semibold text-gray-900 mb-1">Mix de Plataformas</h3>
+          <p className="text-[12px] text-gray-500 mb-4">Distribuição de posts</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={mixData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
+                {mixData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              </Pie>
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: '11px' }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );
