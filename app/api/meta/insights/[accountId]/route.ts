@@ -1,10 +1,3 @@
-/**
- * app/api/meta/insights/[accountId]/route.ts
- *
- * Proxy seguro para Graph API — nunca expõe o token ao client.
- * Cache de 4 horas no cabeçalho para não exceder rate limits.
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb }                from '@/lib/firebase/admin';
 
@@ -12,74 +5,101 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { accountId: string } }
 ) {
-  const { searchParams } = new URL(req.url);
-  const uid              = searchParams.get('uid');
-
-  if (!uid) return NextResponse.json({ error: 'uid obrigatório' }, { status: 400 });
-
   try {
-    const db      = getAdminDb();
-    const docSnap = await db.doc(`users/${uid}/connectedAccounts/${params.accountId}`).get();
+    const uid = req.nextUrl.searchParams.get('uid');
+    const { accountId } = params;
 
-    if (!docSnap.exists) {
-      return NextResponse.json({ error: 'Conta não encontrada' }, { status: 404 });
+    if (!uid || !accountId) {
+      return NextResponse.json({ error: 'uid e accountId são obrigatórios.' }, { status: 400 });
     }
 
-    const account   = docSnap.data()!;
-    const token     = account._pageToken ?? account._accessToken;
-    const metaId    = account.metaAccountId ?? account.metaPageId;
+    const adminDb = getAdminDb();
+    const snap    = await adminDb
+      .collection('users').doc(uid)
+      .collection('connectedAccounts').doc(accountId)
+      .get();
 
-    if (!token || !metaId) {
-      return NextResponse.json({ error: 'Token ou ID Meta não configurado' }, { status: 400 });
+    if (!snap.exists()) {
+      return NextResponse.json({ error: 'Conta não encontrada.' }, { status: 404 });
     }
 
-    // Busca dados do perfil + insights de 7 dias
-    const [profileRes, insightsRes] = await Promise.all([
-      fetch(`https://graph.facebook.com/v19.0/${metaId}?fields=followers_count,media_count,biography,name,username&access_token=${token}`),
-      fetch(`https://graph.facebook.com/v19.0/${metaId}/insights?metric=reach,impressions,profile_views&period=day&since=${sevenDaysAgo()}&access_token=${token}`),
+    const account       = snap.data() as Record<string, unknown>;
+    const token         = account.metaLongLivedToken as string | undefined;
+    const metaAccountId = account.metaAccountId     as string | undefined;
+
+    if (!token || !metaAccountId) {
+      return NextResponse.json({ error: 'Token Meta não encontrado. Reconecte a conta.' }, { status: 400 });
+    }
+
+    const period = req.nextUrl.searchParams.get('period') ?? '30d';
+    const days   = period === '7d' ? 7 : period === '90d' ? 90 : 30;
+    const since  = Math.floor(Date.now() / 1000) - days * 24 * 60 * 60;
+    const until  = Math.floor(Date.now() / 1000);
+
+    const metricsUrl = `https://graph.facebook.com/v19.0/${metaAccountId}/insights?` +
+      `metric=page_fans,page_impressions,page_engaged_users,page_post_engagements,page_views_total` +
+      `&period=total_over_range&since=${since}&until=${until}` +
+      `&access_token=${token}`;
+
+    const weeklyUrl = `https://graph.facebook.com/v19.0/${metaAccountId}/insights?` +
+      `metric=page_impressions,page_engaged_users` +
+      `&period=week&since=${since}&until=${until}` +
+      `&access_token=${token}`;
+
+    const [metricsRes, weeklyRes] = await Promise.all([
+      fetch(metricsUrl),
+      fetch(weeklyUrl),
     ]);
 
-    const profile  = await profileRes.json();
-    const insights = await insightsRes.json();
+    const [metricsData, weeklyData] = await Promise.all([
+      metricsRes.json() as Promise<{
+        data?: { name: string; values: { value: number; end_time: string }[] }[];
+        error?: { message: string };
+      }>,
+      weeklyRes.json() as Promise<{
+        data?: { name: string; values: { value: number; end_time: string }[] }[];
+      }>,
+    ]);
 
-    // Formata série semanal para o LineChart
-    const weekly = formatInsightsSeries(insights.data ?? []);
+    if (!metricsRes.ok) {
+      throw new Error((metricsData as any).error?.message ?? 'Erro ao buscar insights.');
+    }
 
-    const response = NextResponse.json({
-      profile: {
-        name:        profile.name      ?? account.name,
-        username:    profile.username  ?? account.handle,
-        followers:   profile.followers_count ?? account.followers ?? 0,
-        posts:       profile.media_count     ?? account.posts     ?? 0,
-        biography:   profile.biography ?? '',
-      },
-      weekly,
+    const totals: Record<string, number> = {};
+    (metricsData.data ?? []).forEach((item) => {
+      totals[item.name] = item.values?.[0]?.value ?? 0;
     });
 
-    // Cache 4 horas
-    response.headers.set('Cache-Control', 'public, s-maxage=14400, stale-while-revalidate=3600');
-    return response;
+    const weeklyMap: Record<string, Record<string, number>> = {};
+    (weeklyData.data ?? []).forEach((item) => {
+      item.values.forEach((v) => {
+        const label = new Date(v.end_time).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+        if (!weeklyMap[label]) weeklyMap[label] = {};
+        weeklyMap[label][item.name] = v.value;
+      });
+    });
 
-  } catch (err: any) {
-    console.error('[Meta insights error]', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    const chartData = Object.entries(weeklyMap).map(([date, metrics]) => ({
+      name:        date,
+      impressoes:  metrics.page_impressions    ?? 0,
+      engajamento: metrics.page_engaged_users  ?? 0,
+    }));
+
+    return NextResponse.json({
+      success: true,
+      totals: {
+        fans:           totals.page_fans               ?? 0,
+        impressions:    totals.page_impressions         ?? 0,
+        engagement:     totals.page_engaged_users       ?? 0,
+        postEngagement: totals.page_post_engagements    ?? 0,
+        pageViews:      totals.page_views_total         ?? 0,
+      },
+      chartData,
+      period,
+    });
+  } catch (err) {
+    console.error('[meta/insights] Error:', err);
+    const message = err instanceof Error ? err.message : 'Erro ao buscar insights.';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-}
-
-function sevenDaysAgo(): number {
-  return Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
-}
-
-function formatInsightsSeries(data: any[]) {
-  const map: Record<string, Record<string, number>> = {};
-
-  for (const metric of data) {
-    for (const point of metric.values ?? []) {
-      const label = new Date(point.end_time).toLocaleDateString('pt-BR', { weekday: 'short' });
-      if (!map[label]) map[label] = {};
-      map[label][metric.name] = point.value;
-    }
-  }
-
-  return Object.entries(map).map(([name, values]) => ({ name, ...values }));
 }
