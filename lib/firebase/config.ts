@@ -1,14 +1,3 @@
-/**
- * lib/firebase/config.ts
- *
- * FIX: `initializeFirestore` can only be called once per Firebase app.
- * During Next.js HMR (hot module replacement in dev mode) this module can be
- * re-evaluated, causing:
- *   "Firestore has already been started and its settings can no longer be changed"
- *
- * Guard: wrap in try/catch and fall back to getFirestore() on the second call.
- */
-
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getAuth,
@@ -19,7 +8,7 @@ import {
 import {
   initializeFirestore,
   persistentLocalCache,
-  persistentMultipleTabManager,
+  persistentSingleTabManager,
   getFirestore,
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
@@ -35,29 +24,25 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Auth with LOCAL persistence
 export const auth = getAuth(app);
-
 if (typeof window !== 'undefined') {
-  setPersistence(auth, browserLocalPersistence).catch(() => {
-    // already configured — safe to ignore
-  });
+  setPersistence(auth, browserLocalPersistence).catch(() => {});
 }
 
-// FIX: guard against "Firestore has already been started" during HMR
 function initDb() {
   if (typeof window === 'undefined') {
-    // Server-side: plain Firestore, no offline cache
     return getFirestore(app);
   }
   try {
     return initializeFirestore(app, {
       localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
+        // ✅ persistentSingleTabManager funciona em todos os browsers,
+        // incluindo mobile (Safari, Chrome Android).
+        // persistentMultipleTabManager usa SharedWorker que não existe em mobile.
+        tabManager: persistentSingleTabManager({}),
       }),
     });
   } catch {
-    // Already initialized (e.g. HMR re-evaluation) — return existing instance
     return getFirestore(app);
   }
 }
