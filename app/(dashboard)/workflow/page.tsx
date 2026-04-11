@@ -1,128 +1,21 @@
 'use client';
 
-/**
- * app/(dashboard)/workflow/page.tsx
- * 
- * Melhorias:
- *  - Remove Script do SortableJS (não mais necessário)
- *  - Drag & drop nativo via HTML5 API implementado em KanbanBoard
- */
-
-import { useState }              from 'react';
 import { useAuth }               from '@/lib/hooks/useAuth';
 import { useUserCollection }     from '@/lib/hooks/useCollection';
 import { KanbanBoard }           from '@/components/workflow/KanbanBoard';
 import { PageHeader, PrimaryButton } from '@/components/layout/PageHeader';
-import { Modal }                 from '@/components/ui/Modal';
-import { showToast }             from '@/components/ui/Toast';
-import { saveDoc }               from '@/lib/firebase/firestore';
-import { serverTimestamp, orderBy } from 'firebase/firestore';
+import { useRouter }             from 'next/navigation';
+import { orderBy }               from 'firebase/firestore';
 import type { Post, PostStatus, Responsavel } from '@/lib/types';
 
-// ─── Quick-add form ───────────────────────────────────────────────────────────
-function QuickAddForm({
-  defaultStatus,
-  onSave,
-  onCancel,
-}: {
-  defaultStatus: PostStatus;
-  onSave:  (data: Partial<Post>) => Promise<void>;
-  onCancel: () => void;
-}) {
-  const [title,    setTitle]    = useState('');
-  const [date,     setDate]     = useState('');
-  const [saving,   setSaving]   = useState(false);
-  const [platform, setPlatform] = useState('instagram');
-
-  const PLATFORMS = ['instagram','facebook','youtube','tiktok','linkedin','threads'];
-
-  const handleSave = async () => {
-    if (!title.trim()) { showToast('Informe o título do post.', 'warning'); return; }
-    setSaving(true);
-    await onSave({
-      title:       title.trim(),
-      status:      defaultStatus,
-      platforms:   [platform as Post['platforms'][0]],
-      scheduledAt: date ? serverTimestamp() as Post['scheduledAt'] : null,
-      caption:     '',
-      hashtags:    [],
-      creatives:   [],
-      tags:        [],
-      format:      'feed',
-      campaignId:  null,
-      approvalToken: null,
-    });
-    setSaving(false);
-  };
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-          Título *
-        </label>
-        <input
-          autoFocus
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Título do post"
-          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30 focus:border-[#FF5C00]"
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-          Plataforma
-        </label>
-        <select
-          value={platform}
-          onChange={(e) => setPlatform(e.target.value)}
-          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30 bg-white"
-        >
-          {PLATFORMS.map((p) => (
-            <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-          Data prevista
-        </label>
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30"
-        />
-      </div>
-      <div className="flex gap-2 pt-2">
-        <button
-          onClick={onCancel}
-          className="flex-1 py-2.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          Cancelar
-        </button>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="flex-1 py-2.5 bg-[#FF5C00] hover:bg-[#E54E00] disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          {saving ? 'Salvando...' : 'Adicionar card'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
 export default function WorkflowPage() {
   const { user }                 = useAuth();
+  const router                   = useRouter();
   const { data: posts, loading } = useUserCollection<Post>(
     user?.uid ?? null,
     'posts',
     [orderBy('createdAt', 'desc')]
   );
-
-  const [addStatus, setAddStatus] = useState<PostStatus | null>(null);
 
   const responsavel: Responsavel = {
     nome:   user?.displayName ?? user?.email ?? 'Usuário',
@@ -130,17 +23,11 @@ export default function WorkflowPage() {
     uid:    user?.uid ?? '',
   };
 
-  const handleAddPost = async (data: Partial<Post>) => {
-    if (!user) return;
-    const id = `post_${Date.now()}`;
-    await saveDoc(`users/${user.uid}/posts`, id, {
-      ...data,
-      responsavel,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
-    showToast('Post adicionado ao kanban!', 'success');
-    setAddStatus(null);
+  // ✅ Redireciona para /criar-post com status inicial e returnTo=workflow
+  const handleAddPost = (status?: PostStatus) => {
+    const params = new URLSearchParams({ returnTo: 'workflow' });
+    if (status) params.set('defaultStatus', status);
+    router.push(`/criar-post?${params.toString()}`);
   };
 
   return (
@@ -156,7 +43,7 @@ export default function WorkflowPage() {
             >
               🔄 Atualizar
             </button>
-            <PrimaryButton icon="+" onClick={() => setAddStatus('rascunho')}>
+            <PrimaryButton icon="+" onClick={() => handleAddPost()}>
               Adicionar post
             </PrimaryButton>
           </div>
@@ -168,23 +55,8 @@ export default function WorkflowPage() {
         loading={loading}
         uid={user?.uid ?? ''}
         responsavel={responsavel}
-        onAddPost={(status) => setAddStatus(status)}
+        onAddPost={handleAddPost}
       />
-
-      <Modal
-        isOpen={!!addStatus}
-        onClose={() => setAddStatus(null)}
-        title={`Novo post — ${addStatus ?? ''}`}
-        size="sm"
-      >
-        {addStatus && (
-          <QuickAddForm
-            defaultStatus={addStatus}
-            onSave={handleAddPost}
-            onCancel={() => setAddStatus(null)}
-          />
-        )}
-      </Modal>
     </div>
   );
 }
