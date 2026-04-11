@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, Suspense } from 'react';
 import Link                               from 'next/link';
-import { useRouter }                      from 'next/navigation';
+import { useRouter, useSearchParams }     from 'next/navigation';
 import { useAuth }                        from '@/lib/hooks/useAuth';
 import { saveDoc }                        from '@/lib/firebase/firestore';
 import { uploadCreative }                 from '@/lib/firebase/storage';
@@ -14,11 +14,11 @@ import { Step1Content }                   from './_steps';
 import type { UploadItem }                from './_steps';
 import type { Platform, PostFormat, Responsavel } from '@/lib/types';
 
-function WizardHeader({ step }: { step: number }) {
+function WizardHeader({ step, backHref }: { step: number; backHref: string }) {
   const steps = [{ n: 1, label: 'Conteúdo' }, { n: 2, label: 'Conclusão' }];
   return (
     <div className="flex items-center justify-between mb-8 px-6 py-4 bg-white border-b border-gray-100">
-      <Link href="/agendamentos" className="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1">
+      <Link href={backHref} className="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1">
         ← voltar
       </Link>
       <div className="flex items-center gap-4">
@@ -112,7 +112,7 @@ function Step2Conclusion({ title, caption, uploads, platforms, scheduledDate, on
         </div>
       </div>
 
-      {/* Link de aprovação */}
+      {/* Link de aprovação gerado */}
       {approvalUrl && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
           <p className="text-sm font-semibold text-blue-900">🔗 Link de aprovação gerado!</p>
@@ -131,7 +131,7 @@ function Step2Conclusion({ title, caption, uploads, platforms, scheduledDate, on
         </div>
       )}
 
-      {/* Botões */}
+      {/* Botões de ação */}
       {!approvalUrl && (
         <div className="grid grid-cols-2 gap-3">
           {([
@@ -156,9 +156,15 @@ function Step2Conclusion({ title, caption, uploads, platforms, scheduledDate, on
   );
 }
 
-export default function CriarPostPage() {
-  const router   = useRouter();
-  const { user } = useAuth();
+// Componente interno que usa useSearchParams
+function CriarPostInner() {
+  const router        = useRouter();
+  const searchParams  = useSearchParams();
+  const { user }      = useAuth();
+
+  // ✅ Lê returnTo e defaultStatus da URL
+  const returnTo      = searchParams.get('returnTo') ?? 'agendamentos';
+  const backHref      = returnTo === 'workflow' ? '/workflow' : '/agendamentos';
 
   const postId = useMemo(
     () => `post_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -209,7 +215,6 @@ export default function CriarPostPage() {
     hashtags: hashtags.split(' ').filter(Boolean).map((h) => h.replace('#', '')),
     platforms,
     format:   'feed' as PostFormat,
-    // CRÍTICO: new Date().toISOString() dentro de arrays — serverTimestamp() proibido em arrays
     creatives: uploads
       .filter((u) => u.url)
       .map((u) => ({
@@ -224,7 +229,6 @@ export default function CriarPostPage() {
     campaignId:    null,
     approvalToken: null,
     tags:          [],
-    // Converte a data string para Timestamp se informada
     scheduledAt: scheduledDate
       ? Timestamp.fromDate(new Date(scheduledDate + 'T12:00:00'))
       : null,
@@ -239,7 +243,7 @@ export default function CriarPostPage() {
       agendar:   'conteudo',
       rascunho:  'rascunho',
       publicar:  'publicado',
-      aprovacao: 'em_analise',
+      aprovacao: 'revisao', // ✅ não muda para em_analise aqui
     } as const;
 
     try {
@@ -260,7 +264,8 @@ export default function CriarPostPage() {
           : action === 'agendar' ? 'Post agendado! 📅'
           : 'Rascunho salvo! 💾', 'success'
         );
-        router.push('/agendamentos');
+        // ✅ Volta para a origem correta
+        router.push(backHref);
       }
     } catch (err) {
       console.error('[CriarPost] save error', err);
@@ -272,7 +277,7 @@ export default function CriarPostPage() {
 
   return (
     <div className="min-h-screen bg-[#F8F7FF] flex flex-col">
-      <WizardHeader step={step} />
+      <WizardHeader step={step} backHref={backHref} />
       <div className="flex-1 max-w-4xl mx-auto w-full px-6 py-8">
         {step === 1 && (
           <Step1Content
@@ -295,5 +300,14 @@ export default function CriarPostPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// ✅ Suspense obrigatório por causa do useSearchParams no Next.js 13+
+export default function CriarPostPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#F8F7FF] flex items-center justify-center text-gray-400">Carregando...</div>}>
+      <CriarPostInner />
+    </Suspense>
   );
 }
