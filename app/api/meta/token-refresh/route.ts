@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/firebase/admin";
-
+import { adminAuth, adminDb } from "@/lib/firebase/admin";
 // Pode ser chamado manualmente (Bearer token) ou via cron (secret header)
 export async function POST(request: NextRequest) {
   try {
