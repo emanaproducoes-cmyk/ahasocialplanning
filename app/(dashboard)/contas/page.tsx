@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/firebase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/lib/hooks/useAuth";
 import ContaCard from "@/components/contas/ContaCard";
 import IntegracoesModal from "@/components/contas/IntegracoesModal";
 import { Plus, RefreshCw, CheckCircle2, AlertCircle, X } from "lucide-react";
