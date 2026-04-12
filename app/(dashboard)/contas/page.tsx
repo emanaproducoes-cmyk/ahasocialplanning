@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
-import { db } from "@/firebase/client";
+import { db } from "@/lib/firebase/config";
 import { useAuth } from "@/lib/hooks/useAuth";
 import ContaCard from "@/components/contas/ContaCard";
 import IntegracoesModal from "@/components/contas/IntegracoesModal";
@@ -27,7 +27,7 @@ interface Toast {
 }
 
 export default function ContasPage() {
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
   const searchParams = useSearchParams();
 
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
@@ -36,7 +36,6 @@ export default function ContasPage() {
   const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<Toast | null>(null);
 
-  // Exibe toast temporário
   const showToast = useCallback((type: "success" | "error", message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 5000);
@@ -51,7 +50,6 @@ export default function ContasPage() {
     if (success === "true") {
       const n = parseInt(count || "0", 10);
       showToast("success", `✅ ${n} conta${n !== 1 ? "s" : ""} Meta conectada${n !== 1 ? "s" : ""} com sucesso!`);
-      // Limpa a URL
       window.history.replaceState({}, "", "/contas");
     } else if (error) {
       const errorMessages: Record<string, string> = {
@@ -68,10 +66,10 @@ export default function ContasPage() {
 
   // Listener em tempo real das contas
   useEffect(() => {
-    if (!currentUser) return;
+    if (!user) return;
 
     const q = query(
-      collection(db, "users", currentUser.uid, "socialAccounts"),
+      collection(db, "users", user.uid, "socialAccounts"),
       orderBy("connectedAt", "desc")
     );
 
@@ -85,22 +83,21 @@ export default function ContasPage() {
     });
 
     return unsub;
-  }, [currentUser]);
+  }, [user]);
 
-  // Sincroniza uma conta específica
+  // Sincroniza uma conta
   const handleSync = useCallback(
     async (accountId: string) => {
-      if (!currentUser) return;
+      if (!user) return;
       setSyncingIds((prev) => new Set(prev).add(accountId));
 
       try {
-        const idToken = await currentUser.getIdToken();
+        const idToken = await user.getIdToken();
         const res = await fetch(`/api/meta/sync-account/${accountId}`, {
           method: "POST",
           headers: { Authorization: `Bearer ${idToken}` },
         });
         const data = await res.json();
-
         if (!res.ok) throw new Error(data.error || "Falha na sincronização");
         showToast("success", "Conta sincronizada com sucesso!");
       } catch (err) {
@@ -114,10 +111,10 @@ export default function ContasPage() {
         });
       }
     },
-    [currentUser, showToast]
+    [user, showToast]
   );
 
-  // Sincroniza todas as contas conectadas
+  // Sincroniza todas
   const handleSyncAll = useCallback(async () => {
     const connected = accounts.filter((a) => a.status === "connected");
     for (const account of connected) {
@@ -125,14 +122,14 @@ export default function ContasPage() {
     }
   }, [accounts, handleSync]);
 
-  // Inicia OAuth — redireciona para /api/meta/connect
+  // Inicia OAuth Meta
   const handleConnect = useCallback(
     async (_platform: string) => {
-      if (!currentUser) return;
-      const idToken = await currentUser.getIdToken();
+      if (!user) return;
+      const idToken = await user.getIdToken();
       window.location.href = `/api/meta/connect?idToken=${encodeURIComponent(idToken)}`;
     },
-    [currentUser]
+    [user]
   );
 
   const connectedCount = accounts.filter((a) => a.status === "connected").length;
@@ -185,7 +182,7 @@ export default function ContasPage() {
           </div>
         </div>
 
-        {/* Estado de loading */}
+        {/* Loading */}
         {loading && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2, 3].map((i) => (
@@ -217,7 +214,7 @@ export default function ContasPage() {
           </div>
         )}
 
-        {/* Estado vazio */}
+        {/* Vazio */}
         {!loading && accounts.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="text-5xl mb-4">📱</div>
@@ -236,7 +233,6 @@ export default function ContasPage() {
         )}
       </div>
 
-      {/* Modal */}
       <IntegracoesModal isOpen={showModal} onClose={() => setShowModal(false)} />
     </div>
   );
