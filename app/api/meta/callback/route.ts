@@ -1,5 +1,6 @@
+// app/api/meta/callback/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase/admin";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 
 interface PageData {
@@ -41,7 +42,6 @@ export async function GET(request: NextRequest) {
   try {
     const payload = JSON.parse(Buffer.from(stateRaw, "base64url").toString());
     uid = payload.uid;
-    // TTL de 10 minutos
     if (Date.now() - payload.ts > 10 * 60 * 1000) {
       return NextResponse.redirect(`${appUrl}/contas?error=state_expired`);
     }
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     const llData = await llRes.json();
     const longLivedToken: string = llData.access_token || tokenData.access_token;
 
-    // 3. Busca as Páginas do usuário com Page Access Tokens e dados do Instagram vinculado
+    // 3. Busca as Páginas do usuário
     const pagesRes = await fetch(
       `https://graph.facebook.com/v21.0/me/accounts` +
         `?fields=id,name,access_token,category,fan_count,followers_count,picture,instagram_business_account{id,username,name,profile_picture_url,followers_count,biography}` +
@@ -88,11 +88,11 @@ export async function GET(request: NextRequest) {
     const pagesData = await pagesRes.json();
     const pages: PageData[] = pagesData.data || [];
 
+    const adminDb = getAdminDb(); // ✅ correto
     const batch = adminDb.batch();
     let accountsCreated = 0;
 
     for (const page of pages) {
-      // Cria conta Facebook Page
       const fbRef = adminDb
         .collection("users")
         .doc(uid)
@@ -111,8 +111,8 @@ export async function GET(request: NextRequest) {
           category: page.category || null,
           status: "connected",
           metaLongLivedToken: longLivedToken,
-          _pageToken: page.access_token, // Page Access Token (para publicação)
-          tokenExpiresAt: Date.now() + 60 * 24 * 60 * 60 * 1000, // ~60 dias
+          _pageToken: page.access_token,
+          tokenExpiresAt: Date.now() + 60 * 24 * 60 * 60 * 1000,
           connectedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         },
@@ -120,7 +120,6 @@ export async function GET(request: NextRequest) {
       );
       accountsCreated++;
 
-      // Se a Página tem Instagram Business vinculado, cria conta Instagram
       const igAccount = page.instagram_business_account;
       if (igAccount?.id) {
         const igRef = adminDb
@@ -142,7 +141,7 @@ export async function GET(request: NextRequest) {
             linkedPageId: page.id,
             status: "connected",
             metaLongLivedToken: longLivedToken,
-            _pageToken: page.access_token, // Instagram Graph API usa o Page Token
+            _pageToken: page.access_token,
             tokenExpiresAt: Date.now() + 60 * 24 * 60 * 60 * 1000,
             connectedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
