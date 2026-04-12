@@ -1,83 +1,105 @@
-/**
- * app/api/meta/sync-account/[accountId]/route.ts
- *
- * Sincroniza seguidores, reach e impressions de uma conta Meta
- * e atualiza o documento no Firestore. Cache de 4 horas.
- */
-
-import { NextRequest, NextResponse } from 'next/server';
-import { getAdminDb }                from '@/lib/firebase/admin';
-import { FieldValue }                from 'firebase-admin/firestore';
+import { NextRequest, NextResponse } from "next/server";
+import { adminAuth, adminDb } from "@/firebase/admin";
 
 export async function POST(
-  req: NextRequest,
+  request: NextRequest,
   { params }: { params: { accountId: string } }
 ) {
-  const { uid } = await req.json().catch(() => ({ uid: '' }));
-
-  if (!uid) return NextResponse.json({ error: 'uid obrigatório' }, { status: 400 });
-
   try {
-    const db      = getAdminDb();
-    const ref     = db.doc(`users/${uid}/connectedAccounts/${params.accountId}`);
-    const docSnap = await ref.get();
-
-    if (!docSnap.exists) {
-      return NextResponse.json({ error: 'Conta não encontrada' }, { status: 404 });
+    // Autenticação via Bearer token
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+    }
+    const idToken = authHeader.replace("Bearer ", "");
+    let uid: string;
+    try {
+      const decoded = await adminAuth.verifyIdToken(idToken);
+      uid = decoded.uid;
+    } catch {
+      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
 
-    const account = docSnap.data()!;
-    const token   = account._pageToken ?? account._accessToken;
-    const metaId  = account.metaAccountId ?? account.metaPageId;
+    const { accountId } = params;
+    const accountRef = adminDb
+      .collection("users")
+      .doc(uid)
+      .collection("socialAccounts")
+      .doc(accountId);
 
-    if (!token || !metaId) {
-      return NextResponse.json({ error: 'Token ou ID Meta não configurado' }, { status: 400 });
+    const accountSnap = await accountRef.get();
+    if (!accountSnap.exists) {
+      return NextResponse.json({ error: "Conta não encontrada" }, { status: 404 });
     }
 
-    // Verifica se sync recente (< 4 horas) para não bater desnecessariamente
-    const lastSync = account.lastSyncedAt?.toDate?.() ?? new Date(0);
-    const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
-    if (lastSync > fourHoursAgo) {
-      return NextResponse.json({ skipped: true, message: 'Sincronizado recentemente' });
-    }
+    const account = accountSnap.data()!;
+    // CRÍTICO: Instagram Graph API requer Page Access Token, não o User Long-Lived Token
+    const token: string = account._pageToken || account.metaLongLivedToken;
+    const platform: string = account.platform;
+    const platformId: string = account.platformId;
 
-    // Determina se é IG ou Facebook e busca dados correspondentes
-    const isInstagram = account.platform === 'instagram';
-    const fields = isInstagram
-      ? 'followers_count,media_count,name,username,profile_picture_url'
-      : 'fan_count,name,picture{url}';
-
-    const profileRes = await fetch(
-      `https://graph.facebook.com/v19.0/${metaId}?fields=${fields}&access_token=${token}`
-    );
-    const profile = await profileRes.json();
-
-    if (profile.error) throw new Error(profile.error.message);
-
-    const updates: Record<string, any> = {
-      updatedAt:   FieldValue.serverTimestamp(),
-      lastSyncedAt: FieldValue.serverTimestamp(),
-      status:      'ativo',
+    let updatedData: Record<string, unknown> = {
+      updatedAt: new Date(),
+      lastSyncAt: new Date(),
     };
 
-    if (isInstagram) {
-      updates.followers = profile.followers_count ?? account.followers;
-      updates.posts     = profile.media_count     ?? account.posts;
-      updates.name      = profile.name            ?? account.name;
-      updates.handle    = profile.username        ?? account.handle;
-      if (profile.profile_picture_url) updates.avatar = profile.profile_picture_url;
-    } else {
-      updates.followers = profile.fan_count ?? account.followers;
-      updates.name      = profile.name      ?? account.name;
-      if (profile.picture?.data?.url) updates.avatar = profile.picture.data.url;
+    if (platform === "instagram") {
+      // Instagram Graph API
+      const igRes = await fetch(
+        `https://graph.facebook.com/v21.0/${platformId}` +
+          `?fields=id,username,name,biography,followers_count,media_count,profile_picture_url,website` +
+          `&access_token=${token}`
+      );
+      const igData = await igRes.json();
+
+      if (igData.error) {
+        console.error("[sync] Instagram API error:", igData.error);
+        await accountRef.update({ status: "error", lastError: igData.error.message, updatedAt: new Date() });
+        return NextResponse.json({ error: igData.error.message }, { status: 400 });
+      }
+
+      updatedData = {
+        ...updatedData,
+        name: igData.name || account.name,
+        handle: igData.username ? `@${igData.username}` : account.handle,
+        avatar: igData.profile_picture_url || account.avatar,
+        followers: igData.followers_count || 0,
+        mediaCount: igData.media_count || 0,
+        bio: igData.biography || null,
+        website: igData.website || null,
+        status: "connected",
+        lastError: null,
+      };
+    } else if (platform === "facebook") {
+      // Facebook Graph API
+      const fbRes = await fetch(
+        `https://graph.facebook.com/v21.0/${platformId}` +
+          `?fields=id,name,fan_count,followers_count,picture{url},category,about` +
+          `&access_token=${token}`
+      );
+      const fbData = await fbRes.json();
+
+      if (fbData.error) {
+        console.error("[sync] Facebook API error:", fbData.error);
+        await accountRef.update({ status: "error", lastError: fbData.error.message, updatedAt: new Date() });
+        return NextResponse.json({ error: fbData.error.message }, { status: 400 });
+      }
+
+      updatedData = {
+        ...updatedData,
+        name: fbData.name || account.name,
+        avatar: fbData.picture?.data?.url || account.avatar,
+        followers: fbData.fan_count || fbData.followers_count || 0,
+        status: "connected",
+        lastError: null,
+      };
     }
 
-    await ref.update(updates);
+    await accountRef.update(updatedData);
 
-    return NextResponse.json({ success: true, followers: updates.followers });
-
-  } catch (err: any) {
-    console.error('[Meta sync error]', err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ success: true, data: updatedData });
+  } catch (err) {
+    console.error("[sync-account] Erro:", err);
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
   }
 }
