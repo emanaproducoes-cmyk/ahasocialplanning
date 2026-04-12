@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
-// Pode ser chamado manualmente (Bearer token) ou via cron (secret header)
+
 export async function POST(request: NextRequest) {
   try {
-    // Suporte a cron job via header secret
     const cronSecret = request.headers.get("x-cron-secret");
     const isCron = cronSecret === process.env.CRON_SECRET;
 
@@ -24,9 +23,8 @@ export async function POST(request: NextRequest) {
 
     const appId = process.env.META_APP_ID!;
     const appSecret = process.env.META_APP_SECRET!;
-
     const now = Date.now();
-    const refreshThreshold = now + 15 * 24 * 60 * 60 * 1000; // renova se expira em <15 dias
+    const refreshThreshold = now + 15 * 24 * 60 * 60 * 1000;
 
     let query = adminDb.collectionGroup("socialAccounts")
       .where("platform", "in", ["instagram", "facebook"])
@@ -34,7 +32,6 @@ export async function POST(request: NextRequest) {
       .where("tokenExpiresAt", "<", refreshThreshold);
 
     if (uid) {
-      // Renovação manual para um usuário específico
       query = adminDb
         .collection("users")
         .doc(uid)
@@ -72,7 +69,6 @@ export async function POST(request: NextRequest) {
           });
           refreshed++;
         } else {
-          // Token inválido — marca conta como desconectada
           await doc.ref.update({ status: "disconnected", updatedAt: new Date() });
           failed++;
           errors.push(`${doc.id}: ${data.error?.message || "Token inválido"}`);
