@@ -1,5 +1,6 @@
+// app/api/meta/connect/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebase/admin";
+import { verifyIdToken } from "@/lib/firebase/admin";
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,9 +14,9 @@ export async function GET(request: NextRequest) {
     // Verifica o token Firebase
     let uid: string;
     try {
-      const decoded = await adminAuth.verifyIdToken(idToken);
-      uid = decoded.uid;
-    } catch {
+      uid = await verifyIdToken(idToken);
+    } catch (err) {
+      console.error("[meta/connect] verifyIdToken falhou:", err);
       return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
 
