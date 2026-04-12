@@ -1,328 +1,187 @@
-'use client';
+"use client";
 
-import { useState }          from 'react';
-import { Modal }             from '@/components/ui/Modal';
-import { showToast }         from '@/components/ui/Toast';
-import { saveDoc }           from '@/lib/firebase/firestore';
-import { serverTimestamp }   from 'firebase/firestore';
-import { cn }                from '@/lib/utils/cn';
-import { formatDate }        from '@/lib/utils/formatters';
-import type { ConnectedAccount, Platform } from '@/lib/types';
+import React, { useState } from "react";
+import { X, ExternalLink, Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
-interface PlatformOption {
-  id:       Platform;
-  label:    string;
-  emoji:    string;
-  gradient: string;
-  useMetaOAuth?: boolean; // se true → redireciona para OAuth Meta real
-  subModal?: {
-    via:     string;
-    warning: string;
-    options: { label: string; icon: string; desc: string }[];
-  };
+interface Platform {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  color: string;
+  available: boolean;
 }
 
-// ─── Plataformas ──────────────────────────────────────────────────────────────
-
-const PLATFORM_OPTIONS: PlatformOption[] = [
+const PLATFORMS: Platform[] = [
   {
-    id: 'instagram', label: 'Instagram Business', emoji: '📸',
-    gradient: 'linear-gradient(135deg,#833AB4,#FD1D1D,#F77737)',
-    subModal: {
-      via:     'Instagram Business',
-      warning: '⚠️ Apenas contas comerciais ou criadores de conteúdo são compatíveis.',
-      options: [
-        { label: 'Conectar via Meta OAuth', icon: '🔵', desc: 'Autenticação oficial Meta — recomendado (acesso a insights e anúncios)' },
-        { label: 'Adicionar manualmente',   icon: '✏️', desc: 'Cadastro manual sem acesso à API' },
-      ],
-    },
+    id: "instagram",
+    name: "Instagram Business",
+    icon: "📸",
+    description: "Publique posts, Stories e Reels. Acesse métricas detalhadas.",
+    color: "from-purple-500 to-pink-500",
+    available: true,
   },
   {
-    id: 'facebook', label: 'Facebook', emoji: '👍',
-    gradient: 'linear-gradient(135deg,#1877F2,#0C5FD6)',
-    subModal: {
-      via:     'Facebook',
-      warning: '⚠️ A conta precisa ser uma Página do Facebook ou conta Business.',
-      options: [
-        { label: 'Conectar via Meta OAuth', icon: '🔵', desc: 'Autenticação oficial — acesso completo a insights e anúncios' },
-        { label: 'Adicionar manualmente',   icon: '✏️', desc: 'Cadastro manual sem acesso à API' },
-      ],
-    },
+    id: "facebook",
+    name: "Facebook Page",
+    icon: "👤",
+    description: "Gerencie sua Página, publique conteúdo e acompanhe engajamento.",
+    color: "from-blue-600 to-blue-500",
+    available: true,
   },
-  { id: 'threads',         label: 'Threads',            emoji: '🧵', gradient: 'linear-gradient(135deg,#1C1C1C,#3D3D3D)' },
-  { id: 'linkedin',        label: 'LinkedIn',           emoji: '💼', gradient: 'linear-gradient(135deg,#0A66C2,#004182)' },
-  { id: 'pinterest',       label: 'Pinterest',          emoji: '📌', gradient: 'linear-gradient(135deg,#E60023,#C8001A)' },
-  { id: 'google_business', label: 'Google Meu Negócio', emoji: '🏢', gradient: 'linear-gradient(135deg,#4285F4,#34A853)' },
-  { id: 'youtube',         label: 'YouTube',            emoji: '▶️', gradient: 'linear-gradient(135deg,#FF0000,#FF6B00)' },
-  { id: 'tiktok',          label: 'TikTok',             emoji: '🎵', gradient: 'linear-gradient(135deg,#010101,#2E2E2E)' },
+  {
+    id: "tiktok",
+    name: "TikTok Business",
+    icon: "🎵",
+    description: "Publique vídeos e acesse dados de performance.",
+    color: "from-gray-900 to-gray-700",
+    available: false,
+  },
+  {
+    id: "youtube",
+    name: "YouTube",
+    icon: "▶️",
+    description: "Gerencie seu canal e publique vídeos.",
+    color: "from-red-600 to-red-500",
+    available: false,
+  },
+  {
+    id: "linkedin",
+    name: "LinkedIn",
+    icon: "💼",
+    description: "Publique no seu perfil e páginas da empresa.",
+    color: "from-blue-700 to-blue-600",
+    available: false,
+  },
 ];
 
-// ─── Sub-modal para escolha do método de conexão ──────────────────────────────
-
-function SubModal({
-  platform,
-  onBack,
-  onConnect,
-}: {
-  platform:  PlatformOption;
-  onBack:    () => void;
-  onConnect: (method: string) => void;
-}) {
-  if (!platform.subModal) return null;
-  const { warning, options } = platform.subModal;
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-        {warning}
-      </p>
-      <p className="text-sm font-medium text-gray-700">
-        Como você deseja conectar o {platform.label}?
-      </p>
-      <div className="space-y-2">
-        {options.map((opt) => (
-          <button
-            key={opt.label}
-            onClick={() => onConnect(opt.label)}
-            className="w-full flex items-center gap-3 px-4 py-3 border border-gray-200 rounded-xl hover:border-[#FF5C00] hover:bg-orange-50 transition-all text-left group"
-          >
-            <span className="text-2xl">{opt.icon}</span>
-            <div>
-              <p className="text-sm font-semibold text-gray-800 group-hover:text-[#FF5C00]">{opt.label}</p>
-              <p className="text-xs text-gray-500">{opt.desc}</p>
-            </div>
-          </button>
-        ))}
-      </div>
-      <button onClick={onBack} className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
-        ← Voltar
-      </button>
-    </div>
-  );
-}
-
-// ─── Props do modal principal ──────────────────────────────────────────────────
-
 interface IntegracoesModalProps {
-  isOpen:            boolean;
-  onClose:           () => void;
-  uid:               string;
-  connectedAccounts: ConnectedAccount[];
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-// ─── Modal principal ───────────────────────────────────────────────────────────
+export default function IntegracoesModal({ isOpen, onClose }: IntegracoesModalProps) {
+  const { currentUser } = useAuth();
+  const [connecting, setConnecting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-export function IntegracoesModal({
-  isOpen,
-  onClose,
-  uid,
-  connectedAccounts,
-}: IntegracoesModalProps) {
-  const [search,      setSearch]      = useState('');
-  const [subPlatform, setSubPlatform] = useState<PlatformOption | null>(null);
-  const [saving,      setSaving]      = useState(false);
+  if (!isOpen) return null;
 
-  const filtered = PLATFORM_OPTIONS.filter((p) =>
-    p.label.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const countFor = (platform: Platform) =>
-    connectedAccounts.filter((a) => a.platform === platform).length;
-
-  const handleIntegrate = (platform: PlatformOption) => {
-    if (platform.subModal) {
-      setSubPlatform(platform);
-    } else {
-      connectDirect(platform.id, platform.label);
-    }
-  };
-
-  // ── Conexão via Meta OAuth real ───────────────────────────────────────────
-  const connectViaMetaOAuth = async () => {
-    setSaving(true);
-    try {
-      const res  = await fetch('/api/meta/connect', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ uid }),
-      });
-      const data = await res.json() as { url?: string; error?: string };
-
-      if (!res.ok || !data.url) {
-        throw new Error(data.error ?? 'Erro ao iniciar OAuth Meta.');
-      }
-
-      // Redireciona para a tela de login da Meta
-      window.location.href = data.url;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro ao conectar com a Meta.';
-      showToast(msg, 'error');
-      setSaving(false);
-    }
-  };
-
-  // ── Conexão manual (outras plataformas ou método manual) ─────────────────
-  const connectDirect = async (platform: Platform, label: string, method?: string) => {
-    // Se o método selecionado for OAuth Meta, usar o fluxo real
-    if (method === 'Conectar via Meta OAuth') {
-      await connectViaMetaOAuth();
+  const handleConnect = async (platform: Platform) => {
+    if (!platform.available) return;
+    if (!currentUser) {
+      setError("Você precisa estar logado para conectar uma conta.");
       return;
     }
 
-    setSaving(true);
+    setConnecting(platform.id);
+    setError(null);
+
     try {
-      const id          = `${platform}_${Date.now()}`;
-      const newAccount: Omit<ConnectedAccount, 'id'> = {
-        platform,
-        name:        label,
-        handle:      label.toLowerCase().replace(/\s/g, ''),
-        avatar:      '',
-        followers:   0,
-        engagement:  0,
-        posts:       0,
-        status:      'pendente',
-        connectedAt: serverTimestamp() as ConnectedAccount['connectedAt'],
-        updatedAt:   serverTimestamp() as ConnectedAccount['updatedAt'],
-      };
-      await saveDoc(`users/${uid}/connectedAccounts`, id, newAccount);
-      showToast(`${label}${method ? ` (${method})` : ''} conectado com sucesso!`, 'success');
-      setSubPlatform(null);
-    } catch {
-      showToast('Erro ao conectar conta. Tente novamente.', 'error');
-    } finally {
-      setSaving(false);
+      if (platform.id === "instagram" || platform.id === "facebook") {
+        // Inicia OAuth via Meta (Instagram e Facebook usam o mesmo fluxo)
+        const idToken = await currentUser.getIdToken();
+        const connectUrl = `/api/meta/connect?idToken=${encodeURIComponent(idToken)}`;
+        // Redireciona para o fluxo OAuth (abre na mesma aba para manter sessão)
+        window.location.href = connectUrl;
+      } else {
+        setError("Plataforma ainda não disponível.");
+        setConnecting(null);
+      }
+    } catch (err) {
+      console.error("Erro ao conectar:", err);
+      setError("Erro ao iniciar conexão. Tente novamente.");
+      setConnecting(null);
     }
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={() => { setSubPlatform(null); onClose(); }}
-      title={subPlatform ? `Conectar ${subPlatform.label}` : 'Adicionar Integração'}
-      size="lg"
-      footer={
-        !subPlatform ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Modal */}
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Conectar Nova Conta</h2>
+            <p className="text-sm text-gray-500 mt-0.5">Escolha a plataforma para conectar</p>
+          </div>
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors"
+            className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
           >
-            ✅ Finalizar integrações
+            <X size={18} />
           </button>
-        ) : undefined
-      }
-    >
-      {subPlatform ? (
-        <SubModal
-          platform={subPlatform}
-          onBack={() => setSubPlatform(null)}
-          onConnect={(method) => connectDirect(subPlatform.id, subPlatform.label, method)}
-        />
-      ) : (
-        <div className="space-y-5">
-          {/* Busca */}
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar integração..."
-              className="w-full pl-9 pr-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30 focus:border-[#FF5C00]"
-            />
-          </div>
-
-          {/* Grid de plataformas */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {filtered.map((platform) => {
-              const count       = countFor(platform.id);
-              const isConnected = count > 0;
-
-              return (
-                <div
-                  key={platform.id}
-                  className={cn(
-                    'rounded-xl border-2 p-3 flex flex-col items-center gap-2 transition-all',
-                    isConnected
-                      ? 'border-transparent text-white'
-                      : 'border-gray-100 bg-white hover:border-[#FF5C00]/30 hover:shadow-sm'
-                  )}
-                  style={isConnected ? { background: platform.gradient } : undefined}
-                >
-                  <div className="text-3xl">{platform.emoji}</div>
-                  <p className={cn('text-xs font-semibold text-center leading-tight', isConnected ? 'text-white' : 'text-gray-700')}>
-                    {platform.label}
-                  </p>
-                  <p className={cn('text-[10px]', isConnected ? 'text-white/70' : 'text-gray-400')}>
-                    {isConnected ? `${count} conta(s)` : 'Nenhuma conta'}
-                  </p>
-                  <button
-                    onClick={() => handleIntegrate(platform)}
-                    disabled={saving}
-                    className={cn(
-                      'w-full text-xs font-medium py-1.5 rounded-lg transition-colors disabled:opacity-60',
-                      isConnected
-                        ? 'bg-white/20 text-white hover:bg-white/30'
-                        : 'bg-[#FF5C00] text-white hover:bg-[#E54E00]'
-                    )}
-                  >
-                    {saving ? '...' : isConnected ? '+ Nova conta' : 'Integrar'}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Lista de contas conectadas */}
-          {connectedAccounts.length > 0 && (
-            <div>
-              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                Minhas integrações
-              </h4>
-              <div className="space-y-2">
-                {connectedAccounts.map((account) => {
-                  const meta = PLATFORM_OPTIONS.find((p) => p.id === account.platform);
-                  return (
-                    <div
-                      key={account.id}
-                      className="flex items-center gap-3 px-3 py-2.5 bg-gray-50 rounded-xl"
-                    >
-                      <span className="text-xl">{meta?.emoji}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800">{account.name}</p>
-                        <p className="text-xs text-gray-500">@{account.handle}</p>
-                      </div>
-                      <div className="text-right">
-                        {/* Badge Meta Connected */}
-                        {account.metaAccountId && (
-                          <span className="inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 mb-0.5">
-                            Meta ✓
-                          </span>
-                        )}
-                        <span
-                          className={cn(
-                            'block text-[10px] font-semibold px-2 py-0.5 rounded-full',
-                            account.status === 'ativo'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-amber-100 text-amber-700'
-                          )}
-                        >
-                          {account.status}
-                        </span>
-                        {account.connectedAt && (
-                          <p className="text-[10px] text-gray-400 mt-0.5">
-                            {formatDate(account.connectedAt)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
-      )}
-    </Modal>
+
+        {/* Alerta de erro */}
+        {error && (
+          <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+            {error}
+          </div>
+        )}
+
+        {/* Nota sobre Meta */}
+        <div className="mx-6 mt-4 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+          <p className="text-xs text-blue-700">
+            <strong>Instagram e Facebook</strong> são conectados juntos via Meta OAuth.
+            Ao clicar em qualquer um, você será redirecionado para autorizar o app na Meta.
+          </p>
+        </div>
+
+        {/* Lista de plataformas */}
+        <div className="p-6 space-y-3">
+          {PLATFORMS.map((platform) => (
+            <button
+              key={platform.id}
+              onClick={() => handleConnect(platform)}
+              disabled={!platform.available || connecting !== null}
+              className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all ${
+                platform.available
+                  ? "border-gray-200 hover:border-gray-300 hover:shadow-sm cursor-pointer"
+                  : "border-gray-100 opacity-50 cursor-not-allowed"
+              }`}
+            >
+              {/* Ícone */}
+              <div
+                className={`w-12 h-12 rounded-xl bg-gradient-to-br ${platform.color} flex items-center justify-center text-2xl flex-shrink-0`}
+              >
+                {platform.icon}
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm text-gray-900">{platform.name}</span>
+                  {!platform.available && (
+                    <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Em breve</span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{platform.description}</p>
+              </div>
+
+              {/* Indicador */}
+              <div className="flex-shrink-0">
+                {connecting === platform.id ? (
+                  <Loader2 size={18} className="animate-spin text-blue-500" />
+                ) : platform.available ? (
+                  <ExternalLink size={16} className="text-gray-400" />
+                ) : null}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-6">
+          <p className="text-xs text-gray-400 text-center">
+            Seus dados são protegidos e você pode desconectar a qualquer momento.
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
