@@ -2,8 +2,7 @@
 
 import React, { useState } from "react";
 import { X, ExternalLink, Loader2 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-
+import { useAuth } from "@/lib/hooks/useAuth";
 interface Platform {
   id: string;
   name: string;
