@@ -2,164 +2,51 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helper functions ──────────────────────────────────────────────────
+    // ── Helpers ─────────────────────────────────────────────────────────────
     function isAuth() {
       return request.auth != null;
     }
 
-    function uid() {
-      return request.auth.uid;
+    function isOwner(uid) {
+      return request.auth.uid == uid;
     }
 
-    function isAdmin() {
-      return isAuth() && (
-        request.auth.token.email == 'emanaproducoes@gmail.com' ||
-        request.auth.token.admin == true
-      );
+    // Bloqueia escrita de campos sensíveis pelo cliente
+    function hasNoSensitiveFields() {
+      let sensitive = ['_pageToken', '_accessToken', 'metaLongLivedToken', 'tokenExpiresAt'];
+      return !request.resource.data.keys().hasAny(sensitive);
     }
 
-    function isOwner(userId) {
-      return isAuth() && uid() == userId;
-    }
+    // ── Usuários ─────────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read, update: if isAuth() && isOwner(uid);
+      allow create: if isAuth() && isOwner(uid);
 
-    function isOwnerOrAdmin(userId) {
-      return isOwner(userId) || isAdmin();
-    }
+      // ── Contas Sociais ────────────────────────────────────────────────────
+      match /socialAccounts/{accountId} {
+        // Leitura: campos sensíveis nunca chegam ao cliente (regra de projeto)
+        allow read: if isAuth() && isOwner(uid);
 
-    // Bloqueia campos sensíveis que nunca devem vir do client
-    function noSensitiveFields() {
-      return !request.resource.data.keys().hasAny([
-        'accessToken', 'refreshToken', 'password',
-        'privateKey',  'secret',       'apiKey'
-      ]);
-    }
+        // Escrita pelo cliente: nunca pode incluir tokens
+        allow create, update: if isAuth() && isOwner(uid) && hasNoSensitiveFields();
 
-    // ── /users/{userId} ───────────────────────────────────────────────────
-    match /users/{userId} {
-      allow read:   if isOwnerOrAdmin(userId);
-      allow create: if isAuth() && uid() == userId && noSensitiveFields();
-      allow update: if isOwnerOrAdmin(userId)   && noSensitiveFields();
-      allow delete: if isAdmin();
-
-      // ── connectedAccounts ─────────────────────────────────────────────
-      match /connectedAccounts/{accountId} {
-        allow read:           if isOwnerOrAdmin(userId);
-        allow create, delete: if isAdmin();
-        allow update:         if isAdmin() && noSensitiveFields();
+        // Delete: dono pode desconectar
+        allow delete: if isAuth() && isOwner(uid);
       }
 
-      // ── posts ────────────────────────────────────────────────────────
+      // ── Posts ─────────────────────────────────────────────────────────────
       match /posts/{postId} {
-        allow read:   if isOwnerOrAdmin(userId);
-        allow create: if isOwnerOrAdmin(userId) && noSensitiveFields();
-        allow update: if isOwnerOrAdmin(userId) && noSensitiveFields();
-        allow delete: if isOwnerOrAdmin(userId);
+        allow read, write: if isAuth() && isOwner(uid);
       }
 
-      // ── agendamentos ─────────────────────────────────────────────────
-      match /agendamentos/{docId} {
-        allow read, write: if isOwnerOrAdmin(userId);
-      }
-
-      // ── emAnalise ────────────────────────────────────────────────────
-      match /emAnalise/{docId} {
-        allow read, write: if isOwnerOrAdmin(userId);
-      }
-
-      // ── aprovados ────────────────────────────────────────────────────
-      match /aprovados/{docId} {
-        allow read, write: if isOwnerOrAdmin(userId);
-      }
-
-      // ── rejeitados ───────────────────────────────────────────────────
-      match /rejeitados/{docId} {
-        allow read, write: if isOwnerOrAdmin(userId);
-      }
-
-      // ── revisao ──────────────────────────────────────────────────────
-      match /revisao/{docId} {
-        allow read, write: if isOwnerOrAdmin(userId);
-      }
-
-      // ── campanhas ────────────────────────────────────────────────────
-      match /campanhas/{docId} {
-        allow read, write: if isOwnerOrAdmin(userId);
-      }
-
-      // ── trafegoPago ──────────────────────────────────────────────────
-      match /trafegoPago/{docId} {
-        allow read, write: if isOwnerOrAdmin(userId);
-      }
-
-      // ── stats (somente Cloud Functions escrevem) ──────────────────
-      match /stats/{docId} {
-        allow read:  if isOwnerOrAdmin(userId);
-        allow write: if false;
-      }
-
-      // ── preferences ──────────────────────────────────────────────────
-      match /preferences/{docId} {
-        allow read, write: if isOwner(userId);
+      // ── Notificações ──────────────────────────────────────────────────────
+      match /notifications/{notifId} {
+        allow read: if isAuth() && isOwner(uid);
+        allow write: if false; // somente server-side
       }
     }
 
-    // ── /approvals/{token} ────────────────────────────────────────────────
-    // Leitura PÚBLICA por token (página de aprovação sem login).
-    // Update permitido SEM autenticação para que o cliente externo possa
-    // responder via formulário público. A validação de campos e status é
-    // feita aqui nas rules; a lógica de negócio (espelhar post) fica no
-    // Admin SDK em /api/approval/respond.
-    //
-    // BUG FIX #3: o client SDK v10 com persistentLocalCache lançava erro ao
-    // tentar updateDoc numa aba sem histórico de auth porque a rule original
-    // não permitia explicitamente não-autenticados no update.
-    // Solução preferida: usar /api/approval/respond (Admin SDK).
-    // Esta rule fica como fallback e garante segurança mesmo pelo client SDK.
-    match /approvals/{token} {
-      // Leitura pública — qualquer um com o token pode ler
-      allow read: if true;
-
-      // Criação apenas por usuários autenticados (quem gera o link)
-      allow create: if isAuth() && noSensitiveFields();
-
-      // BUG FIX #3: Update permitido TAMBÉM para não-autenticados (cliente externo),
-      // desde que:
-      //   1. Apenas os campos de resposta sejam alterados.
-      //   2. O status seja um valor válido de resposta.
-      //   3. Campos imutáveis (uid, agendamentoId, createdAt) não sejam alterados.
-      allow update: if (
-        // Campos permitidos na resposta
-        request.resource.data.keys().hasOnly([
-          'status', 'comentario', 'respondidoEm',
-          // Campos imutáveis que podem ser enviados de volta mas devem manter valor
-          'agendamentoId', 'uid', 'creatives', 'caption',
-          'platforms', 'responsavel', 'createdAt', 'expiresAt'
-        ])
-        &&
-        // Status válido de resposta do cliente
-        request.resource.data.status in ['aprovado', 'correcao', 'rejeitado', 'pending']
-        &&
-        // Campos imutáveis não foram alterados
-        (
-          !request.resource.data.keys().hasAny(['uid', 'agendamentoId', 'createdAt'])
-          ||
-          (
-            request.resource.data.uid          == resource.data.uid          &&
-            request.resource.data.agendamentoId == resource.data.agendamentoId
-          )
-        )
-        &&
-        // BUG FIX #3: verificação de expiresAt para impedir respostas em links expirados
-        resource.data.expiresAt > request.time
-        &&
-        // Impede re-submissão (só pode responder se estiver 'pending')
-        resource.data.status == 'pending'
-      );
-
-      allow delete: if isAdmin();
-    }
-
-    // ── Deny all other paths ──────────────────────────────────────────────
+    // Bloqueia tudo mais por padrão
     match /{document=**} {
       allow read, write: if false;
     }
