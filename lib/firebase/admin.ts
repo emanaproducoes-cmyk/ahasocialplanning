@@ -1,17 +1,7 @@
-/**
- * lib/firebase/admin.ts — Firebase Admin SDK (server-side only)
- *
- * FIX CRÍTICO: initializeApp() NÃO pode ser chamado no nível do módulo.
- * Durante o build do Next.js/Vercel as env vars do Firebase ainda não existem,
- * então cert() lançava erro e derrubava o build inteiro.
- *
- * Solução: inicialização LAZY — o app só é criado quando uma função é chamada
- * em runtime (nunca durante o build).
- */
-
 import { getApps, initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore }                  from 'firebase-admin/firestore';
 import { getAuth }                       from 'firebase-admin/auth';
+import { getStorage }                    from 'firebase-admin/storage';
 
 export const ADMIN_EMAIL = 'emanaproducoes@gmail.com';
 
@@ -26,16 +16,13 @@ function getAdminApp() {
   });
 }
 
-/**
- * Use estas funções nas rotas em vez de importar adminDb/adminAuth diretamente.
- * Chamadas síncronas — retornam a instância, não uma Promise.
- */
-export function getAdminDb()   { return getFirestore(getAdminApp()); }
-export function getAdminAuth() { return getAuth(getAdminApp());      }
+export function getAdminDb()      { return getFirestore(getAdminApp()); }
+export function getAdminAuth()    { return getAuth(getAdminApp());      }
+export function getAdminStorage() { return getStorage(getAdminApp());   }
 
-// Aliases async mantidos para retrocompatibilidade
-export async function getAdminDbAsync()   { return getAdminDb();   }
-export async function getAdminAuthAsync() { return getAdminAuth(); }
+export async function getAdminDbAsync()      { return getAdminDb();      }
+export async function getAdminAuthAsync()    { return getAdminAuth();    }
+export async function getAdminStorageAsync() { return getAdminStorage(); }
 
 export async function verifyIdToken(token: string): Promise<string> {
   const decoded = await getAdminAuth().verifyIdToken(token);
