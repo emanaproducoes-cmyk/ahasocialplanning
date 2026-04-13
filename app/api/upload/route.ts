@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminStorage }   from '@/lib/firebase/admin';
+import { NextRequest, NextResponse }     from 'next/server';
+import { getAdminAuth, getAdminStorage } from '@/lib/firebase/admin';
+
+export const dynamic = 'force-dynamic';
 
 const ALLOWED_TYPES = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
@@ -12,9 +14,8 @@ export async function POST(req: NextRequest) {
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
-
     const idToken = authHeader.slice(7);
-    const decoded = await adminAuth.verifyIdToken(idToken);
+    const decoded = await getAdminAuth().verifyIdToken(idToken);
     const uid     = decoded.uid;
 
     const body = await req.json() as {
@@ -22,7 +23,6 @@ export async function POST(req: NextRequest) {
       fileType: string;
       postId:   string;
     };
-
     const { fileName, fileType, postId } = body;
 
     if (!ALLOWED_TYPES.includes(fileType)) {
@@ -34,14 +34,12 @@ export async function POST(req: NextRequest) {
 
     const sanitized = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
     const path      = `users/${uid}/creatives/${postId}/${Date.now()}_${sanitized}`;
+    const bucket    = getAdminStorage().bucket();
+    const fileRef   = bucket.file(path);
 
-    const bucket  = adminStorage.bucket();
-    const fileRef = bucket.file(path);
-
-    // Generate signed URL (15 minutes)
     const [signedUrl] = await fileRef.getSignedUrl({
-      action:  'write',
-      expires: Date.now() + 15 * 60 * 1000,
+      action:      'write',
+      expires:     Date.now() + 15 * 60 * 1000,
       contentType: fileType,
     });
 
