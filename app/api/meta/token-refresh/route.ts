@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/firebase/admin";
+import { getAdminAuth, getAdminDb } from "@/lib/firebase/admin";
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
     const cronSecret = request.headers.get("x-cron-secret");
     const isCron = cronSecret === process.env.CRON_SECRET;
-
     let uid: string | null = null;
 
     if (!isCron) {
@@ -14,13 +15,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
       }
       try {
-        const decoded = await adminAuth.verifyIdToken(authHeader.replace("Bearer ", ""));
+        const decoded = await getAdminAuth().verifyIdToken(authHeader.replace("Bearer ", ""));
         uid = decoded.uid;
       } catch {
         return NextResponse.json({ error: "Token inválido" }, { status: 401 });
       }
     }
 
+    const adminDb = getAdminDb();
     const appId = process.env.META_APP_ID!;
     const appSecret = process.env.META_APP_SECRET!;
     const now = Date.now();
@@ -32,10 +34,7 @@ export async function POST(request: NextRequest) {
       .where("tokenExpiresAt", "<", refreshThreshold);
 
     if (uid) {
-      query = adminDb
-        .collection("users")
-        .doc(uid)
-        .collection("socialAccounts")
+      query = adminDb.collection("users").doc(uid).collection("socialAccounts")
         .where("platform", "in", ["instagram", "facebook"])
         .where("status", "==", "connected") as typeof query;
     }
@@ -49,24 +48,11 @@ export async function POST(request: NextRequest) {
       const account = doc.data();
       const token: string = account.metaLongLivedToken;
       if (!token) continue;
-
       try {
-        const res = await fetch(
-          `https://graph.facebook.com/v21.0/oauth/access_token` +
-            `?grant_type=fb_exchange_token` +
-            `&client_id=${appId}` +
-            `&client_secret=${appSecret}` +
-            `&fb_exchange_token=${token}`
-        );
+        const res = await fetch(`https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${token}`);
         const data = await res.json();
-
         if (data.access_token) {
-          await doc.ref.update({
-            metaLongLivedToken: data.access_token,
-            tokenExpiresAt: now + (data.expires_in || 60 * 24 * 60 * 60) * 1000,
-            lastTokenRefresh: new Date(),
-            updatedAt: new Date(),
-          });
+          await doc.ref.update({ metaLongLivedToken: data.access_token, tokenExpiresAt: now + (data.expires_in || 60 * 24 * 60 * 60) * 1000, lastTokenRefresh: new Date(), updatedAt: new Date() });
           refreshed++;
         } else {
           await doc.ref.update({ status: "disconnected", updatedAt: new Date() });
