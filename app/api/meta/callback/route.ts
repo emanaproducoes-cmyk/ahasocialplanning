@@ -1,7 +1,8 @@
-// app/api/meta/callback/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
+
+export const dynamic = 'force-dynamic';
 
 interface PageData {
   id: string;
@@ -26,6 +27,8 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const stateRaw = searchParams.get("state");
   const error = searchParams.get("error");
+
+  console.log("[callback] params:", { code: !!code, state: !!stateRaw, error });
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
 
@@ -88,7 +91,7 @@ export async function GET(request: NextRequest) {
     const pagesData = await pagesRes.json();
     const pages: PageData[] = pagesData.data || [];
 
-    const adminDb = getAdminDb(); // ✅ correto
+    const adminDb = getAdminDb();
     const batch = adminDb.batch();
     let accountsCreated = 0;
 
