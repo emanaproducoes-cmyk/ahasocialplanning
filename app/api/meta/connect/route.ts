@@ -32,19 +32,21 @@ export async function GET(request: NextRequest) {
     };
     const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
 
-    // Escopos compatíveis com Facebook Login + Instagram Graph API
+    // Escopos corretos para Instagram Graph API (Facebook Login)
+    // instagram_basic e instagram_content_publish estão DESCONTINUADOS
     const scopes = [
       "public_profile",
       "email",
       "pages_show_list",
       "pages_read_engagement",
       "pages_manage_posts",
-      "instagram_basic",
-      "instagram_content_publish",
+      "instagram_business_basic",
+      "instagram_business_content_publish",
+      "instagram_business_manage_messages",
     ].join(",");
 
     const authUrl =
-      `https://www.facebook.com/v21.0/dialog/oauth` +
+      `https://www.facebook.com/v22.0/dialog/oauth` +
       `?client_id=${appId}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&scope=${encodeURIComponent(scopes)}` +
