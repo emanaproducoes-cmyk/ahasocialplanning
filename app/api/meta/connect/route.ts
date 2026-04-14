@@ -1,8 +1,5 @@
-// app/api/meta/connect/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { verifyIdToken } from "@/lib/firebase/admin";
-
-export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,16 +29,18 @@ export async function GET(request: NextRequest) {
     };
     const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
 
+    // Apenas escopos básicos que não precisam de revisão da Meta
     const scopes = [
       "public_profile",
       "pages_show_list",
       "pages_read_engagement",
       "pages_manage_posts",
-      "business_management",
+      "instagram_basic",
+      "instagram_content_publish",
     ].join(",");
 
     const authUrl =
-      `https://www.facebook.com/v22.0/dialog/oauth` +
+      `https://www.facebook.com/v21.0/dialog/oauth` +
       `?client_id=${appId}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&scope=${encodeURIComponent(scopes)}` +
