@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
   const { searchParams } = new URL(request.url);
 
-  // ─── 1. Captura erros devolvidos pelo próprio Facebook ───────────────────────
+  // ─── 1. Captura erros devolvidos pelo Facebook ───────────────────────────────
   const fbError = searchParams.get("error");
   const fbErrorReason = searchParams.get("error_reason");
   const fbErrorDesc = searchParams.get("error_description");
@@ -73,12 +73,11 @@ export async function GET(request: NextRequest) {
   }
 
   const { uid } = statePayload;
-
   const appId = process.env.META_APP_ID!;
   const appSecret = process.env.META_APP_SECRET!;
   const redirectUri = `${appUrl}/api/meta/callback`;
 
-  // ─── 4. Troca code por access_token ─────────────────────────────────────────
+  // ─── 4. Troca code por short-lived token ────────────────────────────────────
   let shortToken: string;
   try {
     const tokenRes = await fetch(
@@ -103,7 +102,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${appUrl}/contas?error=token_exchange_failed`);
   }
 
-  // ─── 5. Troca por token de longa duração ────────────────────────────────────
+  // ─── 5. Troca por long-lived token ──────────────────────────────────────────
   let longToken: string;
   try {
     const longRes = await fetch(
@@ -128,7 +127,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${appUrl}/contas?error=long_token_failed`);
   }
 
-  // ─── 6. Busca páginas do Facebook vinculadas ────────────────────────────────
+  // ─── 6. Busca páginas do Facebook ───────────────────────────────────────────
   let pages: PageData[] = [];
   try {
     const pagesRes = await fetch(
@@ -151,7 +150,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${appUrl}/contas?error=pages_fetch_failed`);
   }
 
-  // ─── 7. Busca dados detalhados do Instagram para cada conta vinculada ────────
+  // ─── 7. Busca detalhes do Instagram vinculado a cada página ─────────────────
   const igDetailsByPageId: Record<string, InstagramAccount> = {};
   for (const page of pages) {
     if (page.instagram_business_account?.id) {
@@ -179,13 +178,12 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // ─── 8. Salva no Firestore ───────────────────────────────────────────────────
+  // ─── 8. Salva tudo no Firestore ─────────────────────────────────────────────
   try {
     const db = getAdminDb();
     const batch = db.batch();
 
     for (const page of pages) {
-      // Salva a página do Facebook
       const pageRef = db
         .collection("users")
         .doc(uid)
@@ -203,7 +201,6 @@ export async function GET(request: NextRequest) {
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // Salva a conta do Instagram vinculada (se existir)
       if (page.instagram_business_account?.id) {
         const igDetails = igDetailsByPageId[page.id];
         const igRef = db
