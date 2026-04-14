@@ -1,63 +1,70 @@
+// app/api/meta/callback/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 interface PageData {
   id: string;
   name: string;
   access_token: string;
   category?: string;
-  picture?: { data?: { url?: string } };
-  fan_count?: number;
-  followers_count?: number;
-  instagram_business_account?: {
-    id: string;
-    username?: string;
-    name?: string;
-    profile_picture_url?: string;
-    followers_count?: number;
-    biography?: string;
-  };
+  instagram_business_account?: { id: string };
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const code = searchParams.get("code");
-  const stateRaw = searchParams.get("state");
-  const error = searchParams.get("error");
-
-  console.log("[callback] params:", { code: !!code, state: !!stateRaw, error });
-
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
+  const { searchParams } = new URL(request.url);
 
-  if (error) {
-    return NextResponse.redirect(`${appUrl}/contas?error=oauth_cancelled`);
+  // ─── 1. Captura erros devolvidos pelo próprio Facebook ───────────────────────
+  const fbError = searchParams.get("error");
+  const fbErrorReason = searchParams.get("error_reason");
+  const fbErrorDesc = searchParams.get("error_description");
+
+  if (fbError) {
+    console.error("[meta/callback] Erro retornado pelo Facebook:", {
+      error: fbError,
+      reason: fbErrorReason,
+      description: fbErrorDesc,
+    });
+    const msg = encodeURIComponent(`${fbError}: ${fbErrorDesc ?? fbErrorReason ?? "sem descrição"}`);
+    return NextResponse.redirect(`${appUrl}/contas?error=${msg}`);
   }
 
-  if (!code || !stateRaw) {
+  // ─── 2. Valida code e state ──────────────────────────────────────────────────
+  const code = searchParams.get("code");
+  const state = searchParams.get("state");
+
+  if (!code || !state) {
+    console.error("[meta/callback] code ou state ausentes", { code: !!code, state: !!state });
     return NextResponse.redirect(`${appUrl}/contas?error=invalid_callback`);
   }
 
-  // Decodifica e valida o state
-  let uid: string;
+  // ─── 3. Decodifica e valida o state ─────────────────────────────────────────
+  let statePayload: { uid: string; ts: number; nonce: string };
   try {
-    const payload = JSON.parse(Buffer.from(stateRaw, "base64url").toString());
-    uid = payload.uid;
-    if (Date.now() - payload.ts > 10 * 60 * 1000) {
-      return NextResponse.redirect(`${appUrl}/contas?error=state_expired`);
-    }
-  } catch {
+    statePayload = JSON.parse(Buffer.from(state, "base64url").toString("utf-8"));
+  } catch (err) {
+    console.error("[meta/callback] state inválido:", err);
     return NextResponse.redirect(`${appUrl}/contas?error=invalid_state`);
   }
 
+  // TTL de 10 minutos
+  if (Date.now() - statePayload.ts > 10 * 60 * 1000) {
+    console.error("[meta/callback] state expirado");
+    return NextResponse.redirect(`${appUrl}/contas?error=state_expired`);
+  }
+
+  const { uid } = statePayload;
+
+  // ─── 4. Troca code por access_token ─────────────────────────────────────────
   const appId = process.env.META_APP_ID!;
   const appSecret = process.env.META_APP_SECRET!;
   const redirectUri = `${appUrl}/api/meta/callback`;
 
+  let shortToken: string;
   try {
-    // 1. Troca code por short-lived token
     const tokenRes = await fetch(
       `https://graph.facebook.com/v21.0/oauth/access_token` +
         `?client_id=${appId}` +
@@ -66,102 +73,120 @@ export async function GET(request: NextRequest) {
         `&code=${code}`
     );
     const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) {
-      console.error("[callback] Erro ao obter token:", tokenData);
-      return NextResponse.redirect(`${appUrl}/contas?error=token_exchange_failed`);
+
+    if (tokenData.error) {
+      console.error("[meta/callback] Erro na troca de token:", tokenData.error);
+      return NextResponse.redirect(
+        `${appUrl}/contas?error=${encodeURIComponent(tokenData.error.message)}`
+      );
     }
 
-    // 2. Troca por long-lived token (válido 60 dias)
-    const llRes = await fetch(
+    shortToken = tokenData.access_token;
+  } catch (err) {
+    console.error("[meta/callback] token_exchange_failed:", err);
+    return NextResponse.redirect(`${appUrl}/contas?error=token_exchange_failed`);
+  }
+
+  // ─── 5. Troca por token de longa duração ────────────────────────────────────
+  let longToken: string;
+  try {
+    const longRes = await fetch(
       `https://graph.facebook.com/v21.0/oauth/access_token` +
         `?grant_type=fb_exchange_token` +
         `&client_id=${appId}` +
         `&client_secret=${appSecret}` +
-        `&fb_exchange_token=${tokenData.access_token}`
+        `&fb_exchange_token=${shortToken}`
     );
-    const llData = await llRes.json();
-    const longLivedToken: string = llData.access_token || tokenData.access_token;
+    const longData = await longRes.json();
 
-    // 3. Busca as Páginas do usuário
+    if (longData.error) {
+      console.error("[meta/callback] Erro no long-lived token:", longData.error);
+      return NextResponse.redirect(
+        `${appUrl}/contas?error=${encodeURIComponent(longData.error.message)}`
+      );
+    }
+
+    longToken = longData.access_token;
+  } catch (err) {
+    console.error("[meta/callback] long_token_failed:", err);
+    return NextResponse.redirect(`${appUrl}/contas?error=long_token_failed`);
+  }
+
+  // ─── 6. Busca páginas do Facebook vinculadas ────────────────────────────────
+  let pages: PageData[] = [];
+  try {
     const pagesRes = await fetch(
       `https://graph.facebook.com/v21.0/me/accounts` +
-        `?fields=id,name,access_token,category,fan_count,followers_count,picture,instagram_business_account{id,username,name,profile_picture_url,followers_count,biography}` +
-        `&access_token=${longLivedToken}`
+        `?fields=id,name,access_token,category,instagram_business_account` +
+        `&access_token=${longToken}`
     );
     const pagesData = await pagesRes.json();
-    const pages: PageData[] = pagesData.data || [];
 
-    const adminDb = getAdminDb();
-    const batch = adminDb.batch();
-    let accountsCreated = 0;
+    if (pagesData.error) {
+      console.error("[meta/callback] Erro ao buscar páginas:", pagesData.error);
+      return NextResponse.redirect(
+        `${appUrl}/contas?error=${encodeURIComponent(pagesData.error.message)}`
+      );
+    }
+
+    pages = pagesData.data ?? [];
+  } catch (err) {
+    console.error("[meta/callback] pages_fetch_failed:", err);
+    return NextResponse.redirect(`${appUrl}/contas?error=pages_fetch_failed`);
+  }
+
+  // ─── 7. Salva no Firestore ───────────────────────────────────────────────────
+  try {
+    const db = getAdminDb();
+    const batch = db.batch();
 
     for (const page of pages) {
-      const fbRef = adminDb
+      // Salva a página do Facebook
+      const pageRef = db
         .collection("users")
         .doc(uid)
         .collection("socialAccounts")
         .doc(`fb_${page.id}`);
 
-      batch.set(
-        fbRef,
-        {
-          platform: "facebook",
-          platformId: page.id,
-          name: page.name,
-          handle: page.name,
-          avatar: page.picture?.data?.url || null,
-          followers: page.fan_count || page.followers_count || 0,
-          category: page.category || null,
-          status: "connected",
-          metaLongLivedToken: longLivedToken,
-          _pageToken: page.access_token,
-          tokenExpiresAt: Date.now() + 60 * 24 * 60 * 60 * 1000,
-          connectedAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-      accountsCreated++;
+      batch.set(pageRef, {
+        platform: "facebook",
+        pageId: page.id,
+        pageName: page.name,
+        pageToken: page.access_token,
+        category: page.category ?? null,
+        userToken: longToken,
+        connectedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
 
-      const igAccount = page.instagram_business_account;
-      if (igAccount?.id) {
-        const igRef = adminDb
+      // Salva a conta do Instagram vinculada (se existir)
+      if (page.instagram_business_account?.id) {
+        const igRef = db
           .collection("users")
           .doc(uid)
           .collection("socialAccounts")
-          .doc(`ig_${igAccount.id}`);
+          .doc(`ig_${page.instagram_business_account.id}`);
 
-        batch.set(
-          igRef,
-          {
-            platform: "instagram",
-            platformId: igAccount.id,
-            name: igAccount.name || igAccount.username || page.name,
-            handle: igAccount.username ? `@${igAccount.username}` : page.name,
-            avatar: igAccount.profile_picture_url || null,
-            followers: igAccount.followers_count || 0,
-            bio: igAccount.biography || null,
-            linkedPageId: page.id,
-            status: "connected",
-            metaLongLivedToken: longLivedToken,
-            _pageToken: page.access_token,
-            tokenExpiresAt: Date.now() + 60 * 24 * 60 * 60 * 1000,
-            connectedAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-        accountsCreated++;
+        batch.set(igRef, {
+          platform: "instagram",
+          igId: page.instagram_business_account.id,
+          linkedPageId: page.id,
+          linkedPageName: page.name,
+          pageToken: page.access_token,
+          userToken: longToken,
+          connectedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
       }
     }
 
     await batch.commit();
-
-    return NextResponse.redirect(
-      `${appUrl}/contas?success=true&count=${accountsCreated}&pages=${pages.length}`
-    );
+    console.log(`[meta/callback] ${pages.length} página(s) salvas para uid=${uid}`);
   } catch (err) {
-    console.error("[meta/callback] Erro:", err);
-    return NextResponse.redirect(`${appUrl}/contas?error=server_error`);
+    console.error("[meta/callback] firestore_save_failed:", err);
+    return NextResponse.redirect(`${appUrl}/contas?error=firestore_save_failed`);
   }
+
+  // ─── 8. Sucesso ──────────────────────────────────────────────────────────────
+  return NextResponse.redirect(`${appUrl}/contas?success=true`);
 }
