@@ -5,12 +5,22 @@ import { FieldValue } from "firebase-admin/firestore";
 
 export const dynamic = "force-dynamic";
 
+const API_VERSION = "v22.0";
+
 interface PageData {
   id: string;
   name: string;
   access_token: string;
   category?: string;
   instagram_business_account?: { id: string };
+}
+
+interface InstagramAccount {
+  id: string;
+  name?: string;
+  username?: string;
+  profile_picture_url?: string;
+  followers_count?: number;
 }
 
 export async function GET(request: NextRequest) {
@@ -28,7 +38,9 @@ export async function GET(request: NextRequest) {
       reason: fbErrorReason,
       description: fbErrorDesc,
     });
-    const msg = encodeURIComponent(`${fbError}: ${fbErrorDesc ?? fbErrorReason ?? "sem descrição"}`);
+    const msg = encodeURIComponent(
+      `${fbError}: ${fbErrorDesc ?? fbErrorReason ?? "sem descrição"}`
+    );
     return NextResponse.redirect(`${appUrl}/contas?error=${msg}`);
   }
 
@@ -37,20 +49,24 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get("state");
 
   if (!code || !state) {
-    console.error("[meta/callback] code ou state ausentes", { code: !!code, state: !!state });
+    console.error("[meta/callback] code ou state ausentes", {
+      code: !!code,
+      state: !!state,
+    });
     return NextResponse.redirect(`${appUrl}/contas?error=invalid_callback`);
   }
 
   // ─── 3. Decodifica e valida o state ─────────────────────────────────────────
   let statePayload: { uid: string; ts: number; nonce: string };
   try {
-    statePayload = JSON.parse(Buffer.from(state, "base64url").toString("utf-8"));
+    statePayload = JSON.parse(
+      Buffer.from(state, "base64url").toString("utf-8")
+    );
   } catch (err) {
     console.error("[meta/callback] state inválido:", err);
     return NextResponse.redirect(`${appUrl}/contas?error=invalid_state`);
   }
 
-  // TTL de 10 minutos
   if (Date.now() - statePayload.ts > 10 * 60 * 1000) {
     console.error("[meta/callback] state expirado");
     return NextResponse.redirect(`${appUrl}/contas?error=state_expired`);
@@ -58,15 +74,15 @@ export async function GET(request: NextRequest) {
 
   const { uid } = statePayload;
 
-  // ─── 4. Troca code por access_token ─────────────────────────────────────────
   const appId = process.env.META_APP_ID!;
   const appSecret = process.env.META_APP_SECRET!;
   const redirectUri = `${appUrl}/api/meta/callback`;
 
+  // ─── 4. Troca code por access_token ─────────────────────────────────────────
   let shortToken: string;
   try {
     const tokenRes = await fetch(
-      `https://graph.facebook.com/v21.0/oauth/access_token` +
+      `https://graph.facebook.com/${API_VERSION}/oauth/access_token` +
         `?client_id=${appId}` +
         `&client_secret=${appSecret}` +
         `&redirect_uri=${encodeURIComponent(redirectUri)}` +
@@ -91,7 +107,7 @@ export async function GET(request: NextRequest) {
   let longToken: string;
   try {
     const longRes = await fetch(
-      `https://graph.facebook.com/v21.0/oauth/access_token` +
+      `https://graph.facebook.com/${API_VERSION}/oauth/access_token` +
         `?grant_type=fb_exchange_token` +
         `&client_id=${appId}` +
         `&client_secret=${appSecret}` +
@@ -116,7 +132,7 @@ export async function GET(request: NextRequest) {
   let pages: PageData[] = [];
   try {
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v21.0/me/accounts` +
+      `https://graph.facebook.com/${API_VERSION}/me/accounts` +
         `?fields=id,name,access_token,category,instagram_business_account` +
         `&access_token=${longToken}`
     );
@@ -135,7 +151,35 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${appUrl}/contas?error=pages_fetch_failed`);
   }
 
-  // ─── 7. Salva no Firestore ───────────────────────────────────────────────────
+  // ─── 7. Busca dados detalhados do Instagram para cada conta vinculada ────────
+  const igDetailsByPageId: Record<string, InstagramAccount> = {};
+  for (const page of pages) {
+    if (page.instagram_business_account?.id) {
+      try {
+        const igRes = await fetch(
+          `https://graph.facebook.com/${API_VERSION}/${page.instagram_business_account.id}` +
+            `?fields=id,name,username,profile_picture_url,followers_count` +
+            `&access_token=${page.access_token}`
+        );
+        const igData = await igRes.json();
+        if (!igData.error) {
+          igDetailsByPageId[page.id] = igData;
+        } else {
+          console.warn(
+            `[meta/callback] Erro ao buscar detalhes IG para página ${page.id}:`,
+            igData.error
+          );
+        }
+      } catch (err) {
+        console.warn(
+          `[meta/callback] Falha ao buscar detalhes IG para página ${page.id}:`,
+          err
+        );
+      }
+    }
+  }
+
+  // ─── 8. Salva no Firestore ───────────────────────────────────────────────────
   try {
     const db = getAdminDb();
     const batch = db.batch();
@@ -161,6 +205,7 @@ export async function GET(request: NextRequest) {
 
       // Salva a conta do Instagram vinculada (se existir)
       if (page.instagram_business_account?.id) {
+        const igDetails = igDetailsByPageId[page.id];
         const igRef = db
           .collection("users")
           .doc(uid)
@@ -170,6 +215,10 @@ export async function GET(request: NextRequest) {
         batch.set(igRef, {
           platform: "instagram",
           igId: page.instagram_business_account.id,
+          igUsername: igDetails?.username ?? null,
+          igName: igDetails?.name ?? null,
+          profilePictureUrl: igDetails?.profile_picture_url ?? null,
+          followersCount: igDetails?.followers_count ?? null,
           linkedPageId: page.id,
           linkedPageName: page.name,
           pageToken: page.access_token,
@@ -181,12 +230,14 @@ export async function GET(request: NextRequest) {
     }
 
     await batch.commit();
-    console.log(`[meta/callback] ${pages.length} página(s) salvas para uid=${uid}`);
+    console.log(
+      `[meta/callback] ${pages.length} página(s) salvas para uid=${uid}`
+    );
   } catch (err) {
     console.error("[meta/callback] firestore_save_failed:", err);
     return NextResponse.redirect(`${appUrl}/contas?error=firestore_save_failed`);
   }
 
-  // ─── 8. Sucesso ──────────────────────────────────────────────────────────────
+  // ─── 9. Sucesso ──────────────────────────────────────────────────────────────
   return NextResponse.redirect(`${appUrl}/contas?success=true`);
 }
