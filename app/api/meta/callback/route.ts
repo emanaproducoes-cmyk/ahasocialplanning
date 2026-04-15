@@ -66,7 +66,10 @@ async function graphGet<T>(url: string, label: string): Promise<{ data: T; error
 
 // ── Rota principal ───────────────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL!;
+  // FIX #1: Normaliza appUrl — mesmo tratamento do connect/route.ts.
+  // Garante que redirectUri no token exchange seja idêntico ao enviado
+  // no passo anterior (connect), evitando "redirect_uri mismatch" na Meta.
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
   const { searchParams } = new URL(request.url);
 
   // ─── 1. Erro retornado pelo Facebook/Instagram ───────────────────────────────
@@ -92,11 +95,20 @@ export async function GET(request: NextRequest) {
   }
 
   // ─── 3. Decodifica e valida state anti-CSRF ──────────────────────────────────
+  // FIX #2: Decode em base64 padrão, consistente com o encode do connect/route.ts.
+  // Antes usava base64url, mas o connect foi corrigido para base64 + encodeURIComponent.
+  // Fallback para base64url garante compatibilidade com deploys anteriores.
   let uid: string;
   try {
-    const payload = JSON.parse(
-      Buffer.from(state, "base64url").toString("utf-8")
-    ) as { uid: string; ts: number; nonce?: string };
+    let decoded: string;
+    try {
+      decoded = Buffer.from(state, "base64").toString("utf-8");
+      JSON.parse(decoded); // valida que é JSON válido antes de usar
+    } catch {
+      // Fallback: tenta base64url (versão anterior do connect)
+      decoded = Buffer.from(state, "base64url").toString("utf-8");
+    }
+    const payload = JSON.parse(decoded) as { uid: string; ts: number; nonce?: string };
 
     if (!payload.uid || !payload.ts) {
       throw new Error("Campos uid ou ts ausentes no state");
