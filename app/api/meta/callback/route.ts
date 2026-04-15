@@ -1,14 +1,6 @@
 // app/api/meta/callback/route.ts
 // Recebe o code do OAuth da Meta, troca por tokens, busca páginas/contas IG
 // e salva no Firestore.
-//
-// CORREÇÕES v2:
-//  - no_pages_found: agora tenta buscar conta IG diretamente via /me (Instagram Login)
-//  - Log completo de TODAS as etapas para facilitar debug no Vercel
-//  - Separação clara de erros com mensagens legíveis
-//  - Suporte a contas Instagram pessoais convertidas para Creator/Business
-//  - tokenExpiresAt protegido: nunca exposto ao client pelas Firestore Rules
-//  - Fallback: salva o user token mesmo se não houver páginas FB, só com IG
 
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase/admin";
@@ -19,7 +11,6 @@ export const dynamic = "force-dynamic";
 const API_VERSION = "v21.0";
 const GRAPH = `https://graph.facebook.com/${API_VERSION}`;
 
-// ── Tipos internos ───────────────────────────────────────────────────────────
 interface GraphError { error: { message: string; code?: number; type?: string } }
 interface TokenResponse { access_token: string; expires_in?: number; token_type?: string }
 
@@ -43,13 +34,12 @@ interface InstagramAccount {
   biography?: string;
   website?: string;
   media_count?: number;
-  account_type?: string; // PERSONAL | BUSINESS | MEDIA_CREATOR
+  account_type?: string;
 }
 
-// ── Helper: fetch da Graph API com log de erros ──────────────────────────────
 async function graphGet<T>(url: string, label: string): Promise<{ data: T; error?: string }> {
   try {
-    const res = await fetch(url);
+    const res  = await fetch(url);
     const json = (await res.json()) as T & GraphError;
     if ((json as GraphError).error) {
       const msg = (json as GraphError).error.message;
@@ -64,11 +54,9 @@ async function graphGet<T>(url: string, label: string): Promise<{ data: T; error
   }
 }
 
-// ── Rota principal ───────────────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
   // FIX #1: Normaliza appUrl — mesmo tratamento do connect/route.ts.
-  // Garante que redirectUri no token exchange seja idêntico ao enviado
-  // no passo anterior (connect), evitando "redirect_uri mismatch" na Meta.
+  // Evita redirect_uri com barra dupla no token exchange com a Meta.
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
   const { searchParams } = new URL(request.url);
 
@@ -95,20 +83,22 @@ export async function GET(request: NextRequest) {
   }
 
   // ─── 3. Decodifica e valida state anti-CSRF ──────────────────────────────────
-  // FIX #2: Decode em base64 padrão, consistente com o encode do connect/route.ts.
-  // Antes usava base64url, mas o connect foi corrigido para base64 + encodeURIComponent.
-  // Fallback para base64url garante compatibilidade com deploys anteriores.
+  // FIX #2: searchParams.get("state") já faz URL-decode automaticamente.
+  // O connect envia state = encodeURIComponent(base64(payload)).
+  // Aqui o state já chegou decodificado pelo Next.js, então basta Buffer.from(state, "base64").
+  // Fallback para base64url mantém compatibilidade com versões anteriores do connect.
   let uid: string;
   try {
-    let decoded: string;
+    let rawPayload: string;
     try {
-      decoded = Buffer.from(state, "base64").toString("utf-8");
-      JSON.parse(decoded); // valida que é JSON válido antes de usar
+      rawPayload = Buffer.from(state, "base64").toString("utf-8");
+      JSON.parse(rawPayload); // valida JSON antes de usar
     } catch {
-      // Fallback: tenta base64url (versão anterior do connect)
-      decoded = Buffer.from(state, "base64url").toString("utf-8");
+      // fallback: tenta base64url (versão anterior)
+      rawPayload = Buffer.from(state, "base64url").toString("utf-8");
     }
-    const payload = JSON.parse(decoded) as { uid: string; ts: number; nonce?: string };
+
+    const payload = JSON.parse(rawPayload) as { uid: string; ts: number; nonce?: string };
 
     if (!payload.uid || !payload.ts) {
       throw new Error("Campos uid ou ts ausentes no state");
@@ -127,12 +117,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${appUrl}/contas?error=invalid_state`);
   }
 
-  const appId     = process.env.META_APP_ID!;
-  const appSecret = process.env.META_APP_SECRET!;
+  const appId      = process.env.META_APP_ID!;
+  const appSecret  = process.env.META_APP_SECRET!;
   const redirectUri = `${appUrl}/api/meta/callback`;
 
   if (!appSecret) {
-    console.error("[meta/callback] META_APP_SECRET não definida no ambiente!");
+    console.error("[meta/callback] META_APP_SECRET não definida!");
     return NextResponse.redirect(`${appUrl}/contas?error=server_misconfigured`);
   }
 
@@ -166,12 +156,11 @@ export async function GET(request: NextRequest) {
     "long_token"
   );
 
-  // Long token falhou: continua com short token (melhor que falhar completamente)
-  const longToken     = llError ? shortToken : (llData.access_token ?? shortToken);
+  const longToken      = llError ? shortToken : (llData.access_token ?? shortToken);
   const tokenExpiresAt = Date.now() + ((llError ? 3600 : (llData.expires_in ?? 5_184_000)) * 1000);
 
   if (llError) {
-    console.warn(`[meta/callback] long_token_failed — usando short token como fallback: ${llError}`);
+    console.warn(`[meta/callback] long_token_failed — usando short token: ${llError}`);
   } else {
     const daysValid = Math.floor((tokenExpiresAt - Date.now()) / 86400000);
     console.log(`[meta/callback] long token obtido ✓ (válido ${daysValid} dias)`);
@@ -200,8 +189,6 @@ export async function GET(request: NextRequest) {
   }
 
   // ─── 7. Fallback: sem páginas FB, tenta buscar IG direto via /me ─────────────
-  // Isso acontece quando a conta Facebook não tem nenhuma Página criada,
-  // mas tem conta Instagram Creator/Business conectada via Instagram Login.
   let igMeDirect: InstagramAccount | null = null;
 
   if (pages.length === 0) {
@@ -217,7 +204,7 @@ export async function GET(request: NextRequest) {
       igMeDirect = igMe;
       console.log(`[meta/callback] Conta IG direta encontrada: @${igMe.username ?? igMe.id}`);
     } else {
-      console.error("[meta/callback] no_pages_found — conta sem Página FB e sem IG direta");
+      console.error("[meta/callback] no_pages_found — sem Página FB e sem IG direta");
       return NextResponse.redirect(`${appUrl}/contas?error=no_pages_found`);
     }
   }
@@ -254,7 +241,6 @@ export async function GET(request: NextRequest) {
     const now   = FieldValue.serverTimestamp();
     let totalContas = 0;
 
-    // ── Caso A: conta IG direta (sem páginas FB) ─────────────────────────────
     if (igMeDirect) {
       const igRef = db
         .collection("users").doc(uid)
@@ -272,9 +258,9 @@ export async function GET(request: NextRequest) {
         status:             "connected",
         linkedPageId:       null,
         linkedPageName:     null,
-        _pageToken:         longToken,       // server-only (Firestore Rules)
-        metaLongLivedToken: longToken,       // server-only
-        tokenExpiresAt,                      // server-only
+        _pageToken:         longToken,
+        metaLongLivedToken: longToken,
+        tokenExpiresAt,
         lastError:          null,
         connectedAt:        now,
         updatedAt:          now,
@@ -284,9 +270,7 @@ export async function GET(request: NextRequest) {
       totalContas++;
     }
 
-    // ── Caso B: páginas FB + contas IG vinculadas ─────────────────────────────
     for (const page of pages) {
-      // Página do Facebook
       const fbRef = db
         .collection("users").doc(uid)
         .collection("socialAccounts").doc(`fb_${page.id}`);
@@ -311,7 +295,6 @@ export async function GET(request: NextRequest) {
 
       totalContas++;
 
-      // Conta Instagram Business vinculada (se houver)
       if (page.instagram_business_account?.id) {
         const ig    = igByPageId[page.id];
         const igRef = db
