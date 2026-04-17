@@ -17,8 +17,7 @@ import { Suspense }           from 'react';
 import type { Metadata }      from 'next';
 import { getAdminDb }         from '@/lib/firebase/admin';
 import type { Approval }      from '@/lib/types';
-import AprovacaoClient        from './AprovacaoClient';
-
+import AprovacaoClient        from './aprovacao-client';
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
 interface PageProps {
