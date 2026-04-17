@@ -1,9 +1,37 @@
 'use client';
+
+/**
+ * lib/utils/approval.ts
+ *
+ * Utilitários para o fluxo de aprovação de conteúdo.
+ *
+ * v2 – Changes:
+ *  - generateApprovalLink agora produz URLs com rota dinâmica /aprovacao/[token]
+ *    (friendly para OG tags / WhatsApp preview)
+ *  - Adicionada getApprovalUrl() para reusar a lógica de URL em qualquer lugar
+ *  - isApprovalExpired() aceita string ISO além de Firestore Timestamp
+ *  - Toda a lógica original preservada
+ */
+
 import { doc, setDoc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase/config';
+import { db }            from '@/lib/firebase/config';
 import type { Approval, Post, Responsavel } from '@/lib/types';
 
-const APPROVAL_TTL_DAYS = 7;
+export const APPROVAL_TTL_DAYS = 7;
+
+// ─── URL ──────────────────────────────────────────────────────────────────────
+
+function getBaseUrl(): string {
+  if (typeof window !== 'undefined') return window.location.origin;
+  return process.env.NEXT_PUBLIC_APP_URL ?? '';
+}
+
+/** Converte token → URL pública /aprovacao/[token] */
+export function getApprovalUrl(token: string): string {
+  return `${getBaseUrl()}/aprovacao/${token}`;
+}
+
+// ─── Geração de link ──────────────────────────────────────────────────────────
 
 export async function generateApprovalLink(params: {
   uid:         string;
@@ -14,9 +42,6 @@ export async function generateApprovalLink(params: {
   const { uid, postId, post, responsavel } = params;
   const token     = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + APPROVAL_TTL_DAYS * 24 * 60 * 60 * 1000);
-  const baseUrl   = typeof window !== 'undefined'
-    ? `${window.location.origin}/aprovacao`
-    : '';
 
   const approvalDoc: Omit<Approval, 'id' | 'comentario' | 'respondidoEm'> = {
     agendamentoId: postId,
@@ -32,14 +57,16 @@ export async function generateApprovalLink(params: {
 
   await setDoc(doc(db, 'approvals', token), approvalDoc);
 
-  // ✅ CORREÇÃO: apenas salva o token, NÃO muda o status do post
+  // ✅ Apenas salva o token, NÃO muda o status do post
   await updateDoc(doc(db, `users/${uid}/posts/${postId}`), {
     approvalToken: token,
     updatedAt:     serverTimestamp(),
   });
 
-  return { token, url: `${baseUrl}?token=${token}` };
+  return { token, url: getApprovalUrl(token) };
 }
+
+// ─── Compartilhamento ─────────────────────────────────────────────────────────
 
 export function buildWhatsAppLink(url: string, postTitle: string): string {
   const text = encodeURIComponent(
@@ -63,6 +90,8 @@ export function buildMailtoLink(url: string, postTitle: string, toEmail?: string
   return `mailto:${toEmail ?? ''}?subject=${subject}&body=${body}`;
 }
 
+// ─── Clipboard ────────────────────────────────────────────────────────────────
+
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
@@ -80,7 +109,11 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
-export function isApprovalExpired(expiresAt: Timestamp | null): boolean {
+// ─── Validação ────────────────────────────────────────────────────────────────
+
+/** Aceita Firestore Timestamp ou string ISO */
+export function isApprovalExpired(expiresAt: Timestamp | string | null | undefined): boolean {
   if (!expiresAt) return false;
-  return expiresAt.toDate() < new Date();
+  if (typeof expiresAt === 'string') return new Date(expiresAt) < new Date();
+  return (expiresAt as Timestamp).toDate() < new Date();
 }
