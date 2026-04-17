@@ -6,10 +6,7 @@ import { StatusBadge }        from '@/components/ui/Badge';
 import { showToast }          from '@/components/ui/Toast';
 import { cn }                 from '@/lib/utils/cn';
 import { formatRelative }     from '@/lib/utils/formatters';
-import {
-  generateApprovalLink, copyToClipboard,
-  buildWhatsAppLink, buildMailtoLink,
-} from '@/lib/utils/approval';
+import { ShareApprovalButton } from '@/components/ui/ShareApprovalButton';
 import { movePostToStatus, updateDoc as updateFireDoc } from '@/lib/firebase/firestore';
 import type { Post, PostStatus, Responsavel } from '@/lib/types';
 
@@ -152,8 +149,7 @@ interface PostDetailModalProps {
 
 export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdit }: PostDetailModalProps) {
   const [activeTab,      setActiveTab]      = useState<Tab>('Preview');
-  const [approvalUrl,    setApprovalUrl]    = useState<string | null>(null);
-  const [generatingLink, setGeneratingLink] = useState(false);
+  // approvalUrl e generatingLink agora gerenciados pelo ShareApprovalButton
   const [saving,         setSaving]         = useState(false);
   const [comment,        setComment]        = useState('');
   const [actionNote,     setActionNote]     = useState('');
@@ -163,17 +159,7 @@ export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdi
 
   const status = STATUS_LABELS[post.status] ?? STATUS_LABELS.rascunho;
 
-  const handleGenerateLink = async () => {
-    setGeneratingLink(true);
-    try {
-      const { url } = await generateApprovalLink({ uid, postId: post.id, post, responsavel });
-      setApprovalUrl(url);
-    } catch {
-      showToast('Erro ao gerar link.', 'error');
-    } finally {
-      setGeneratingLink(false);
-    }
-  };
+  // handleGenerateLink movido para ShareApprovalButton
 
   const handleAction = async (action: 'aprovado' | 'rejeitado' | 'revisao') => {
     setSaving(true);
@@ -198,7 +184,7 @@ export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdi
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={() => { setApprovalUrl(null); onClose(); }} title="" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="" size="lg">
       <div className="flex items-center justify-between mb-0 -mt-2 pb-4 border-b border-gray-100">
         <div className="flex items-center gap-3">
           <span className="text-xl">{PLATFORM_EMOJI[post.platforms?.[0] ?? ''] ?? '📝'}</span>
@@ -304,41 +290,24 @@ export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdi
 
       {activeTab === 'Ações' && (
         <div className="space-y-4">
-          {approvalUrl ? (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
-              <p className="text-xs font-semibold text-blue-800">✅ Link de aprovação gerado:</p>
-              <div className="flex items-center gap-2">
-                <input
-                  readOnly value={approvalUrl}
-                  className="flex-1 text-xs bg-white border border-blue-200 rounded-lg px-2 py-1.5 text-blue-700 truncate"
-                />
-                <button
-                  onClick={() => { copyToClipboard(approvalUrl); showToast('Link copiado!', 'success'); }}
-                  className="text-xs px-2 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shrink-0"
-                >
-                  Copiar
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <a href={buildWhatsAppLink(approvalUrl, post.title)} target="_blank" rel="noreferrer"
-                  className="flex-1 text-center text-xs py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
-                  📱 WhatsApp
-                </a>
-                <a href={buildMailtoLink(approvalUrl, post.title)}
-                  className="flex-1 text-center text-xs py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors">
-                  📧 E-mail
-                </a>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={handleGenerateLink}
-              disabled={generatingLink}
-              className="w-full py-2.5 text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-colors disabled:opacity-60"
-            >
-              {generatingLink ? 'Gerando link...' : '🔗 Gerar Link de Aprovação'}
-            </button>
-          )}
+          {/* Botão de compartilhamento — gera o link se ainda não existir */}
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Enviar para aprovação
+            </p>
+            <ShareApprovalButton
+              post={post}
+              uid={uid}
+              responsavel={responsavel}
+              variant="button"
+              className="w-full justify-center py-3 text-base"
+            />
+            {post.approvalToken && (
+              <p className="text-[11px] text-gray-400 text-center">
+                Link já gerado — clique para compartilhar novamente
+              </p>
+            )}
+          </div>
 
           <textarea
             value={actionNote}
