@@ -2,12 +2,10 @@
 
 import { useState }           from 'react';
 import { Modal }              from '@/components/ui/Modal';
-import { StatusBadge }        from '@/components/ui/Badge';
 import { showToast }          from '@/components/ui/Toast';
 import { cn }                 from '@/lib/utils/cn';
-import { formatRelative }     from '@/lib/utils/formatters';
 import { ShareApprovalButton } from '@/components/ui/ShareApprovalButton';
-import { movePostToStatus, updateDoc as updateFireDoc } from '@/lib/firebase/firestore';
+import { movePostToStatus }   from '@/lib/firebase/firestore';
 import type { Post, PostStatus, Responsavel } from '@/lib/types';
 
 const TABS = ['Preview', 'Comentários', 'Ações'] as const;
@@ -33,16 +31,16 @@ function ImageViewer({ post }: { post: Post }) {
   const [slide,  setSlide]  = useState(0);
   const [zoomed, setZoomed] = useState(false);
 
-  const slides = post.creatives?.map((c) => c.url) ?? [];
+  const slides     = post.creatives?.map((c) => c.url) ?? [];
   const currentUrl = slides[slide];
-  const isVideo = post.creatives?.[slide]?.type?.startsWith('video');
+  const isVideo    = post.creatives?.[slide]?.type?.startsWith('video');
 
   const handleDownload = () => {
     if (!currentUrl) return;
-    const a = document.createElement('a');
-    a.href = currentUrl;
+    const a    = document.createElement('a');
+    a.href     = currentUrl;
     a.download = `${post.title}-slide-${slide + 1}`;
-    a.target = '_blank';
+    a.target   = '_blank';
     a.click();
   };
 
@@ -65,14 +63,13 @@ function ImageViewer({ post }: { post: Post }) {
             <video src={currentUrl} controls autoPlay className="max-w-full max-h-full rounded-xl" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={currentUrl} alt="" className="max-w-full max-h-full object-contain rounded-xl" onClick={(e) => e.stopPropagation()} />
+            <img src={currentUrl} alt="" className="max-w-full max-h-full object-contain rounded-xl"
+              onClick={(e) => e.stopPropagation()} />
           )}
           <button
             onClick={() => setZoomed(false)}
             className="absolute top-4 right-4 w-10 h-10 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center text-white text-xl transition-colors"
-          >
-            ×
-          </button>
+          >×</button>
         </div>
       )}
 
@@ -85,21 +82,17 @@ function ImageViewer({ post }: { post: Post }) {
         )}
 
         <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => setZoomed(true)}
+          <button onClick={() => setZoomed(true)}
             className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80"
-            title="Ampliar"
-          >
+            title="Ampliar">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
               <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
             </svg>
           </button>
-          <button
-            onClick={handleDownload}
+          <button onClick={handleDownload}
             className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80"
-            title="Download"
-          >
+            title="Download">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
               <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -109,23 +102,16 @@ function ImageViewer({ post }: { post: Post }) {
 
         {slides.length > 1 && (
           <>
-            <button
-              onClick={() => setSlide((s) => Math.max(0, s - 1))}
-              disabled={slide === 0}
+            <button onClick={() => setSlide((s) => Math.max(0, s - 1))} disabled={slide === 0}
               className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 text-white rounded-full flex items-center justify-center disabled:opacity-30 hover:bg-black/80"
             >‹</button>
-            <button
-              onClick={() => setSlide((s) => Math.min(slides.length - 1, s + 1))}
-              disabled={slide === slides.length - 1}
+            <button onClick={() => setSlide((s) => Math.min(slides.length - 1, s + 1))} disabled={slide === slides.length - 1}
               className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/60 text-white rounded-full flex items-center justify-center disabled:opacity-30 hover:bg-black/80"
             >›</button>
             <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
               {slides.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setSlide(i)}
-                  className={cn('w-1.5 h-1.5 rounded-full transition-colors', i === slide ? 'bg-white' : 'bg-white/50')}
-                />
+                <button key={i} onClick={() => setSlide(i)}
+                  className={cn('w-1.5 h-1.5 rounded-full transition-colors', i === slide ? 'bg-white' : 'bg-white/50')} />
               ))}
             </div>
             <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-lg">
@@ -148,25 +134,27 @@ interface PostDetailModalProps {
 }
 
 export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdit }: PostDetailModalProps) {
-  const [activeTab,      setActiveTab]      = useState<Tab>('Preview');
-  // approvalUrl e generatingLink agora gerenciados pelo ShareApprovalButton
-  const [saving,         setSaving]         = useState(false);
-  const [comment,        setComment]        = useState('');
-  const [actionNote,     setActionNote]     = useState('');
-  const [editFields,     setEditFields]     = useState({ platform: '', scheduledDate: '', campaign: '' });
+  const [activeTab,  setActiveTab]  = useState<Tab>('Preview');
+  const [saving,     setSaving]     = useState(false);
+  const [comment,    setComment]    = useState('');
+  const [actionNote, setActionNote] = useState('');
+  const [editFields, setEditFields] = useState({ platform: '', scheduledDate: '', campaign: '' });
 
   if (!post) return null;
 
-  const status = STATUS_LABELS[post.status] ?? STATUS_LABELS.rascunho;
-
-  // handleGenerateLink movido para ShareApprovalButton
+  const status              = STATUS_LABELS[post.status] ?? STATUS_LABELS.rascunho;
+  const aprovacaoComentario = (post as any).aprovacaoComentario as string | undefined;
+  const aprovacaoStatus     = (post as any).aprovacaoStatus     as string | undefined;
+  const internalComments    = (post as any).internalComments    as { text: string; author: string; date: string }[] | undefined;
 
   const handleAction = async (action: 'aprovado' | 'rejeitado' | 'revisao') => {
     setSaving(true);
     try {
       await movePostToStatus(uid, post.id, action as PostStatus, post.status);
       showToast(
-        action === 'aprovado' ? '✅ Post aprovado!' : action === 'rejeitado' ? '❌ Post rejeitado.' : '🔁 Enviado para revisão.',
+        action === 'aprovado'  ? '✅ Post aprovado!'        :
+        action === 'rejeitado' ? '❌ Post rejeitado.'       :
+                                 '🔁 Enviado para revisão.',
         action === 'aprovado' ? 'success' : 'info'
       );
       onClose();
@@ -185,21 +173,24 @@ export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdi
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="" size="lg">
+
+      {/* Cabeçalho */}
       <div className="flex items-center justify-between mb-0 -mt-2 pb-4 border-b border-gray-100">
         <div className="flex items-center gap-3">
           <span className="text-xl">{PLATFORM_EMOJI[post.platforms?.[0] ?? ''] ?? '📝'}</span>
           <div>
             <h2 className="font-bold text-[16px] text-gray-900">{post.title}</h2>
-            <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', status.color)}>{status.label}</span>
+            <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', status.color)}>
+              {status.label}
+            </span>
           </div>
         </div>
       </div>
 
+      {/* Tabs */}
       <div className="flex border-b border-gray-100 -mx-6 px-6 mb-4">
         {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
+          <button key={tab} onClick={() => setActiveTab(tab)}
             className={cn(
               'px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors whitespace-nowrap',
               activeTab === tab
@@ -208,10 +199,14 @@ export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdi
             )}
           >
             {tab}
+            {tab === 'Comentários' && aprovacaoComentario && (
+              <span className="ml-1.5 w-2 h-2 rounded-full bg-amber-400 inline-block" />
+            )}
           </button>
         ))}
       </div>
 
+      {/* ── PREVIEW ── */}
       {activeTab === 'Preview' && (
         <div>
           <ImageViewer post={post} />
@@ -230,26 +225,24 @@ export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdi
             </div>
             <div className="bg-gray-50 rounded-lg p-3">
               <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1.5">Data</label>
-              <input
-                type="date"
-                defaultValue={post.scheduledAt ? new Date((post.scheduledAt as unknown as { toDate?: () => Date }).toDate?.() ?? post.scheduledAt as unknown as Date).toISOString().split('T')[0] : ''}
+              <input type="date"
+                defaultValue={post.scheduledAt
+                  ? new Date((post.scheduledAt as unknown as { toDate?: () => Date }).toDate?.() ?? post.scheduledAt as unknown as Date).toISOString().split('T')[0]
+                  : ''}
                 onChange={(e) => setEditFields((f) => ({ ...f, scheduledDate: e.target.value }))}
                 className="w-full text-sm font-semibold bg-transparent outline-none cursor-pointer"
               />
             </div>
             <div className="bg-gray-50 rounded-lg p-3">
               <label className="block text-[10px] text-gray-400 uppercase tracking-wider mb-1.5">Campanha</label>
-              <input
-                type="text"
-                placeholder="—"
+              <input type="text" placeholder="—"
                 onChange={(e) => setEditFields((f) => ({ ...f, campaign: e.target.value }))}
                 className="w-full text-sm font-semibold bg-transparent outline-none"
               />
             </div>
           </div>
           <div className="flex justify-end mb-4">
-            <button
-              onClick={() => showToast('Post atualizado!', 'success')}
+            <button onClick={() => showToast('Post atualizado!', 'success')}
               className="flex items-center gap-1.5 px-4 py-1.5 bg-[#FF5C00] text-white text-sm font-medium rounded-lg hover:bg-[#E54E00] transition-colors"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -268,9 +261,56 @@ export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdi
         </div>
       )}
 
+      {/* ── COMENTÁRIOS ── */}
       {activeTab === 'Comentários' && (
         <div className="space-y-4">
-          <p className="text-sm text-gray-400 text-center py-4">Nenhum comentário ainda.</p>
+
+          {/* Feedback do cliente vindo da aprovação */}
+          {aprovacaoComentario ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base">
+                  {aprovacaoStatus === 'aprovado'  ? '✅' :
+                   aprovacaoStatus === 'rejeitado' ? '❌' : '✏️'}
+                </span>
+                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">
+                  Feedback do Cliente
+                </p>
+                <span className={cn(
+                  'ml-auto text-[10px] px-2 py-0.5 rounded-full font-medium',
+                  aprovacaoStatus === 'aprovado'  ? 'bg-green-100 text-green-700'  :
+                  aprovacaoStatus === 'rejeitado' ? 'bg-red-100   text-red-700'    :
+                                                    'bg-amber-100 text-amber-700'
+                )}>
+                  {aprovacaoStatus === 'aprovado'  ? 'Aprovado'           :
+                   aprovacaoStatus === 'rejeitado' ? 'Rejeitado'          :
+                                                     'Correção solicitada'}
+                </span>
+              </div>
+              <p className="text-sm text-amber-800 leading-relaxed">{aprovacaoComentario}</p>
+            </div>
+          ) : null}
+
+          {/* Comentários internos */}
+          {internalComments && internalComments.length > 0 ? (
+            <div className="space-y-2">
+              {internalComments.map((c, i) => (
+                <div key={i} className="bg-gray-50 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-gray-700">{c.author}</span>
+                    <span className="text-[10px] text-gray-400">
+                      {new Date(c.date).toLocaleDateString('pt-BR')}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600">{c.text}</p>
+                </div>
+              ))}
+            </div>
+          ) : !aprovacaoComentario ? (
+            <p className="text-sm text-gray-400 text-center py-4">Nenhum comentário ainda.</p>
+          ) : null}
+
+          {/* Novo comentário interno */}
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
@@ -278,9 +318,7 @@ export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdi
             rows={3}
             className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/30"
           />
-          <button
-            onClick={handleSaveComment}
-            disabled={!comment.trim()}
+          <button onClick={handleSaveComment} disabled={!comment.trim()}
             className="flex items-center gap-2 px-4 py-2 bg-[#FF5C00] text-white text-sm font-medium rounded-lg hover:bg-[#E54E00] disabled:opacity-50 transition-colors"
           >
             💬 Salvar Comentário
@@ -288,9 +326,9 @@ export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdi
         </div>
       )}
 
+      {/* ── AÇÕES ── */}
       {activeTab === 'Ações' && (
         <div className="space-y-4">
-          {/* Botão de compartilhamento — gera o link se ainda não existir */}
           <div className="flex flex-col gap-2">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
               Enviar para aprovação
@@ -318,20 +356,17 @@ export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdi
           />
 
           <div className="grid grid-cols-3 gap-3">
-            <button
-              onClick={() => handleAction('rejeitado')} disabled={saving}
+            <button onClick={() => handleAction('rejeitado')} disabled={saving}
               className="flex items-center justify-center gap-2 py-3 bg-red-50 text-red-600 font-semibold rounded-xl hover:bg-red-100 text-sm transition-colors disabled:opacity-60 border border-red-200"
             >
               ✕ Rejeitar
             </button>
-            <button
-              onClick={() => handleAction('revisao')} disabled={saving}
+            <button onClick={() => handleAction('revisao')} disabled={saving}
               className="flex items-center justify-center gap-2 py-3 bg-amber-50 text-amber-700 font-semibold rounded-xl hover:bg-amber-100 text-sm transition-colors disabled:opacity-60 border border-amber-200"
             >
               ✎ Corrigir
             </button>
-            <button
-              onClick={() => handleAction('aprovado')} disabled={saving}
+            <button onClick={() => handleAction('aprovado')} disabled={saving}
               className="flex items-center justify-center gap-2 py-3 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 text-sm transition-colors disabled:opacity-60"
             >
               ✓ Aprovar
@@ -339,6 +374,7 @@ export function PostDetailModal({ post, uid, responsavel, isOpen, onClose, onEdi
           </div>
         </div>
       )}
+
     </Modal>
   );
 }
