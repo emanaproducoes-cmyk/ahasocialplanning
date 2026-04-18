@@ -18,13 +18,12 @@ export async function POST(req: NextRequest) {
     if (!token) {
       return NextResponse.json({ error: 'Token é obrigatório.' }, { status: 400 });
     }
-
     if (!VALID_STATUSES.includes(status as ValidStatus)) {
       return NextResponse.json({ error: 'Status inválido.' }, { status: 400 });
     }
 
-    const adminDb     = getAdminDb();
-    const approvalRef = adminDb.doc(`approvals/${token}`);
+    const adminDb      = getAdminDb();
+    const approvalRef  = adminDb.doc(`approvals/${token}`);
     const approvalSnap = await approvalRef.get();
 
     if (!approvalSnap.exists) {
@@ -36,11 +35,11 @@ export async function POST(req: NextRequest) {
     if (data['expiresAt'] && (data['expiresAt'] as Timestamp).toDate() < new Date()) {
       return NextResponse.json({ error: 'Link expirado.' }, { status: 410 });
     }
-
     if (data['status'] !== 'pending') {
       return NextResponse.json({ error: 'Este link já foi respondido.' }, { status: 409 });
     }
 
+    // Atualiza o documento de aprovação
     await approvalRef.update({
       status,
       comentario:   comentario ?? '',
@@ -49,18 +48,25 @@ export async function POST(req: NextRequest) {
 
     const { uid, agendamentoId } = data as { uid: string; agendamentoId: string };
 
+    const postStatus = status === 'correcao' ? 'revisao' : status;
+
+    // ✅ Atualiza o post COM o comentário do cliente
     await adminDb.doc(`users/${uid}/posts/${agendamentoId}`).update({
-      status:    status === 'correcao' ? 'revisao' : status,
-      updatedAt: FieldValue.serverTimestamp(),
+      status:               postStatus,
+      aprovacaoStatus:      status,
+      aprovacaoComentario:  comentario ?? '',
+      aprovacaoRespondidoEm: FieldValue.serverTimestamp(),
+      updatedAt:            FieldValue.serverTimestamp(),
     });
 
+    // Espelha nas subcoleções aprovados/rejeitados
     if (status === 'aprovado' || status === 'rejeitado') {
       const postSnap = await adminDb.doc(`users/${uid}/posts/${agendamentoId}`).get();
       if (postSnap.exists) {
         const colName = status === 'aprovado' ? 'aprovados' : 'rejeitados';
         await adminDb
           .doc(`users/${uid}/${colName}/${agendamentoId}`)
-          .set({ ...postSnap.data(), status, updatedAt: FieldValue.serverTimestamp() });
+          .set({ ...postSnap.data(), status: postStatus, updatedAt: FieldValue.serverTimestamp() });
       }
     }
 
