@@ -28,10 +28,6 @@ import type { AppPreferences, Post, Campaign, ConnectedAccount, Approval } from 
 
 // ─── GENERIC HELPERS ────────────────────────────────────────────────────────
 
-/**
- * Subscribe to a collection with change-based callbacks.
- * Returns an unsubscribe function.
- */
 export function listenCollection<T extends DocumentData>(
   path: string,
   callbacks: {
@@ -43,15 +39,14 @@ export function listenCollection<T extends DocumentData>(
   },
   constraints: QueryConstraint[] = []
 ): Unsubscribe {
-  const ref   = collection(db, path);
-  const q     = constraints.length > 0 ? query(ref, ...constraints) : ref;
+  const ref = collection(db, path);
+  const q   = constraints.length > 0 ? query(ref, ...constraints) : ref;
 
   return onSnapshot(
     q,
     { includeMetadataChanges: true },
     (snapshot) => {
       callbacks.onSync?.(snapshot.metadata.fromCache);
-
       snapshot.docChanges().forEach((change) => {
         const data = { id: change.doc.id, ...change.doc.data() } as T & { id: string };
         if (change.type === 'added')    callbacks.onAdd?.(data);
@@ -59,15 +54,10 @@ export function listenCollection<T extends DocumentData>(
         if (change.type === 'removed')  callbacks.onRemove?.(change.doc.id);
       });
     },
-    (error) => {
-      callbacks.onError?.(error);
-    }
+    (error) => { callbacks.onError?.(error); }
   );
 }
 
-/**
- * Subscribe to a single document.
- */
 export function listenDoc<T extends DocumentData>(
   path: string,
   id: string,
@@ -85,9 +75,6 @@ export function listenDoc<T extends DocumentData>(
   );
 }
 
-/**
- * Fetch a single document (one-time).
- */
 export async function fetchDoc<T extends DocumentData>(
   path: string,
   id: string
@@ -97,22 +84,16 @@ export async function fetchDoc<T extends DocumentData>(
   return { id: snap.id, ...(snap.data() as T) };
 }
 
-/**
- * Fetch all documents in a collection (one-time).
- */
 export async function fetchCollection<T extends DocumentData>(
   path: string,
   constraints: QueryConstraint[] = []
 ): Promise<(T & { id: string })[]> {
-  const ref   = collection(db, path);
-  const q     = constraints.length > 0 ? query(ref, ...constraints) : ref;
-  const snap  = await getDocs(q);
+  const ref  = collection(db, path);
+  const q    = constraints.length > 0 ? query(ref, ...constraints) : ref;
+  const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as T) }));
 }
 
-/**
- * Set / merge a document.
- */
 export async function saveDoc(
   path: string,
   id: string,
@@ -126,9 +107,6 @@ export async function saveDoc(
   );
 }
 
-/**
- * Update specific fields of a document.
- */
 export async function updateFields(
   path: string,
   id: string,
@@ -140,9 +118,6 @@ export async function updateFields(
   });
 }
 
-/**
- * Delete a document.
- */
 export async function removeDoc(path: string, id: string): Promise<void> {
   await deleteDoc(doc(db, path, id));
 }
@@ -165,30 +140,34 @@ export async function movePostToStatus(
   newStatus: Post['status'],
   oldStatus?: Post['status']
 ): Promise<void> {
-  const batch = writeBatch(db);
+  // ✅ Busca o post ANTES de iniciar o batch — garante dados corretos na cópia
+  const postSnap = await getDoc(doc(db, `users/${uid}/posts`, postId));
+  if (!postSnap.exists()) throw new Error('Post não encontrado.');
 
-  // Update main post doc
-  batch.update(doc(db, `users/${uid}/posts/${postId}`), {
+  const postData = postSnap.data();
+  const batch    = writeBatch(db);
+
+  // Atualiza o documento principal com o novo status
+  batch.update(doc(db, `users/${uid}/posts`, postId), {
     status:    newStatus,
     updatedAt: serverTimestamp(),
   });
 
-  // Remove from old subcollection
+  // Remove da subcoleção antiga
   if (oldStatus) {
     const oldCollPath = statusToCollection(oldStatus);
-    if (oldCollPath) batch.delete(doc(db, `users/${uid}/${oldCollPath}/${postId}`));
+    if (oldCollPath) {
+      batch.delete(doc(db, `users/${uid}/${oldCollPath}`, postId));
+    }
   }
 
-  // Add to new subcollection
+  // Adiciona na subcoleção nova com dados atualizados
   const newCollPath = statusToCollection(newStatus);
   if (newCollPath) {
-    const postSnap = await getDoc(doc(db, `users/${uid}/posts/${postId}`));
-    if (postSnap.exists()) {
-      batch.set(
-        doc(db, `users/${uid}/${newCollPath}/${postId}`),
-        { ...postSnap.data(), status: newStatus, updatedAt: serverTimestamp() }
-      );
-    }
+    batch.set(
+      doc(db, `users/${uid}/${newCollPath}`, postId),
+      { ...postData, status: newStatus, updatedAt: serverTimestamp() }
+    );
   }
 
   await batch.commit();
@@ -278,13 +257,8 @@ export function listenBadgeCount(
   });
 }
 
-// ─── META INTEGRATION HELPERS (client-side — chamam as API routes) ───────────
+// ─── META INTEGRATION HELPERS ───────────────────────────────────────────────
 
-/**
- * Inicia o OAuth Meta.
- * Retorna a URL de login da Meta para redirecionar o usuário.
- * O token NUNCA passa pelo client — tudo via API route no servidor.
- */
 export async function initiateMetaOAuth(uid: string, accountId?: string): Promise<string> {
   const res  = await fetch('/api/meta/connect', {
     method:  'POST',
@@ -296,10 +270,6 @@ export async function initiateMetaOAuth(uid: string, accountId?: string): Promis
   return data.url;
 }
 
-/**
- * Sincroniza dados de uma conta Meta conectada.
- * Respeita cache de 4 horas no servidor.
- */
 export async function syncMetaAccount(
   uid: string,
   accountId: string
@@ -314,9 +284,6 @@ export async function syncMetaAccount(
   return { cached: data.cached ?? false };
 }
 
-/**
- * Busca insights da Meta Graph API (seguidores, engajamento, impressões).
- */
 export async function getMetaInsights(
   uid:       string,
   accountId: string,
@@ -344,9 +311,6 @@ export async function getMetaInsights(
   };
 }
 
-/**
- * Busca dados de anúncios da Meta Ads API (CPC, CPM, CTR, ROAS).
- */
 export async function getMetaAdsData(
   uid:       string,
   accountId: string,
