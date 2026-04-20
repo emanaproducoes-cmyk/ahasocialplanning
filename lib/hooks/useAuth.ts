@@ -3,9 +3,12 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signInWithPopup,
   signOut,
   sendPasswordResetEmail,
+  sendEmailVerification,
+  updateProfile,
   User,
 } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -21,12 +24,13 @@ export interface AuthState {
 }
 
 export function useAuth(): AuthState & {
-  loginWithEmail:  (email: string, password: string) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
-  logout:          () => Promise<void>;
-  resetPassword:   (email: string) => Promise<void>;
-  error:           string | null;
-  clearError:      () => void;
+  loginWithEmail:    (email: string, password: string) => Promise<void>;
+  loginWithGoogle:   () => Promise<void>;
+  registerWithEmail: (name: string, email: string, password: string) => Promise<void>;
+  logout:            () => Promise<void>;
+  resetPassword:     (email: string) => Promise<void>;
+  error:             string | null;
+  clearError:        () => void;
 } {
   const [user,    setUser]    = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,20 +38,22 @@ export function useAuth(): AuthState & {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
-  const persistProfile = useCallback(async (u: User) => {
+  // Persiste o perfil do usuário no Firestore com isolamento por UID
+  const persistProfile = useCallback(async (u: User, extraData?: { name?: string }) => {
     try {
       await setDoc(
         doc(db, 'users', u.uid),
         {
-          name:      u.displayName,
+          name:      extraData?.name ?? u.displayName ?? '',
           email:     u.email,
-          photoURL:  u.photoURL,
+          photoURL:  u.photoURL ?? '',
+          role:      u.email === ADMIN_EMAIL ? 'admin' : 'member',
           lastLogin: serverTimestamp(),
+          updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
     } catch (e) {
-      // Não bloqueia o login se persistProfile falhar
       console.warn('[useAuth] persistProfile falhou:', e);
     }
   }, []);
@@ -62,11 +68,7 @@ export function useAuth(): AuthState & {
     return unsubscribe;
   }, [persistProfile]);
 
-  // REMOVIDO: useEffect com getRedirectResult
-  // Motivo: signInWithRedirect foi substituído por signInWithPopup.
-  // getRedirectResult causava erros silenciosos no Vercel pois a
-  // página era recarregada antes do resultado ser capturado.
-
+  // Login com e-mail e senha
   const loginWithEmail = useCallback(async (email: string, password: string) => {
     setError(null);
     try {
@@ -79,22 +81,51 @@ export function useAuth(): AuthState & {
     }
   }, [persistProfile]);
 
+  // NOVO: Cadastro com nome, e-mail e senha
+  const registerWithEmail = useCallback(async (
+    name: string,
+    email: string,
+    password: string
+  ) => {
+    setError(null);
+    try {
+      // 1. Cria o usuário no Firebase Auth
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+
+      // 2. Atualiza o displayName no perfil Firebase Auth
+      await updateProfile(result.user, { displayName: name });
+
+      // 3. Cria o documento isolado no Firestore: users/{uid}
+      await setDoc(doc(db, 'users', result.user.uid), {
+        name,
+        email,
+        photoURL:  '',
+        role:      email === ADMIN_EMAIL ? 'admin' : 'member',
+        createdAt: serverTimestamp(),
+        lastLogin: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      // 4. Envia e-mail de verificação (não bloqueia o fluxo de login)
+      sendEmailVerification(result.user).catch(() => {
+        console.warn('[useAuth] sendEmailVerification falhou (não crítico)');
+      });
+
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code ?? '';
+      setError(humanizeFirebaseError(code));
+      throw err;
+    }
+  }, []);
+
+  // Login com Google
   const loginWithGoogle = useCallback(async () => {
     setError(null);
     try {
-      // CORRIGIDO: signInWithRedirect → signInWithPopup
-      // signInWithRedirect recarregava a página inteira e o Next.js
-      // perdia o estado — router.replace('/dashboard') nunca executava.
-      // signInWithPopup abre uma janela separada e retorna o resultado
-      // diretamente, sem recarregar a página principal.
       const result = await signInWithPopup(auth, googleProvider);
       await persistProfile(result.user);
-      // onAuthStateChanged é disparado automaticamente após o popup fechar,
-      // mas chamamos persistProfile aqui para garantir latência mínima.
     } catch (err: unknown) {
       const code = (err as { code?: string }).code ?? '';
-      // auth/cancelled-popup-request e auth/popup-closed-by-user
-      // são ações do usuário — não mostrar como erro
       if (
         code === 'auth/cancelled-popup-request' ||
         code === 'auth/popup-closed-by-user'
@@ -107,11 +138,13 @@ export function useAuth(): AuthState & {
     }
   }, [persistProfile]);
 
+  // Logout
   const logout = useCallback(async () => {
     await signOut(auth);
     window.location.href = '/login';
   }, []);
 
+  // Reset de senha
   const resetPassword = useCallback(async (email: string) => {
     setError(null);
     try {
@@ -131,6 +164,7 @@ export function useAuth(): AuthState & {
     isAdmin,
     loginWithEmail,
     loginWithGoogle,
+    registerWithEmail,
     logout,
     resetPassword,
     error,
