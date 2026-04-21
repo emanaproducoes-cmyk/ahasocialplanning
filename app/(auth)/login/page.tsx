@@ -69,13 +69,9 @@ export default function LoginPage() {
     setGoogleLoad(true);
     try {
       await loginWithGoogle();
-      // CORRIGIDO: com signInWithPopup o user fica disponível imediatamente.
-      // onAuthStateChanged no useAuth dispara e o useEffect acima
-      // redireciona para /dashboard automaticamente.
-      // Não precisamos de router.replace aqui — mas mantemos como fallback.
       router.replace('/dashboard');
     } catch {
-      // erro já setado pelo hook (exceto popup fechado pelo usuário)
+      // erro já setado pelo hook
     } finally {
       setGoogleLoad(false);
     }
@@ -116,19 +112,19 @@ export default function LoginPage() {
         <div className="relative z-10 flex flex-col h-full p-12">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
-              <span className="font-display font-bold text-white text-lg">A</span>
+            <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center border border-white/30">
+              <span className="font-bold text-white text-xl" style={{ fontFamily: 'serif' }}>A</span>
             </div>
             <div>
-              <span className="font-display font-bold text-white text-xl">AHA</span>
-              <span className="text-white/70 text-sm ml-1">Publicita</span>
+              <span className="font-bold text-white text-xl tracking-wide">AHA</span>
+              <span className="text-white/70 text-sm ml-1.5">Social</span>
             </div>
           </div>
 
           {/* Conteúdo principal */}
           <div className="flex-1 flex flex-col justify-center mt-12">
-            <div className="text-6xl mb-8 animate-[fadeIn_0.5s_ease-out]">🚀</div>
-            <h1 className="font-display font-bold text-white text-4xl leading-tight mb-4">
+            <div className="text-6xl mb-8">🚀</div>
+            <h1 className="font-bold text-white text-4xl leading-tight mb-4">
               Planeje, aprove e publique
               <span className="block text-white/80">com inteligência!</span>
             </h1>
@@ -160,18 +156,21 @@ export default function LoginPage() {
 
           {/* Logo mobile */}
           <div className="lg:hidden mb-8 flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-aha flex items-center justify-center">
-              <span className="font-display font-bold text-white">A</span>
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #FF5C00, #FF8C00)' }}
+            >
+              <span className="font-bold text-white">A</span>
             </div>
             <div>
-              <div className="font-display font-bold text-[#FF5C00] text-lg leading-none">AHA</div>
+              <div className="font-bold text-[#FF5C00] text-lg leading-none">AHA</div>
               <div className="text-[10px] text-gray-400 tracking-widest uppercase">Social Planning</div>
             </div>
           </div>
 
           {/* Logo desktop */}
           <div className="hidden lg:block mb-8">
-            <div className="font-display font-bold text-[#FF5C00] text-2xl">AHA SOCIAL PLANNING</div>
+            <div className="font-bold text-[#FF5C00] text-2xl tracking-wide">AHA SOCIAL PLANNING</div>
           </div>
 
           <h2 className="text-xl font-semibold text-gray-900 mb-1">Bem-vindo de volta 👋</h2>
@@ -206,7 +205,8 @@ export default function LoginPage() {
                   />
                   <button
                     onClick={handleReset}
-                    className="w-full py-3 bg-[#FF5C00] hover:bg-[#E54E00] text-white text-sm font-medium rounded-lg transition-colors"
+                    className="w-full py-3 text-white text-sm font-medium rounded-lg transition-colors"
+                    style={{ background: 'linear-gradient(135deg, #FF5C00, #FF8C00)' }}
                   >
                     Enviar e-mail de recuperação
                   </button>
@@ -288,7 +288,8 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-3 bg-[#FF5C00] hover:bg-[#E54E00] disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-200/50"
+                style={{ background: 'linear-gradient(135deg, #FF5C00, #FF8C00)' }}
               >
                 {isSubmitting ? (
                   <>
@@ -327,12 +328,18 @@ export default function LoginPage() {
                 Continuar com Google
               </button>
 
-              <p className="text-center text-xs text-gray-500">
-                Não tem conta?{' '}
-                <a href="mailto:emanaproducoes@gmail.com" className="text-[#FF5C00] hover:underline">
-                  Solicitar acesso
-                </a>
-              </p>
+              {/* Link para cadastro — NOVO */}
+              <div className="text-center pt-2 border-t border-gray-100">
+                <p className="text-sm text-gray-500">
+                  Não tem conta?{' '}
+                  <a
+                    href="/register"
+                    className="text-[#FF5C00] font-semibold hover:underline"
+                  >
+                    Criar conta gratuita →
+                  </a>
+                </p>
+              </div>
             </form>
           )}
         </div>
