@@ -178,6 +178,7 @@ function CriarPostInner() {
   const [hashtags,      setHashtags]      = useState('');
   const [scheduledDate, setScheduledDate] = useState('');
   const [uploads,       setUploads]       = useState<UploadItem[]>([]);
+  const [format,        setFormat]        = useState<PostFormat>('feed');
   const [saving,        setSaving]        = useState<string | null>(null);
   const [approvalUrl,   setApprovalUrl]   = useState<string | null>(null);
 
@@ -190,6 +191,14 @@ function CriarPostInner() {
   const togglePlatform = (p: Platform) => {
     setPlatforms((prev) => prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]);
   };
+
+  const handleRemoveFile = useCallback((index: number) => {
+    setUploads((prev) => {
+      const item = prev[index];
+      if (item?.preview) URL.revokeObjectURL(item.preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  }, []);
 
   const handleAddFiles = useCallback((files: File[]) => {
     files.forEach((file) => {
@@ -214,7 +223,7 @@ function CriarPostInner() {
     caption,
     hashtags: hashtags.split(' ').filter(Boolean).map((h) => h.replace('#', '')),
     platforms,
-    format:   'feed' as PostFormat,
+    format,
     creatives: uploads
       .filter((u) => u.url)
       .map((u) => ({
@@ -282,12 +291,14 @@ function CriarPostInner() {
         {step === 1 && (
           <Step1Content
             platforms={platforms}         onTogglePlatform={togglePlatform}
+            format={format}               setFormat={setFormat}
             title={title}                 setTitle={setTitle}
             caption={caption}             setCaption={setCaption}
             hashtags={hashtags}           setHashtags={setHashtags}
             scheduledDate={scheduledDate} setScheduledDate={setScheduledDate}
             uploads={uploads}
             onAddFiles={handleAddFiles}
+            onRemoveFile={handleRemoveFile}
             onNext={() => setStep(2)}
           />
         )}
