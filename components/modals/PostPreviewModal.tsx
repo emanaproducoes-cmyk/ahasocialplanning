@@ -8,11 +8,13 @@ import {
   Trash2, Save,
 } from 'lucide-react';
 import { updateDoc, doc, deleteDoc } from 'firebase/firestore';
-import { db }          from '@/lib/firebase/config';
-import { cn }          from '@/lib/utils/cn';
-import { useAuth }     from '@/lib/hooks/useAuth';
-import { showToast }   from '@/components/ui/Toast';
-import type { Post }   from '@/lib/types';
+import { db }                        from '@/lib/firebase/config';
+import { cn }                        from '@/lib/utils/cn';
+import { useAuth }                   from '@/lib/hooks/useAuth';
+import { showToast }                 from '@/components/ui/Toast';
+import { ShareApprovalModal }        from '@/components/modals/ShareApprovalModal';
+import { generateApprovalLink }      from '@/lib/utils/approval';
+import type { Post }                 from '@/lib/types';
 
 /* ─── constantes ─────────────────────────────────────────────── */
 
@@ -195,6 +197,9 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
   const [comment,   setComment]         = useState('');
   const [loading,   setLoading]         = useState(false);
   const [editSaving, setEditSaving]     = useState(false);
+  const [shareUrl,   setShareUrl]       = useState<string | null>(null);
+  const [shareOpen,  setShareOpen]      = useState(false);
+  const [generating, setGenerating]     = useState(false);
 
   const [editFields, setEditFields] = useState({
     scheduledAt: post.scheduledAt ?? '',
@@ -205,6 +210,32 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
   if (!user) return null;
 
   const postRef = doc(db, `users/${user.uid}/posts`, post.id ?? '');
+
+  const handleGenerateApprovalLink = async () => {
+    if (!user?.uid) return;
+    setGenerating(true);
+    try {
+      const responsavel = {
+        nome:   user.displayName ?? user.email ?? 'Equipe',
+        avatar: user.photoURL    ?? '',
+        uid:    user.uid,
+      };
+      const { url } = await generateApprovalLink({
+        uid:  user.uid,
+        postId: post.id ?? '',
+        post,
+        responsavel,
+      });
+      setShareUrl(url);
+      setShareOpen(true);
+      showToast('Link de aprovação gerado! ✅', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Erro ao gerar link de aprovação.', 'error');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const handleSaveEdit = async () => {
     setEditSaving(true);
@@ -501,12 +532,58 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
           {/* Ações */}
           {activeTab === 'acoes' && (
             <div className="space-y-4">
+
+              {/* ── Envio para aprovação do cliente ── */}
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-lg bg-[#FF5C00] flex items-center justify-center shrink-0">
+                    <svg width="16" height="16" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">Enviar para aprovação do cliente</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Gere um link público responsivo — o cliente aprova, corrige ou rejeita sem precisar de login.
+                    </p>
+                  </div>
+                </div>
+                {post.approvalToken && (
+                  <div className="mb-3 flex items-center gap-2 bg-white border border-orange-200 rounded-lg px-3 py-2">
+                    <svg width="13" height="13" fill="none" stroke="#FF5C00" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+                    </svg>
+                    <span className="text-xs text-gray-500 truncate flex-1">Link já gerado anteriormente</span>
+                  </div>
+                )}
+                <button
+                  onClick={handleGenerateApprovalLink}
+                  disabled={generating || loading}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#FF5C00] hover:bg-[#E54E00] text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-60"
+                >
+                  {generating ? (
+                    <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Gerando link...</>
+                  ) : (
+                    <><svg width="15" height="15" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185z" /></svg>
+                    {post.approvalToken ? 'Gerar novo link' : 'Gerar link de aprovação'} →</>
+                  )}
+                </button>
+              </div>
+
+              {/* ── Divisor ── */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-400 font-medium">ou ação interna</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+
+              {/* ── Ações internas ── */}
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                rows={3}
+                rows={2}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#FF5C00]/20 focus:border-[#FF5C00] outline-none resize-none"
-                placeholder="Adicione um comentário sobre a ação..."
+                placeholder="Comentário interno (opcional)..."
               />
               <div className="grid grid-cols-3 gap-3">
                 <button
@@ -536,5 +613,15 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
         </div>
       </div>
     </div>
+
+    {/* ShareApprovalModal — renderizado fora do modal principal para z-index correto */}
+    {shareOpen && shareUrl && (
+      <ShareApprovalModal
+        isOpen={shareOpen}
+        onClose={() => setShareOpen(false)}
+        approvalUrl={shareUrl}
+        postTitle={post.title ?? 'Conteúdo'}
+      />
+    )}
   );
 }
