@@ -41,11 +41,15 @@ function PlatformKPICard({
   const positive = variation >= 0;
   return (
     <div className="rounded-2xl p-4 text-white flex-1 min-w-0" style={{ background: gradient }}>
-      <p className="text-[11px] font-bold opacity-70 tracking-wider mb-2">{prefix} {label}</p>
-      <p className="text-[26px] font-bold leading-none mb-1">{formatNum(value)}</p>
-      <p className="text-[11px] opacity-70 uppercase tracking-wider mb-1">{metric}</p>
+      <p className="text-[11px] font-bold opacity-70 tracking-wider mb-2"
+        style={{ fontFamily: "'Aileron', sans-serif", fontWeight: 700 }}>{prefix} {label}</p>
+      <p className="leading-none mb-1"
+        style={{ fontFamily: "'Aileron', sans-serif", fontWeight: 900, fontSize: '28px' }}>{formatNum(value)}</p>
+      <p className="text-[11px] opacity-70 uppercase tracking-wider mb-1"
+        style={{ fontFamily: "'Aileron', sans-serif" }}>{metric}</p>
       <div className="flex items-center justify-between">
-        <p className={`text-[12px] font-semibold ${positive ? 'text-white' : 'text-red-200'}`}>
+        <p className={`text-[12px] font-semibold ${positive ? 'text-white' : 'text-red-200'}`}
+          style={{ fontFamily: "'Aileron', sans-serif", fontWeight: 700 }}>
           {positive ? '↑' : '↓'} {Math.abs(variation)}%
         </p>
         {!isReal && (
@@ -58,24 +62,60 @@ function PlatformKPICard({
 
 // ─── KPI Card branco ──────────────────────────────────────────────────────────
 
-function KPICard({ label, value, variation, icon, borderColor }: {
-  label: string; value: number; variation: number; icon: string; borderColor: string;
+// SVG icons matching the dashboard screenshot exactly
+const KPI_SVG_ICONS: Record<string, React.ReactNode> = {
+  posts: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#FF5C00" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+      <polyline points="10 9 9 9 8 9"/>
+    </svg>
+  ),
+  aprovados: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="9 12 11 14 15 10"/>
+    </svg>
+  ),
+  analise: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="12 6 12 12 16 14"/>
+    </svg>
+  ),
+  rejeitados: (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="15" y1="9" x2="9" y2="15"/>
+      <line x1="9" y1="9" x2="15" y2="15"/>
+    </svg>
+  ),
+};
+
+function KPICard({ label, value, variation, iconKey, borderColor }: {
+  label: string; value: number; variation: number; iconKey: string; borderColor: string;
 }) {
   const positive = variation >= 0;
   return (
-    <div className="bg-white rounded-2xl p-5 flex-1 min-w-0 flex items-center justify-between border border-gray-100 shadow-sm">
+    <div className="bg-white rounded-2xl p-5 flex-1 min-w-0 flex items-start justify-between border border-gray-100 shadow-sm">
       <div>
-        <p className="text-[12px] text-gray-500 uppercase tracking-wider font-medium mb-2">{label}</p>
-        <p className="text-[32px] font-bold text-gray-900 leading-none mb-1">{value}</p>
-        <p className={`text-[12px] font-medium ${positive ? 'text-green-600' : 'text-red-500'}`}>
-          {positive ? '↑' : '↓'} {Math.abs(variation)}% vs mês anterior
+        <p className="text-[11px] text-gray-500 uppercase tracking-wider font-semibold mb-3"
+          style={{ fontFamily: "'Aileron', sans-serif" }}>{label}</p>
+        <p className="text-[36px] leading-none mb-2 text-gray-900"
+          style={{ fontFamily: "'Aileron', sans-serif", fontWeight: 900 }}>{value}</p>
+        <p className={`text-[12px] font-semibold flex items-center gap-1 ${positive ? 'text-green-600' : 'text-red-500'}`}
+          style={{ fontFamily: "'Aileron', sans-serif" }}>
+          <span>{positive ? '↑' : '↓'}</span>
+          <span>{positive ? '+' : ''}{Math.abs(variation)}% vs mês anterior</span>
         </p>
       </div>
       <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
-        style={{ background: `${borderColor}15` }}
+        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5"
+        style={{ background: `${borderColor}18` }}
       >
-        {icon}
+        {KPI_SVG_ICONS[iconKey]}
       </div>
     </div>
   );
@@ -92,9 +132,10 @@ function FunnelStep({ icon, value, label, pct, color, isLast }: {
         <div className="w-10 h-10 rounded-full flex items-center justify-center text-xl mb-2" style={{ background: `${color}15` }}>
           {icon}
         </div>
-        <p className="text-[22px] font-bold text-gray-900">{value}</p>
-        <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color }}>{label}</p>
-        <p className="text-[11px] text-gray-400">{pct}%</p>
+        <p className="text-[22px] font-bold text-gray-900"
+          style={{ fontFamily: "'Aileron', sans-serif", fontWeight: 900 }}>{value}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color, fontFamily: "'Aileron', sans-serif", fontWeight: 700 }}>{label}</p>
+        <p className="text-[11px] text-gray-400" style={{ fontFamily: "'Aileron', sans-serif" }}>{pct}%</p>
       </div>
       {!isLast && (
         <div className="flex items-center mx-3 mb-4">
@@ -316,10 +357,10 @@ export default function DashboardPage() {
 
       {/* KPI Cards brancos */}
       <div className="flex gap-4">
-        <KPICard label="Total de Posts"  value={posts.length}      variation={18}  icon="📋" borderColor="#FF5C00" />
-        <KPICard label="Aprovados"       value={aprovados.length}  variation={24}  icon="✅" borderColor="#22C55E" />
-        <KPICard label="Em Análise"      value={emAnalise.length}  variation={3}   icon="⏳" borderColor="#F59E0B" />
-        <KPICard label="Rejeitados"      value={rejeitados.length} variation={-5}  icon="❌" borderColor="#EF4444" />
+        <KPICard label="Total de Posts"  value={posts.length}      variation={18}  iconKey="posts"      borderColor="#FF5C00" />
+        <KPICard label="Aprovados"       value={aprovados.length}  variation={24}  iconKey="aprovados"  borderColor="#22C55E" />
+        <KPICard label="Em Análise"      value={emAnalise.length}  variation={3}   iconKey="analise"    borderColor="#3B82F6" />
+        <KPICard label="Rejeitados"      value={rejeitados.length} variation={-5}  iconKey="rejeitados" borderColor="#EF4444" />
       </div>
 
       {/* Insights Meta (quando conectado) */}
