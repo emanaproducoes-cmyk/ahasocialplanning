@@ -344,6 +344,7 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
   ];
 
   return (
+    <>
     <div
       className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
       style={{ animation: 'fadeIn 0.15s ease' }}
@@ -614,7 +615,7 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
       </div>
     </div>
 
-    {/* ShareApprovalModal — renderizado fora do modal principal para z-index correto */}
+    {/* ShareApprovalModal — z-index acima do modal principal */}
     {shareOpen && shareUrl && (
       <ShareApprovalModal
         isOpen={shareOpen}
@@ -623,5 +624,6 @@ export default function PostPreviewModal({ post, onClose, onUpdate }: PostPrevie
         postTitle={post.title ?? 'Conteúdo'}
       />
     )}
+    </>
   );
 }
