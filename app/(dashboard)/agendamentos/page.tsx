@@ -149,6 +149,14 @@ function GridView({ posts, onPreview }: { posts: Post[]; onPreview: (p: Post) =>
   );
 }
 
+function isVideoThumb(post: Post): boolean {
+  const first = post.creatives?.[0];
+  if (!first) return false;
+  if (first.type) return first.type.startsWith('video');
+  if (first.url)  return /\.(mp4|webm|mov|ogg)(\?|$)/i.test(first.url) || first.url.includes('video%2F');
+  return false;
+}
+
 /* ─── ListView ────────────────────────────────────────────────── */
 
 function ListView({ posts, onPreview }: { posts: Post[]; onPreview: (p: Post) => void }) {
@@ -186,13 +194,31 @@ function ListView({ posts, onPreview }: { posts: Post[]; onPreview: (p: Post) =>
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => onPreview(post)}
-                      className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-[#FF5C00]/30 transition-all cursor-pointer flex-shrink-0 group"
+                      className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-[#FF5C00]/30 transition-all cursor-pointer flex-shrink-0 group relative"
                       title="Ver preview"
                     >
-                      {thumb
-                        // eslint-disable-next-line @next/next/no-img-element
-                        ? <img src={thumb} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
-                        : <span className="text-lg">🖼️</span>
+                      {thumb ? (
+                        isVideoThumb(post) ? (
+                          <>
+                            <video
+                              src={thumb}
+                              className="absolute inset-0 w-full h-full object-cover"
+                              preload="metadata"
+                              muted
+                              playsInline
+                              onLoadedMetadata={(e) => { (e.target as HTMLVideoElement).currentTime = 1; }}
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+                              <div className="w-5 h-5 rounded-full bg-white/90 flex items-center justify-center">
+                                <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor" className="text-gray-900 ml-0.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={thumb} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+                        )
+                      ) : <span className="text-lg">🖼️</span>
                       }
                     </button>
                     <span className="text-sm font-medium text-gray-900">{post.title}</span>
