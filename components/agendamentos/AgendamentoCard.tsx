@@ -9,6 +9,36 @@ import { generateApprovalLink, copyToClipboard, buildWhatsAppLink, buildMailtoLi
 import { showToast }   from '@/components/ui/Toast';
 import type { Post, Responsavel, Platform } from '@/lib/types';
 
+// ── Video detection ──────────────────────────────────────────────────────────
+function isVideoCreative(creative: { type?: string; url?: string } | undefined): boolean {
+  if (!creative) return false;
+  if (creative.type) return creative.type.startsWith('video');
+  if (creative.url)  return /\.(mp4|webm|mov|ogg)(\?|$)/i.test(creative.url) || creative.url.includes('video%2F');
+  return false;
+}
+
+function VideoThumb({ src, className }: { src: string; className?: string }) {
+  return (
+    <div className={`relative bg-gray-900 overflow-hidden ${className ?? ''}`}>
+      <video
+        src={src}
+        className="w-full h-full object-cover"
+        preload="metadata"
+        muted
+        playsInline
+        onLoadedMetadata={(e) => { (e.target as HTMLVideoElement).currentTime = 1; }}
+      />
+      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+        <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center shadow">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-gray-900 ml-0.5">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const PLATFORM_EMOJI: Record<string, string> = {
   instagram: '📸', facebook: '👍', youtube: '▶️',
   tiktok: '🎵', linkedin: '💼', threads: '🧵',
@@ -155,17 +185,22 @@ function ThumbnailPreview({ post, className, onClick }: {
   post: Post; className?: string; onClick: () => void;
 }) {
   const [imgError, setImgError] = useState(false);
-  const thumbnail = post.creatives?.[0]?.url ?? null;
-  const count     = post.creatives?.length ?? 0;
+  const firstCreative = post.creatives?.[0];
+  const thumbnail     = firstCreative?.url ?? null;
+  const count         = post.creatives?.length ?? 0;
+  const isVid         = isVideoCreative(firstCreative);
 
   return (
     <div className={cn('relative overflow-hidden bg-gray-100 cursor-pointer group', className)}
       onClick={(e) => { e.stopPropagation(); onClick(); }} title="Clique para ver detalhes">
       {thumbnail && !imgError ? (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={thumbnail} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-            draggable={false} onError={() => setImgError(true)} />
+          {isVid
+            ? <VideoThumb src={thumbnail} className="w-full h-full" />
+            // eslint-disable-next-line @next/next/no-img-element
+            : <img src={thumbnail} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                draggable={false} onError={() => setImgError(true)} />
+          }
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
             <div className="opacity-0 group-hover:opacity-100 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center text-white text-xs">🔍</div>
           </div>
@@ -482,10 +517,13 @@ export function AgendamentoCard({ post, uid, responsavel, view, onEdit: _onEdit 
         <div className="relative bg-gray-100 overflow-hidden" style={{ aspectRatio: '1/1' }}>
           {thumbnail ? (
             <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={thumbnail} alt={post.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+              {isVideoCreative(post.creatives?.[0])
+                ? <VideoThumb src={thumbnail} className="w-full h-full group-hover:scale-105 transition-transform duration-300" />
+                // eslint-disable-next-line @next/next/no-img-element
+                : <img src={thumbnail} alt={post.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+              }
               <button onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
                 className="absolute top-2 right-2 w-7 h-7 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs"
                 title="Ampliar">🔍</button>
