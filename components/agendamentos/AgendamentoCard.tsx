@@ -474,7 +474,7 @@ export function AgendamentoCard({ post, uid, responsavel, view, onEdit: _onEdit 
       <>
         <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100 hover:bg-gray-50/80 transition-colors cursor-pointer"
           onClick={() => setShowModal(true)}>
-          <ThumbnailPreview post={post} onClick={() => setShowModal(true)} className="w-12 h-12 rounded-xl shrink-0 border border-gray-200" />
+          <ThumbnailPreview post={post} onClick={() => setShowModal(true)} className="w-16 h-16 rounded-xl shrink-0 border border-gray-200 overflow-hidden" />
           <p className="flex-1 text-[14px] font-medium text-gray-800 truncate">{post.title}</p>
           <span className="text-lg shrink-0">{PLATFORM_EMOJI[platform ?? ''] ?? '📱'}</span>
           <p className="text-[13px] text-gray-400 shrink-0 hidden sm:block min-w-[110px]">
