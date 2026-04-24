@@ -550,9 +550,6 @@ export function AgendamentoCard({ post, uid, responsavel, view, onEdit: _onEdit 
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
               }
-              <button onClick={(e) => { e.stopPropagation(); setShowLightbox(true); }}
-                className="absolute top-2 right-2 w-7 h-7 bg-black/50 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs"
-                title="Ampliar">🔍</button>
               {(post.creatives?.length ?? 0) > 1 && (
                 <div className="absolute bottom-2 left-2 bg-black/70 text-white text-[9px] px-1.5 py-0.5 rounded-full">
                   {post.creatives!.length} slides
@@ -570,6 +567,15 @@ export function AgendamentoCard({ post, uid, responsavel, view, onEdit: _onEdit 
           </div>
           <div className="absolute bottom-2 right-2 w-7 h-7 rounded-lg bg-black/60 flex items-center justify-center text-sm">
             {PLATFORM_EMOJI[platform ?? ''] ?? '📱'}
+          </div>
+          {/* Overlay de hover — indica clicabilidade */}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+            <div className="w-9 h-9 bg-white/80 rounded-full flex items-center justify-center backdrop-blur-sm shadow">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-gray-700">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+              </svg>
+            </div>
           </div>
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3"
             onClick={(e) => e.stopPropagation()}>
