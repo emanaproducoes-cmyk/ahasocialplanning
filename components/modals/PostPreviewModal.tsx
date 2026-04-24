@@ -83,13 +83,16 @@ function ImageViewer({ post }: ImageViewerProps) {
           className="fixed inset-0 bg-black/90 z-[200] flex items-center justify-center"
           onClick={() => setZoomed(false)}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={currentUrl}
-            alt=""
-            className="max-w-full max-h-full object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
+          {isVideoUrl(currentUrl)
+            ? <video src={currentUrl} controls autoPlay className="max-w-[90vw] max-h-[85vh] rounded-xl" onClick={(e) => e.stopPropagation()} />
+            // eslint-disable-next-line @next/next/no-img-element
+            : <img
+                src={currentUrl}
+                alt=""
+                className="max-w-full max-h-full object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+          }
           <button
             onClick={() => setZoomed(false)}
             className="absolute top-4 right-4 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
@@ -122,10 +125,13 @@ function ImageViewer({ post }: ImageViewerProps) {
 
       <div
         className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-100 mb-4 group cursor-zoom-in"
-        onClick={() => setZoomed(true)}
+        onClick={() => !isVideoUrl(currentUrl!) && setZoomed(true)}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={currentUrl!} alt={post.title} className="w-full h-full object-contain" />
+        {isVideoUrl(currentUrl!)
+          ? <VideoPlayer src={currentUrl!} className="w-full h-full" />
+          // eslint-disable-next-line @next/next/no-img-element
+          : <img src={currentUrl!} alt={post.title} className="w-full h-full object-contain" />
+        }
 
         <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
