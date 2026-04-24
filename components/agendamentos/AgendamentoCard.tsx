@@ -568,22 +568,12 @@ export function AgendamentoCard({ post, uid, responsavel, view, onEdit: _onEdit 
           <div className="absolute bottom-2 right-2 w-7 h-7 rounded-lg bg-black/60 flex items-center justify-center text-sm">
             {PLATFORM_EMOJI[platform ?? ''] ?? '📱'}
           </div>
-          {/* Overlay de hover — indica clicabilidade */}
+          {/* Overlay de hover — apenas visual, pointer-events-none para não bloquear clique */}
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
             <div className="w-9 h-9 bg-white/80 rounded-full flex items-center justify-center backdrop-blur-sm shadow">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-gray-700">
                 <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
               </svg>
-            </div>
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3"
-            onClick={(e) => e.stopPropagation()}>
-            <div className="flex gap-1.5 w-full">
-              <button onClick={() => setShowModal(true)}
-                className="flex-1 text-xs py-1.5 bg-white/90 hover:bg-white text-gray-800 font-medium rounded-lg">👁 Ver</button>
-              <button onClick={handleSendApproval} disabled={approving}
-                className="flex-1 text-xs py-1.5 bg-[#FF5C00]/90 hover:bg-[#FF5C00] text-white font-medium rounded-lg disabled:opacity-60">🔗 Link</button>
             </div>
           </div>
         </div>
@@ -593,8 +583,18 @@ export function AgendamentoCard({ post, uid, responsavel, view, onEdit: _onEdit 
             <span className="text-[11px] text-gray-400">
               {post.scheduledAt ? formatShortDate(post.scheduledAt) : 'Sem data'}
             </span>
-            <button onClick={(e) => { e.stopPropagation(); setShowModal(true); }}
-              className="w-6 h-6 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 flex items-center justify-center text-sm">✏️</button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleSendApproval(e); }}
+              disabled={approving}
+              className="flex items-center gap-1 text-[11px] text-[#FF5C00] hover:bg-[#FF5C00]/10 px-2 py-1 rounded-lg transition-colors disabled:opacity-60"
+              title="Copiar link de aprovação"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+              Link
+            </button>
           </div>
         </div>
       </div>
