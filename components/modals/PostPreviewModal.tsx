@@ -40,6 +40,35 @@ const PLATFORM_ICONS: Record<string, string> = {
   pinterest: '📌', google_business: '🏢',
 };
 
+/* ─── helpers ────────────────────────────────────────────────── */
+
+function isVideoUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return /\.(mp4|webm|mov|ogg)(\?|$)/i.test(url) || url.includes('video%2F') || url.includes('/video/');
+}
+
+function VideoPlayer({ src, className }: { src: string; className?: string }) {
+  return (
+    <div className={`relative bg-gray-900 overflow-hidden ${className ?? ''}`}>
+      <video
+        src={src}
+        className="w-full h-full object-cover"
+        preload="metadata"
+        muted
+        playsInline
+        onLoadedMetadata={(e) => { (e.target as HTMLVideoElement).currentTime = 1; }}
+      />
+      <div className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+        <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-md">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" className="text-gray-900 ml-0.5">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── ImageViewer ─────────────────────────────────────────────── */
 
 interface ImageViewerProps {
