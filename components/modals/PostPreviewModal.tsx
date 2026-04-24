@@ -152,24 +152,30 @@ function ImageViewer({ post }: ImageViewerProps) {
         </div>
       )}
 
-      <div
-        className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-100 mb-4 group cursor-zoom-in"
-        onClick={() => !isVideoUrl(currentUrl!) && setZoomed(true)}
-      >
+      <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-gray-100 mb-4 group">
         {isVideoUrl(currentUrl!)
-          ? <VideoPlayer src={currentUrl!} className="w-full h-full" />
-          // eslint-disable-next-line @next/next/no-img-element
-          : <img src={currentUrl!} alt={post.title} className="w-full h-full object-contain" />
+          ? (
+            /* Vídeo: controls nativos, sem onClick para zoom */
+            <VideoPlayer src={currentUrl!} className="w-full h-full" />
+          ) : (
+            /* Imagem: cursor-zoom-in + lightbox */
+            <div className="w-full h-full cursor-zoom-in" onClick={() => setZoomed(true)}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={currentUrl!} alt={post.title} className="w-full h-full object-contain" />
+            </div>
+          )
         }
 
         <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={(e) => { e.stopPropagation(); setZoomed(true); }}
-            className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors"
-            title="Ampliar"
-          >
-            <ZoomIn size={14} />
-          </button>
+          {!isVideoUrl(currentUrl!) && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setZoomed(true); }}
+              className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors"
+              title="Ampliar"
+            >
+              <ZoomIn size={14} />
+            </button>
+          )}
           <button
             onClick={(e) => { e.stopPropagation(); handleDownload(); }}
             className="w-8 h-8 bg-black/60 text-white rounded-lg flex items-center justify-center hover:bg-black/80 transition-colors"
