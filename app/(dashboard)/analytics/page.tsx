@@ -1,1012 +1,836 @@
-import { useState, useMemo } from "react";
+'use client';
+
+/**
+ * Analytics & Inteligência — app/(dashboard)/analytics/page.tsx
+ *
+ * INSTALAÇÃO:
+ *   Salve como: app/(dashboard)/analytics/page.tsx
+ *
+ * DADOS REAIS:
+ *   • Posts       → users/{uid}/posts        (Firestore)
+ *   • Contas      → users/{uid}/connectedAccounts (Firestore)
+ *   • Campanhas   → users/{uid}/campanhas    (Firestore)
+ *   • Meta Ads    → /api/meta/ads/{accountId} (API Route já existente)
+ *   • Meta Insights → /api/meta/insights/{accountId} (API Route já existente)
+ *
+ * DEPENDÊNCIAS (já no package.json):
+ *   recharts, lucide-react, date-fns
+ */
+
+import { useState, useMemo, useCallback } from 'react';
 import {
-  LineChart, Line, AreaChart, Area, BarChart, Bar, RadarChart, Radar,
-  PolarGrid, PolarAngleAxis, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell, PieChart, Pie, Legend
-} from "recharts";
-import { X, Settings2, TrendingUp, TrendingDown, Users, MapPin, Globe, Zap, Target, Clock, ChevronRight, Info, Sparkles, BarChart2, Layout } from "lucide-react";
+  AreaChart, Area, BarChart, Bar, RadarChart, Radar, PolarGrid,
+  PolarAngleAxis, PolarRadiusAxis, Cell, PieChart, Pie, Tooltip,
+  ResponsiveContainer, XAxis, YAxis, CartesianGrid, Legend,
+} from 'recharts';
+import {
+  TrendingUp, TrendingDown, Users, Eye, Heart, Share2,
+  FileText, CheckCircle, Clock, XCircle, BarChart2,
+  ChevronDown, X, RefreshCw, Download, Filter, AlertCircle,
+} from 'lucide-react';
 
-// ─── DESIGN TOKENS ───────────────────────────────────────────────────────────
-const C = {
-  orange: "#F97316",
-  orangeLight: "#FED7AA",
-  orangeSoft: "#FFF7ED",
-  purple: "#7C3AED",
-  purpleLight: "#C4B5FD",
-  green: "#10B981",
-  blue: "#3B82F6",
-  red: "#EF4444",
-  yellow: "#F59E0B",
-  dark: "#111827",
-  gray: "#6B7280",
-  grayLight: "#F3F4F6",
-  border: "#E5E7EB",
-  white: "#FFFFFF",
+import { useAuth }            from '@/lib/hooks/useAuth';
+import { useUserCollection }  from '@/lib/hooks/useCollection';
+import { useCollection }      from '@/lib/hooks/useCollection';
+import { formatNumber, formatCurrency, formatPercent } from '@/lib/utils/formatters';
+import { cn }                 from '@/lib/utils/cn';
+import { orderBy }            from '@/lib/firebase/firestore';
+import type { Post, ConnectedAccount, Campaign, Platform } from '@/lib/types';
+
+/* ─── Constants ─────────────────────────────────────────────────── */
+
+const PLATFORM_COLOR: Record<string, string> = {
+  instagram:       '#E1306C',
+  facebook:        '#1877F2',
+  youtube:         '#FF0000',
+  tiktok:          '#010101',
+  linkedin:        '#0A66C2',
+  threads:         '#000000',
+  pinterest:       '#E60023',
+  google_business: '#4285F4',
 };
 
-// ─── MOCK DATA ────────────────────────────────────────────────────────────────
-const KPI_DATA = [
-  { id: "curtidas", label: "Curtidas", value: "184.3K", change: +12.4, unit: "", peak: "Quinta · 20h", sector: "Top 12%", daily: "6.1K", sparkline: [120,145,132,160,155,178,184], color: C.orange, icon: "❤️" },
-  { id: "comentarios", label: "Comentários", value: "23.7K", change: +8.2, unit: "", peak: "Ter · 19h", sector: "Top 18%", daily: "789", sparkline: [80,92,88,105,98,115,118], color: C.purple, icon: "💬" },
-  { id: "alcance", label: "Alcance", value: "1.17M", change: +5.6, unit: "", peak: "Seg · 21h", sector: "Top 9%", daily: "39K", sparkline: [900,1020,980,1080,1050,1120,1170], color: C.blue, icon: "📡" },
-  { id: "impressoes", label: "Impressões", value: "3.4M", change: +3.1, unit: "", peak: "Dom · 20h", sector: "Top 15%", daily: "113K", sparkline: [2800,3000,2950,3100,3050,3250,3400], color: C.green, icon: "👁️" },
-  { id: "engajamento", label: "Eng. Médio", value: "6.24%", change: +0.8, unit: "%", peak: "Qui · 19h", sector: "Top 7%", daily: "—", sparkline: [5.1,5.4,5.3,5.8,5.7,6.0,6.24], color: C.yellow, icon: "⚡" },
-  { id: "salvamentos", label: "Salvamentos", value: "41.2K", change: +18.9, unit: "", peak: "Sex · 20h", sector: "Top 5%", daily: "1.4K", sparkline: [25,28,30,35,36,39,41], color: "#EC4899", icon: "🔖" },
-  { id: "compartilhamentos", label: "Compart.", value: "29.8K", change: +14.2, unit: "", peak: "Qui · 18h", sector: "Top 11%", daily: "993", sparkline: [18,21,20,25,24,27,29], color: "#06B6D4", icon: "🔄" },
-  { id: "seguidores", label: "Seguidores", value: "+8.4K", change: +22.1, unit: "", peak: "Seg · 20h", sector: "Top 6%", daily: "+280", sparkline: [5,6,6.5,7,7.2,7.9,8.4], color: C.orange, icon: "👥" },
-  { id: "cliques", label: "Cliques Link", value: "12.1K", change: -2.3, unit: "", peak: "Ter · 12h", sector: "Top 22%", daily: "403", sparkline: [14,13.5,13,12.8,12.5,12.2,12.1], color: C.red, icon: "🔗" },
-  { id: "receita", label: "Receita Attr.", value: "R$ 118", change: +31.4, unit: "K", peak: "Qui · 19h", sector: "Top 4%", daily: "R$ 3.9K", sparkline: [70,80,85,95,100,110,118], color: C.green, icon: "💰" },
-];
+const PLATFORM_LABEL: Record<string, string> = {
+  instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube',
+  tiktok: 'TikTok', linkedin: 'LinkedIn', threads: 'Threads',
+  pinterest: 'Pinterest', google_business: 'Google',
+};
 
-const TIMELINE_DATA = [
-  { mes: "Jan", curtidas: 120, comentarios: 45, alcance: 820, salvamentos: 28 },
-  { mes: "Fev", curtidas: 145, comentarios: 52, alcance: 950, salvamentos: 32 },
-  { mes: "Mar", curtidas: 132, comentarios: 48, alcance: 880, salvamentos: 29 },
-  { mes: "Abr", curtidas: 168, comentarios: 61, alcance: 1040, salvamentos: 38 },
-  { mes: "Mai", curtidas: 155, comentarios: 58, alcance: 990, salvamentos: 35 },
-  { mes: "Jun", curtidas: 178, comentarios: 67, alcance: 1120, salvamentos: 42 },
-  { mes: "Jul", curtidas: 192, comentarios: 72, alcance: 1200, salvamentos: 46 },
-  { mes: "Ago", curtidas: 184, comentarios: 69, alcance: 1150, salvamentos: 44 },
-  { mes: "Set", curtidas: 201, comentarios: 76, alcance: 1280, salvamentos: 50 },
-  { mes: "Out", curtidas: 218, comentarios: 82, alcance: 1380, salvamentos: 55 },
-  { mes: "Nov", curtidas: 235, comentarios: 89, alcance: 1490, salvamentos: 61 },
-  { mes: "Dez", curtidas: 248, comentarios: 94, alcance: 1570, salvamentos: 65 },
-];
+const STATUS_COLOR: Record<string, string> = {
+  rascunho: '#9CA3AF', conteudo: '#7C3AED', revisao: '#F59E0B',
+  aprovacao_cliente: '#3B82F6', aprovado: '#22C55E',
+  rejeitado: '#EF4444', publicado: '#FF5C00', em_analise: '#F97316',
+};
 
-const FUNNEL_DATA = [
-  { label: "Visitantes", value: 420000, pct: 100, color: C.orange },
-  { label: "Engajados", value: 89400, pct: 21.3, color: "#FB923C" },
-  { label: "Leads", value: 12600, pct: 3.0, color: C.purple },
-  { label: "Vendas", value: 2100, pct: 0.5, color: C.green },
-];
+const STATUS_LABEL: Record<string, string> = {
+  rascunho: 'Rascunho', conteudo: 'Conteúdo', revisao: 'Revisão',
+  aprovacao_cliente: 'Aprovação', aprovado: 'Aprovado',
+  rejeitado: 'Rejeitado', publicado: 'Publicado', em_analise: 'Em Análise',
+};
 
-const HEATMAP_DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-const HEATMAP_HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MONTHS_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const FORMAT_LABEL: Record<string, string> = {
+  feed: 'Feed', story: 'Stories', reels: 'Reels', shorts: 'Shorts',
+  photo: 'Foto', carrossel: 'Carrossel',
+};
 
-function generateHeatmapData() {
-  const data = {};
-  HEATMAP_DAYS.forEach((day, di) => {
-    HEATMAP_HOURS.forEach((h) => {
-      const isGolden = (di >= 1 && di <= 4) && (h >= 19 && h <= 21);
-      const isPeak = (h >= 6 && h <= 8) || (h >= 19 && h <= 22);
-      const isWeekend = di === 0 || di === 6;
-      let base = isPeak ? 55 : 20;
-      if (isWeekend) base *= 0.85;
-      if (isGolden) base = 85 + Math.random() * 15;
-      base += (Math.random() - 0.5) * 20;
-      data[`${day}-${h}`] = Math.max(5, Math.min(100, Math.round(base)));
-    });
+/* ─── Helpers ───────────────────────────────────────────────────── */
+
+function tsToDate(ts: { seconds: number } | Date | null | undefined): Date | null {
+  if (!ts) return null;
+  if (ts instanceof Date) return ts;
+  if ('seconds' in ts) return new Date(ts.seconds * 1000);
+  return null;
+}
+
+function getMonthKey(ts: { seconds: number } | Date | null | undefined): string | null {
+  const d = tsToDate(ts);
+  if (!d) return null;
+  return `${d.getFullYear()}-${String(d.getMonth()).padStart(2,'0')}`;
+}
+
+function last6MonthKeys(): { key: string; label: string }[] {
+  const now = new Date();
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    return { key: `${d.getFullYear()}-${String(d.getMonth()).padStart(2,'0')}`, label: MONTHS_PT[d.getMonth()] ?? '' };
   });
-  return data;
-}
-const HEATMAP_DATA = generateHeatmapData();
-
-const AGE_DATA = [
-  { faixa: "13-17", f: 3, m: 2, total: 5 },
-  { faixa: "18-24", f: 14, m: 10, total: 24 },
-  { faixa: "25-34", f: 18, m: 14, total: 32 },
-  { faixa: "35-44", f: 14, m: 11, total: 26 },
-  { faixa: "45-54", f: 5, m: 4, total: 9 },
-  { faixa: "55-64", f: 2, m: 2, total: 4 },
-  { faixa: "65+",   f: 0, m: 0, total: 0 },
-];
-
-const GENDER_DATA = [
-  { name: "Feminino", value: 54, color: C.orange },
-  { name: "Masculino", value: 41, color: C.purple },
-  { name: "N/I", value: 5, color: "#D1D5DB" },
-];
-
-const LOCATIONS = {
-  cidades: [
-    { name: "São Paulo, SP", pct: 28.4, engLocal: "7.6%", cpm: "R$ 11", pico: "20h" },
-    { name: "Rio de Janeiro, RJ", pct: 14.1, engLocal: "6.9%", cpm: "R$ 13", pico: "21h" },
-    { name: "Belo Horizonte, MG", pct: 7.6, engLocal: "6.1%", cpm: "R$ 9", pico: "20h" },
-    { name: "Porto Alegre, RS", pct: 5.8, engLocal: "5.8%", cpm: "R$ 8", pico: "19h" },
-    { name: "Curitiba, PR", pct: 5.2, engLocal: "5.5%", cpm: "R$ 8", pico: "20h" },
-    { name: "Brasília, DF", pct: 4.7, engLocal: "7.1%", cpm: "R$ 12", pico: "19h" },
-    { name: "Salvador, BA", pct: 4.1, engLocal: "5.2%", cpm: "R$ 7", pico: "21h" },
-  ],
-  regioes: [
-    { name: "Sudeste", pct: 58.2, engLocal: "7.1%", cpm: "R$ 11", pico: "20h" },
-    { name: "Sul", pct: 14.1, engLocal: "5.9%", cpm: "R$ 9", pico: "19h" },
-    { name: "Nordeste", pct: 12.8, engLocal: "5.4%", cpm: "R$ 7", pico: "21h" },
-    { name: "Centro-Oeste", pct: 8.3, engLocal: "6.3%", cpm: "R$ 10", pico: "19h" },
-    { name: "Norte", pct: 6.6, engLocal: "4.8%", cpm: "R$ 6", pico: "20h" },
-  ],
-  paises: [
-    { name: "Brasil", pct: 87.4, engLocal: "6.5%", cpm: "R$ 10", pico: "20h" },
-    { name: "Portugal", pct: 4.2, engLocal: "5.1%", cpm: "R$ 14", pico: "21h" },
-    { name: "EUA", pct: 3.1, engLocal: "4.8%", cpm: "R$ 18", pico: "18h" },
-    { name: "Angola", pct: 1.8, engLocal: "4.2%", cpm: "R$ 5", pico: "19h" },
-    { name: "Outros", pct: 3.5, engLocal: "4.0%", cpm: "—", pico: "—" },
-  ],
-};
-
-const PLATFORM_RADAR = [
-  { metric: "Alcance", Instagram: 72, TikTok: 88, LinkedIn: 45, YouTube: 80 },
-  { metric: "Engajamento", Instagram: 68, TikTok: 91, LinkedIn: 52, YouTube: 74 },
-  { metric: "Conversão", Instagram: 58, TikTok: 42, LinkedIn: 78, YouTube: 65 },
-  { metric: "Crescimento", Instagram: 62, TikTok: 94, LinkedIn: 40, YouTube: 71 },
-  { metric: "CTR", Instagram: 55, TikTok: 48, LinkedIn: 82, YouTube: 60 },
-  { metric: "Retenção", Instagram: 50, TikTok: 85, LinkedIn: 60, YouTube: 88 },
-];
-
-const CONTENT_TYPES = [
-  { type: "Reels", posts: 38, alcance: "560K", eng: 7.2, color: "#EC4899" },
-  { type: "Carrossel", posts: 26, alcance: "320K", eng: 5.8, color: C.orange },
-  { type: "Vídeo", posts: 12, alcance: "410K", eng: 6.1, color: C.blue },
-  { type: "Stories", posts: 84, alcance: "240K", eng: 4.6, color: C.purple },
-  { type: "Imagem", posts: 22, alcance: "180K", eng: 3.4, color: C.yellow },
-];
-
-const PLATFORM_COLORS = { Instagram: C.orange, TikTok: "#000", LinkedIn: C.blue, YouTube: C.red };
-
-const SECTIONS = [
-  { id: "kpis", label: "KPIs principais", desc: "Curtidas, comentários, mensagens, alcance..." },
-  { id: "timeline", label: "Evolução de engajamento", desc: "Linha do tempo com 4 séries" },
-  { id: "funnel", label: "Funil de conversão", desc: "Visitantes → Leads → Vendas" },
-  { id: "heatmap", label: "Heatmap de horários", desc: "Densidade 7×24" },
-  { id: "demo", label: "Demografia da audiência", desc: "Idade × gênero" },
-  { id: "geo", label: "Alcance geográfico", desc: "Cidades, regiões e países" },
-  { id: "platforms", label: "Performance por plataforma", desc: "Radar comparativo" },
-  { id: "content", label: "Tipos de conteúdo", desc: "Reels, Carrossel, Stories..." },
-  { id: "roi", label: "Calculadora de ROI", desc: "ROAS · CPA · Hook Rate" },
-];
-
-// ─── HELPER COMPONENTS ────────────────────────────────────────────────────────
-function Sparkline({ data, color }) {
-  const max = Math.max(...data), min = Math.min(...data);
-  const w = 80, h = 28, pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - ((v - min) / (max - min || 1)) * (h - 4) - 2;
-    return `${x},${y}`;
-  }).join(" ");
-  return (
-    <svg width={w} height={h}>
-      <polyline fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" points={pts} opacity="0.8" />
-      <polyline fill={color} fillOpacity="0.12" stroke="none"
-        points={`0,${h} ${pts} ${w},${h}`} />
-    </svg>
-  );
 }
 
-function Badge({ children, color = C.orange, light = false }) {
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 4,
-      padding: "2px 10px", borderRadius: 20,
-      background: light ? color + "18" : color,
-      color: light ? color : "#fff",
-      fontSize: 11, fontWeight: 700, letterSpacing: 0.3
-    }}>{children}</span>
-  );
-}
+/* ─── Sub-components ────────────────────────────────────────────── */
 
-function InsightIA({ text }) {
+function KpiTile({
+  label, value, sub, icon: Icon, color, trend, onClick,
+}: {
+  label: string; value: string; sub?: string;
+  icon: React.ElementType; color: string; trend?: number;
+  onClick?: () => void;
+}) {
+  const positive = (trend ?? 0) >= 0;
   return (
-    <div style={{
-      display: "flex", gap: 10, padding: "12px 14px",
-      background: "linear-gradient(135deg, #FFF7ED, #FEF3C7)",
-      borderRadius: 10, border: `1px solid ${C.orangeLight}`,
-    }}>
-      <div style={{
-        width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-        background: `linear-gradient(135deg, ${C.orange}, ${C.purple})`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 14
-      }}>✨</div>
-      <div>
-        <span style={{ fontWeight: 700, color: C.orange, fontSize: 12 }}>Insight IA · </span>
-        <span style={{ fontSize: 12, color: "#92400E", lineHeight: 1.5 }}>{text}</span>
+    <button
+      onClick={onClick}
+      className={cn(
+        'bg-white rounded-2xl p-5 shadow-sm border border-gray-100 text-left w-full',
+        'hover:shadow-md hover:-translate-y-0.5 transition-all duration-150',
+        onClick && 'cursor-pointer',
+      )}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${color}18` }}>
+          <Icon size={18} style={{ color }} />
+        </div>
+        {trend !== undefined && (
+          <span className={cn('text-xs font-semibold flex items-center gap-0.5', positive ? 'text-green-600' : 'text-red-500')}>
+            {positive ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+            {positive ? '+' : ''}{trend.toFixed(1)}%
+          </span>
+        )}
       </div>
-    </div>
+      <p className="text-2xl font-bold text-gray-900 mb-0.5">{value}</p>
+      <p className="text-xs text-gray-500">{label}</p>
+      {sub && <p className="text-[11px] text-gray-400 mt-0.5">{sub}</p>}
+    </button>
   );
 }
 
-function Modal({ open, onClose, width = 520, children }) {
-  if (!open) return null;
+function SectionCard({ title, subtitle, children, action }: {
+  title: string; subtitle?: string; children: React.ReactNode; action?: React.ReactNode;
+}) {
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 1000,
-      background: "rgba(0,0,0,0.45)", backdropFilter: "blur(4px)",
-      display: "flex", alignItems: "center", justifyContent: "center", padding: 16
-    }} onClick={onClose}>
-      <div style={{
-        background: "#fff", borderRadius: 16, width: "100%", maxWidth: width,
-        maxHeight: "88vh", overflowY: "auto",
-        boxShadow: "0 24px 64px rgba(0,0,0,0.18)",
-        animation: "modalIn 0.2s ease"
-      }} onClick={e => e.stopPropagation()}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function ModalHeader({ title, subtitle, onClose }) {
-  return (
-    <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-      <div>
-        <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.dark }}>{title}</h3>
-        {subtitle && <p style={{ margin: "3px 0 0", fontSize: 13, color: C.gray }}>{subtitle}</p>}
-      </div>
-      <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.gray, padding: 4 }}>
-        <X size={18} />
-      </button>
-    </div>
-  );
-}
-
-function StatRow({ label, value, color = C.orange, sub }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
-      <span style={{ fontSize: 11, color: C.gray, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</span>
-      <span style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1.2 }}>{value}</span>
-      {sub && <span style={{ fontSize: 11, color: C.gray }}>{sub}</span>}
-    </div>
-  );
-}
-
-function SectionCard({ id, title, subtitle, children, visible = true }) {
-  if (!visible) return null;
-  return (
-    <div id={id} style={{
-      background: "#fff", borderRadius: 16, padding: 24,
-      boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: `1px solid ${C.border}`
-    }}>
-      <div style={{ marginBottom: 16 }}>
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: C.dark }}>{title}</h2>
-        {subtitle && <p style={{ margin: "3px 0 0", fontSize: 12, color: C.gray }}>{subtitle}</p>}
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+          {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+        </div>
+        {action}
       </div>
       {children}
     </div>
   );
 }
 
-// ─── MODALS ───────────────────────────────────────────────────────────────────
-function KpiModal({ kpi, onClose }) {
-  const topPosts = [
-    { title: "Bastidores do lançamento", platform: "Instagram", value: "39.8K" },
-    { title: "Tutorial em 60s", platform: "TikTok", value: "28.4K" },
-    { title: "Antes & depois do cliente", platform: "Instagram", value: "26.4K" },
-    { title: "Reels com áudio viral", platform: "YouTube", value: "18.2K" },
-  ];
-  const breakdown = [
-    { platform: "Instagram", value: "16.7K", change: "+13.9%" },
-    { platform: "Facebook", value: "69.5K", change: "+11.9%" },
-    { platform: "YouTube", value: "40.7K", change: "+15.4%" },
-    { platform: "TikTok", value: "60.6K", change: "+18.5%" },
-    { platform: "LinkedIn", value: "41.1K", change: "+18.5%" },
-  ];
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <Modal open={!!kpi} onClose={onClose} width={620}>
-      <ModalHeader
-        title={`${kpi?.label} · Todas`}
-        subtitle="Análise aprofundada com tendências, ranking e recomendações."
-        onClose={onClose}
-      />
-      <div style={{ padding: "20px 24px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 20 }}>
-          <StatRow label="Total no período" value={kpi?.value} color={C.orange} sub={`${kpi?.change > 0 ? "+" : ""}${kpi?.change}% vs. anterior`} />
-          <StatRow label="Média diária" value={kpi?.daily} color={C.dark} sub="Últimos 30 dias" />
-          <StatRow label="Pico no período" value={kpi?.peak} color={C.green} />
-          <StatRow label="Posição no setor" value={kpi?.sector} color={C.orange} sub="vs. perfis similares" />
-        </div>
-        <div style={{ marginBottom: 20 }}>
-          <p style={{ fontSize: 12, color: C.gray, marginBottom: 8 }}>Comparativo Atual × Período Anterior — 12 meses</p>
-          <ResponsiveContainer width="100%" height={160}>
-            <AreaChart data={TIMELINE_DATA}>
-              <defs>
-                <linearGradient id="gOrange" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={C.orange} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={C.orange} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-              <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-              <Area type="monotone" dataKey="curtidas" stroke={C.orange} fill="url(#gOrange)" strokeWidth={2} dot={false} />
-              <Area type="monotone" dataKey="comentarios" stroke="#D1D5DB" fill="none" strokeDasharray="4 2" strokeWidth={1.5} dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: C.dark, marginBottom: 10 }}>Quebra por Plataforma</p>
-            {breakdown.map(b => (
-              <div key={b.platform} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: PLATFORM_COLORS[b.platform] || C.gray }} />
-                  <span style={{ fontSize: 12 }}>{b.platform}</span>
-                </div>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>{b.value}</span>
-                  <Badge color={C.green} light>{b.change}</Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, color: C.dark, marginBottom: 10 }}>Top Posts Contribuintes</p>
-            {topPosts.map((p, i) => (
-              <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
-                <div style={{ width: 22, height: 22, borderRadius: 6, background: C.orangeLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: C.orange, flexShrink: 0 }}>{i + 1}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</p>
-                  <p style={{ margin: 0, fontSize: 11, color: C.gray }}>{p.platform}</p>
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: C.dark }}>{p.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div style={{ marginTop: 16 }}>
-          <InsightIA text={`${kpi?.label} está acelerando ${kpi?.change}% vs. o período anterior. Com o ritmo atual, projetamos crescimento de 12% no próximo mês. Para potencializar, replique o formato dos top 3 posts.`} />
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function HeatmapModal({ cell, onClose }) {
-  if (!cell) return null;
-  const intensity = HEATMAP_DATA[`${cell.day}-${cell.hour}`] || 50;
-  const isGolden = ["Seg","Ter","Qua","Qui"].includes(cell.day) && cell.hour >= 19 && cell.hour <= 21;
-  return (
-    <Modal open={!!cell} onClose={onClose} width={440}>
-      <ModalHeader
-        title={`${cell.day} · ${String(cell.hour).padStart(2,"0")}:00`}
-        subtitle={`Intensidade pico · ${intensity}/100`}
-        onClose={onClose}
-      />
-      <div style={{ padding: 20 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 16 }}>
-          <StatRow label="Intensidade" value={`${intensity}/100`} color={intensity > 70 ? C.orange : C.gray} />
-          <StatRow label="Posts média" value="6" sub="por semana" color={C.dark} />
-          <StatRow label="Eng. médio" value="6.1%" color={C.green} />
-        </div>
-        {isGolden && (
-          <div style={{ padding: "10px 14px", background: "#FFF7ED", borderRadius: 10, border: `1px solid ${C.orangeLight}`, marginBottom: 12, display: "flex", gap: 8, alignItems: "center" }}>
-            <span style={{ fontSize: 18 }}>🏆</span>
-            <div>
-              <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: C.orange }}>Janela de Ouro detectada</p>
-              <p style={{ margin: 0, fontSize: 11, color: "#92400E" }}>Este horário entrega +47% de velocity inicial</p>
-            </div>
-          </div>
-        )}
-        <InsightIA text={isGolden ? "Este é um horário premium. Reserve seus melhores formatos (Reels, vídeos) para esta janela." : "Em relação aos demais horários, este ponto representa uma oportunidade acima da média semanal."} />
-        <div style={{ marginTop: 12, padding: 12, background: C.grayLight, borderRadius: 10 }}>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <Clock size={14} color={C.gray} />
-            <span style={{ fontSize: 12, color: C.gray }}>Comparação com a semana</span>
-          </div>
-          <p style={{ margin: "6px 0 0", fontSize: 12, color: C.dark }}>Em relação aos demais horários, este ponto representa uma das {intensity > 65 ? "maiores" : "medianas"} oportunidades da semana.</p>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function AgeModal({ age, onClose }) {
-  if (!age) return null;
-  return (
-    <Modal open={!!age} onClose={onClose} width={520}>
-      <ModalHeader
-        title={`Faixa etária ${age.faixa}`}
-        subtitle={`${age.total}% da sua audiência total — análise comportamental e recomendações.`}
-        onClose={onClose}
-      />
-      <div style={{ padding: 20 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
-          <StatRow label="Total na faixa" value={`${age.total}%`} color={C.orange} />
-          <StatRow label="Feminino" value={`${Math.round(age.f/(age.f+age.m)*100)}%`} color={C.orange} sub={`${age.f}% audiência`} />
-          <StatRow label="Masculino" value={`${Math.round(age.m/(age.f+age.m)*100)}%`} color={C.purple} sub={`${age.m}% audiência`} />
-          <StatRow label="Eng. médio" value="10.1%" color={C.green} sub="vs 5.8% global" />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Conteúdos com Melhor Performance</p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {["Vídeos longos", "Análises", "Conteúdo prático"].map(t => (
-              <Badge key={t} color={t === "Vídeos longos" ? C.red : t === "Análises" ? C.gray : C.blue} light>{t}</Badge>
-            ))}
-          </div>
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>Plataformas Preferidas</p>
-          <div style={{ display: "flex", gap: 8 }}>
-            <Badge color={C.red}>YouTube</Badge>
-            <Badge color={C.blue}>Facebook</Badge>
-            <Badge color="#0077B5">LinkedIn</Badge>
-          </div>
-        </div>
-        <InsightIA text="Lê descrição inteira, salva conteúdo. Resposta forte a CTAs claros." />
-        <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
-            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#DCFCE7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🎙️</div>
-            <div>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Tom de voz recomendado</p>
-              <p style={{ margin: 0, fontSize: 12, color: C.gray }}>Profissional mas humano. Storytelling com dados, prova social, e propósito de marca.</p>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
-            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🕐</div>
-            <div>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Melhores horários para esta faixa</p>
-              <p style={{ margin: 0, fontSize: 12, color: C.gray }}>08h–10h e 19h–22h</p>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 0", borderTop: `1px solid ${C.border}` }}>
-            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>📈</div>
-            <div>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Oportunidade detectada</p>
-              <p style={{ margin: 0, fontSize: 12, color: C.gray }}>Esta faixa cresceu 8.4% nos últimos 90 dias. Considere campanha segmentada com pelo menos 3 peças/semana.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function GenderModal({ gender, onClose }) {
-  if (!gender) return null;
-  const platforms = [
-    { name: "Instagram", pct: 39, color: C.orange },
-    { name: "Facebook", pct: 64, color: C.blue },
-    { name: "YouTube", pct: 59, color: C.red },
-    { name: "TikTok", pct: 62, color: "#000" },
-    { name: "LinkedIn", pct: 48, color: "#0077B5" },
-  ];
-  return (
-    <Modal open={!!gender} onClose={onClose} width={480}>
-      <ModalHeader
-        title={`Gênero · ${gender.name}`}
-        subtitle={`${gender.value}% da sua audiência — comportamento e canais preferidos`}
-        onClose={onClose}
-      />
-      <div style={{ padding: 20 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
-          <StatRow label="% audiência" value={`${gender.value}%`} color={C.orange} />
-          <StatRow label="Eng. médio" value="7.4%" color={C.green} sub="vs 5.8% global" />
-          <StatRow label="Tempo na tela" value="2m 38s" color={C.dark} />
-        </div>
-        <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Distribuição por Plataforma</p>
-        {platforms.map(p => (
-          <div key={p.name} style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span style={{ fontSize: 12 }}>{p.name}</span>
-              <span style={{ fontSize: 12, fontWeight: 700 }}>{p.pct}%</span>
-            </div>
-            <div style={{ height: 6, background: C.border, borderRadius: 3 }}>
-              <div style={{ height: "100%", width: `${p.pct}%`, background: p.color, borderRadius: 3 }} />
-            </div>
-          </div>
-        ))}
-        <div style={{ marginTop: 16 }}>
-          <InsightIA text={`Sua audiência ${gender.name.toLowerCase()} engaja 28% mais em conteúdos com narrativa pessoal e bastidores. Recomendado intensificar Reels com storytelling autoral.`} />
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function LocationModal({ loc, onClose }) {
-  if (!loc) return null;
-  const platforms = [
-    { name: "Instagram", pct: 10, color: C.orange },
-    { name: "Facebook", pct: 31, color: C.blue },
-    { name: "YouTube", pct: 20, color: C.red },
-    { name: "TikTok", pct: 23, color: "#000" },
-    { name: "LinkedIn", pct: 15, color: "#0077B5" },
-  ];
-  return (
-    <Modal open={!!loc} onClose={onClose} width={500}>
-      <ModalHeader
-        title={loc.name}
-        subtitle={`${loc.pct}% da sua audiência total · cidade`}
-        onClose={onClose}
-      />
-      <div style={{ padding: 20 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
-          <StatRow label="% audiência" value={`${loc.pct}%`} color={C.orange} />
-          <StatRow label="Eng. local" value={loc.engLocal} color={C.green} sub="vs 5.8% global" />
-          <StatRow label="Pico de hora" value={loc.pico} sub="Horário local" color={C.dark} />
-          <StatRow label="CPM esperado" value={loc.cpm} sub="Tráfego pago" color={C.orange} />
-        </div>
-        <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Mix de Plataformas Nesta Localização</p>
-        {platforms.map(p => (
-          <div key={p.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 2, background: p.color }} />
-              <span style={{ fontSize: 12 }}>{p.name}</span>
-            </div>
-            <div style={{ flex: 1, margin: "0 12px" }}>
-              <div style={{ height: 5, background: C.border, borderRadius: 3 }}>
-                <div style={{ height: "100%", width: `${p.pct * 3}%`, background: p.color, borderRadius: 3 }} />
-              </div>
-            </div>
-            <span style={{ fontSize: 12, fontWeight: 700 }}>{p.pct}%</span>
-          </div>
-        ))}
-        <div style={{ marginTop: 16 }}>
-          <InsightIA text="Concentração de seguidores nesta cidade indica oportunidade de eventos presenciais, lives geo-segmentadas e parcerias com influenciadores locais." />
-        </div>
-        <div style={{ marginTop: 12, padding: "10px 14px", background: C.grayLight, borderRadius: 10 }}>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 600 }}>Recomendação de campanha</p>
-          <p style={{ margin: "4px 0 0", fontSize: 12, color: C.gray }}>Para esta localização, criativos verticais (9:16) com legenda em português e CTA "saiba mais" performam 23% melhor.</p>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function ContentModal({ content, onClose }) {
-  if (!content) return null;
-  const playbooks = {
-    Reels: ["Hook nos primeiros 3s", "Áudio trending", "CTA verbal no meio", "Legenda com emojis"],
-    Carrossel: ["Slide 1 = gancho visual", "7–10 slides ideais", "Último slide = CTA", "Salve para depois"],
-    Vídeo: ["Thumbnail clara", "Descrição completa SEO", "Cards e telas finais", "Legendas automáticas"],
-    Stories: ["3–5 stories por série", "Enquetes geram +28%", "Link sticker acima da dobra", "Destaques organizados"],
-    Imagem: ["Fundo contrastante", "Texto ≤ 20% da área", "Paleta consistente", "Alt text otimizado"],
-  };
-  return (
-    <Modal open={!!content} onClose={onClose} width={500}>
-      <ModalHeader
-        title={`Performance · ${content.type}`}
-        subtitle={`${content.posts} posts publicados · alcance ${content.alcance}`}
-        onClose={onClose}
-      />
-      <div style={{ padding: 20 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
-          <StatRow label="Engajamento" value={`${content.eng}%`} color={content.color} />
-          <StatRow label="Posts" value={content.posts} color={C.dark} />
-          <StatRow label="Alcance" value={content.alcance} color={C.blue} />
-        </div>
-        <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>Playbook de Performance</p>
-        {(playbooks[content.type] || []).map((tip, i) => (
-          <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
-            <div style={{ width: 22, height: 22, borderRadius: 6, background: content.color + "18", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: content.color, flexShrink: 0 }}>{i + 1}</div>
-            <span style={{ fontSize: 13 }}>{tip}</span>
-          </div>
-        ))}
-        <div style={{ marginTop: 16 }}>
-          <InsightIA text={`${content.type} é o seu formato com maior potencial de crescimento. Aumentar frequência para ${content.posts + 5} posts/mês pode gerar +15% de alcance total.`} />
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-// ─── MAIN DASHBOARD ───────────────────────────────────────────────────────────
-export default function AnalyticsDashboard() {
-  const [activeKpi, setActiveKpi] = useState(null);
-  const [activeHeatCell, setActiveHeatCell] = useState(null);
-  const [activeAge, setActiveAge] = useState(null);
-  const [activeGender, setActiveGender] = useState(null);
-  const [activeLocation, setActiveLocation] = useState(null);
-  const [activeContent, setActiveContent] = useState(null);
-  const [geoTab, setGeoTab] = useState("cidades");
-  const [roiMode, setRoiMode] = useState("pago");
-  const [customizeOpen, setCustomizeOpen] = useState(false);
-  const [visibleSections, setVisibleSections] = useState(
-    Object.fromEntries(SECTIONS.map(s => [s.id, true]))
-  );
-  const [roi, setRoi] = useState({ receita: 48000, investimento: 8500, criativo: 2400, conversoes: 612, horas: 36, taxa: 180 });
-
-  const roiCalc = useMemo(() => {
-    const total = roi.investimento + roi.criativo + roi.horas * roi.taxa;
-    const r = ((roi.receita - total) / total) * 100;
-    const roas = roi.receita / roi.investimento;
-    const cpa = roi.investimento / Math.max(roi.conversoes, 1);
-    const hook = (roi.conversoes / Math.max(roi.receita / 100, 1));
-    return { total, roi: r, roas, cpa, hook };
-  }, [roi]);
-
-  const toggleSection = (id) => setVisibleSections(p => ({ ...p, [id]: !p[id] }));
-
-  return (
-    <div style={{ fontFamily: "'DM Sans', 'Outfit', sans-serif", background: "#F9FAFB", minHeight: "100vh", color: C.dark }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
-        * { box-sizing: border-box; }
-        @keyframes modalIn { from { opacity:0; transform:scale(0.96) translateY(8px); } to { opacity:1; transform:scale(1) translateY(0); } }
-        button { font-family: inherit; }
-        input { font-family: inherit; }
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: #F3F4F6; }
-        ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
-      `}</style>
-
-      {/* TOP BAR */}
-      <div style={{ background: "#fff", borderBottom: `1px solid ${C.border}`, padding: "14px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 100 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: C.dark }}>Analytics</h1>
-          <p style={{ margin: 0, fontSize: 12, color: C.gray }}>Dados em tempo real via Firebase · Atribuição UTM + Lead Scoring habilitados</p>
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <select style={{ fontSize: 12, padding: "6px 12px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#fff", cursor: "pointer" }}>
-            <option>Últimos 90 dias</option>
-            <option>Últimos 30 dias</option>
-            <option>Este mês</option>
-            <option>Este ano</option>
-          </select>
-          <button
-            onClick={() => setCustomizeOpen(true)}
-            style={{ display: "flex", gap: 6, alignItems: "center", padding: "7px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}
-          >
-            <Layout size={14} /> Personalizar visão
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white">
+          <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
+            <X size={14} />
           </button>
         </div>
+        <div className="p-5">{children}</div>
       </div>
+    </div>
+  );
+}
 
-      {/* CONTENT */}
-      <div style={{ padding: "24px", maxWidth: 1400, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+function EmptyChart({ message }: { message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-40 text-gray-300 gap-2">
+      <BarChart2 size={28} />
+      <p className="text-xs text-gray-400">{message}</p>
+    </div>
+  );
+}
 
-        {/* ── KPIs ── */}
-        {visibleSections.kpis && (
-          <div>
-            <h2 style={{ margin: "0 0 12px", fontSize: 15, fontWeight: 700 }}>KPIs Principais</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
-              {KPI_DATA.map(kpi => (
-                <div key={kpi.id}
-                  onClick={() => setActiveKpi(kpi)}
-                  style={{ background: "#fff", borderRadius: 12, padding: "14px 16px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", border: `1px solid ${C.border}`, cursor: "pointer", transition: "box-shadow 0.15s", position: "relative", overflow: "hidden" }}
-                  onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.10)"}
-                  onMouseLeave={e => e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.05)"}
-                >
-                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: kpi.color, borderRadius: "12px 12px 0 0" }} />
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, color: C.gray, fontWeight: 500 }}>{kpi.label}</span>
-                    <span style={{ fontSize: 16 }}>{kpi.icon}</span>
-                  </div>
-                  <p style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800, color: C.dark }}>{kpi.value}</p>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 11, color: kpi.change >= 0 ? C.green : C.red, fontWeight: 600 }}>
-                      {kpi.change >= 0 ? "↑" : "↓"} {Math.abs(kpi.change)}%
-                    </span>
-                    <Sparkline data={kpi.sparkline} color={kpi.color} />
-                  </div>
-                </div>
-              ))}
-            </div>
+/* ─── Main Page ─────────────────────────────────────────────────── */
+
+export default function AnalyticsPage() {
+  const { user } = useAuth();
+  const uid = user?.uid ?? null;
+
+  /* ── Firestore data ── */
+  const { data: posts,    loading: loadingPosts }    = useUserCollection<Post>(uid, 'posts',             [orderBy('createdAt', 'desc')]);
+  const { data: accounts, loading: loadingAccounts } = useUserCollection<ConnectedAccount>(uid, 'connectedAccounts');
+  const { data: campaigns, loading: loadingCampaigns } = useUserCollection<Campaign>(uid, 'campanhas');
+
+  /* ── UI state ── */
+  const [period,       setPeriod]       = useState<'7d'|'30d'|'90d'>('30d');
+  const [activeModal,  setActiveModal]  = useState<string | null>(null);
+  const [modalPayload, setModalPayload] = useState<Record<string, unknown>>({});
+
+  const openModal = useCallback((id: string, payload: Record<string, unknown> = {}) => {
+    setActiveModal(id);
+    setModalPayload(payload);
+  }, []);
+  const closeModal = useCallback(() => setActiveModal(null), []);
+
+  const loading = loadingPosts || loadingAccounts;
+
+  /* ── Derived: Post KPIs ── */
+  const postKpis = useMemo(() => {
+    const total      = posts.length;
+    const aprovado   = posts.filter(p => p.status === 'aprovado' || p.status === 'publicado').length;
+    const emAnalise  = posts.filter(p => p.status === 'em_analise' || p.status === 'revisao' || p.status === 'aprovacao_cliente').length;
+    const rejeitado  = posts.filter(p => p.status === 'rejeitado').length;
+    const publicado  = posts.filter(p => p.status === 'publicado').length;
+    const aprovRate  = total > 0 ? (aprovado / total) * 100 : 0;
+    const rejRate    = total > 0 ? (rejeitado / total) * 100 : 0;
+
+    // Period filter
+    const now    = Date.now();
+    const cutoff = now - (period === '7d' ? 7 : period === '30d' ? 30 : 90) * 86400000;
+    const recent = posts.filter(p => {
+      const d = tsToDate(p.createdAt);
+      return d && d.getTime() > cutoff;
+    });
+
+    return { total, aprovado, emAnalise, rejeitado, publicado, aprovRate, rejRate, recent: recent.length };
+  }, [posts, period]);
+
+  /* ── Derived: Posts per month ── */
+  const monthlyData = useMemo(() => {
+    const months = last6MonthKeys();
+    const byMonth: Record<string, { total: number; aprovado: number; rejeitado: number }> = {};
+    months.forEach(m => { byMonth[m.key] = { total: 0, aprovado: 0, rejeitado: 0 }; });
+
+    posts.forEach(p => {
+      const k = getMonthKey(p.createdAt);
+      if (k && byMonth[k]) {
+        byMonth[k]!.total++;
+        if (p.status === 'aprovado' || p.status === 'publicado') byMonth[k]!.aprovado++;
+        if (p.status === 'rejeitado') byMonth[k]!.rejeitado++;
+      }
+    });
+
+    return months.map(m => ({
+      name: m.label,
+      Total: byMonth[m.key]?.total ?? 0,
+      Aprovados: byMonth[m.key]?.aprovado ?? 0,
+      Rejeitados: byMonth[m.key]?.rejeitado ?? 0,
+    }));
+  }, [posts]);
+
+  /* ── Derived: Platform mix ── */
+  const platformMix = useMemo(() => {
+    const counts: Record<string, number> = {};
+    posts.forEach(p => {
+      (p.platforms ?? []).forEach(pl => {
+        counts[pl] = (counts[pl] ?? 0) + 1;
+      });
+    });
+    return Object.entries(counts)
+      .map(([platform, count]) => ({
+        platform,
+        name: PLATFORM_LABEL[platform] ?? platform,
+        count,
+        color: PLATFORM_COLOR[platform] ?? '#9CA3AF',
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [posts]);
+
+  /* ── Derived: Status distribution ── */
+  const statusDist = useMemo(() => {
+    const counts: Record<string, number> = {};
+    posts.forEach(p => { counts[p.status] = (counts[p.status] ?? 0) + 1; });
+    return Object.entries(counts)
+      .map(([status, count]) => ({
+        status,
+        name: STATUS_LABEL[status] ?? status,
+        count,
+        color: STATUS_COLOR[status] ?? '#9CA3AF',
+        pct: posts.length > 0 ? (count / posts.length) * 100 : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [posts]);
+
+  /* ── Derived: Format performance ── */
+  const formatPerf = useMemo(() => {
+    const counts: Record<string, { total: number; aprovado: number }> = {};
+    posts.forEach(p => {
+      if (!p.format) return;
+      if (!counts[p.format]) counts[p.format] = { total: 0, aprovado: 0 };
+      counts[p.format]!.total++;
+      if (p.status === 'aprovado' || p.status === 'publicado') counts[p.format]!.aprovado++;
+    });
+    return Object.entries(counts)
+      .map(([fmt, v]) => ({
+        format: fmt,
+        name: FORMAT_LABEL[fmt] ?? fmt,
+        total: v.total,
+        aprovado: v.aprovado,
+        taxaAprov: v.total > 0 ? Math.round((v.aprovado / v.total) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+  }, [posts]);
+
+  /* ── Derived: Connected accounts KPIs ── */
+  const accountKpis = useMemo(() => {
+    const totalFollowers = accounts.reduce((s, a) => s + (a.followers ?? 0), 0);
+    const avgEngagement  = accounts.length > 0
+      ? accounts.reduce((s, a) => s + (a.engagement ?? 0), 0) / accounts.length
+      : 0;
+    const totalImpressions = accounts.reduce((s, a) => s + (a.impressions ?? 0), 0);
+    const totalReach       = accounts.reduce((s, a) => s + (a.reach ?? 0), 0);
+    return { totalFollowers, avgEngagement, totalImpressions, totalReach };
+  }, [accounts]);
+
+  /* ── Derived: Ads KPIs (from connectedAccounts.adsMetrics) ── */
+  const adsKpis = useMemo(() => {
+    const withAds = accounts.filter(a => a.adsMetrics);
+    if (!withAds.length) return null;
+    return {
+      spend:       withAds.reduce((s, a) => s + (a.adsMetrics?.spend ?? 0), 0),
+      clicks:      withAds.reduce((s, a) => s + (a.adsMetrics?.clicks ?? 0), 0),
+      impressions: withAds.reduce((s, a) => s + (a.adsMetrics?.impressions ?? 0), 0),
+      conversions: withAds.reduce((s, a) => s + (a.adsMetrics?.conversions ?? 0), 0),
+      roas:        withAds.reduce((s, a) => s + (a.adsMetrics?.roas ?? 0), 0) / withAds.length,
+      cpc:         withAds.reduce((s, a) => s + (a.adsMetrics?.cpc ?? 0), 0) / withAds.length,
+    };
+  }, [accounts]);
+
+  /* ── Derived: Radar for platforms ── */
+  const radarData = useMemo(() => {
+    return accounts.slice(0, 6).map(a => ({
+      platform: PLATFORM_LABEL[a.platform] ?? a.platform,
+      Seguidores: Math.min(100, Math.round(((a.followers ?? 0) / Math.max(1, ...accounts.map(x => x.followers ?? 0))) * 100)),
+      Engajamento: Math.min(100, Math.round((a.engagement ?? 0) * 10)),
+      Posts: Math.min(100, Math.round(((a.posts ?? 0) / Math.max(1, ...accounts.map(x => x.posts ?? 0))) * 100)),
+    }));
+  }, [accounts]);
+
+  /* ── Derived: campaign funnel ── */
+  const campaignFunnel = useMemo(() => {
+    const total     = campaigns.length;
+    const ativa     = campaigns.filter(c => c.status === 'ativa').length;
+    const concluida = campaigns.filter(c => c.status === 'concluida').length;
+    const budget    = campaigns.reduce((s, c) => s + (c.budget ?? 0), 0);
+    return { total, ativa, concluida, budget };
+  }, [campaigns]);
+
+  /* ── Recent posts list ── */
+  const recentPosts = useMemo(() => posts.slice(0, 8), [posts]);
+
+  /* ─────────────────────────────────────────────── Render ── */
+
+  if (loading) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-8 bg-gray-100 rounded-xl w-48" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-28 bg-gray-100 rounded-2xl" />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-64 bg-gray-100 rounded-2xl" />)}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 pb-10">
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Analytics & Inteligência</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Visão completa do seu desempenho de conteúdo</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex bg-gray-100 rounded-xl p-1 text-xs font-medium">
+            {(['7d','30d','90d'] as const).map(p => (
+              <button key={p} onClick={() => setPeriod(p)}
+                className={cn('px-3 py-1.5 rounded-lg transition-all', period === p ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700')}>
+                {p === '7d' ? '7 dias' : p === '30d' ? '30 dias' : '90 dias'}
+              </button>
+            ))}
           </div>
-        )}
-
-        {/* ── TIMELINE + FUNNEL ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 20 }}>
-          {visibleSections.timeline && (
-            <SectionCard title="Evolução de Engajamento" subtitle="Linha do tempo com 4 séries — últimos 12 meses">
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={TIMELINE_DATA}>
-                  <defs>
-                    {[C.orange, C.purple, C.blue, "#EC4899"].map((col, i) => (
-                      <linearGradient key={i} id={`grad${i}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={col} stopOpacity={0.2} />
-                        <stop offset="95%" stopColor={col} stopOpacity={0} />
-                      </linearGradient>
-                    ))}
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Area type="monotone" dataKey="curtidas" name="Curtidas" stroke={C.orange} fill="url(#grad0)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="alcance" name="Alcance (K)" stroke={C.blue} fill="url(#grad2)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="comentarios" name="Comentários" stroke={C.purple} fill="url(#grad1)" strokeWidth={2} dot={false} />
-                  <Area type="monotone" dataKey="salvamentos" name="Salvamentos" stroke="#EC4899" fill="url(#grad3)" strokeWidth={2} dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </SectionCard>
-          )}
-
-          {visibleSections.funnel && (
-            <SectionCard title="Funil de Conversão" subtitle="Visitantes → Leads → Vendas">
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {FUNNEL_DATA.map((f, i) => (
-                  <div key={f.label}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600 }}>{f.label}</span>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700 }}>{f.value.toLocaleString("pt-BR")}</span>
-                        <Badge color={f.color} light>{f.pct}%</Badge>
-                      </div>
-                    </div>
-                    <div style={{ height: 10, background: C.border, borderRadius: 5, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${f.pct}%`, background: `linear-gradient(90deg, ${f.color}, ${f.color}cc)`, borderRadius: 5, transition: "width 0.5s ease" }} />
-                    </div>
-                    {i < FUNNEL_DATA.length - 1 && (
-                      <div style={{ textAlign: "center", fontSize: 10, color: C.gray, margin: "2px 0" }}>
-                        ↓ {((FUNNEL_DATA[i+1].value / f.value) * 100).toFixed(1)}% conversão
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <div style={{ marginTop: 12, padding: "8px 12px", background: C.orangeSoft, borderRadius: 8, fontSize: 11, color: "#92400E" }}>
-                💡 Melhore o funil no estágio Engajados → Leads com CTAs diretos nos Stories
-              </div>
-            </SectionCard>
-          )}
         </div>
-
-        {/* ── HEATMAP ── */}
-        {visibleSections.heatmap && (
-          <SectionCard title="Heatmap de Engajamento" subtitle="Densidade de interações por hora e dia da semana (últimos 90 dias)">
-            <div style={{ overflowX: "auto" }}>
-              <div style={{ display: "grid", gridTemplateColumns: `48px repeat(24, 1fr)`, gap: 3, minWidth: 700 }}>
-                {/* Header hours */}
-                <div />
-                {HEATMAP_HOURS.map(h => (
-                  <div key={h} style={{ fontSize: 9, textAlign: "center", color: C.gray, paddingBottom: 4 }}>
-                    {h === 0 || h % 3 === 0 ? `${String(h).padStart(2,"0")}` : ""}
-                  </div>
-                ))}
-                {/* Rows */}
-                {HEATMAP_DAYS.map((day, di) => (
-                  <>
-                    <div key={`label-${day}`} style={{ fontSize: 11, color: C.gray, display: "flex", alignItems: "center", paddingRight: 8 }}>{day}</div>
-                    {HEATMAP_HOURS.map(h => {
-                      const val = HEATMAP_DATA[`${day}-${h}`] || 0;
-                      const isGolden = ["Seg","Ter","Qua","Qui"].includes(day) && h >= 19 && h <= 21;
-                      const alpha = val / 100;
-                      return (
-                        <div
-                          key={`${day}-${h}`}
-                          onClick={() => setActiveHeatCell({ day, hour: h })}
-                          title={`${day} ${h}:00 · ${val}/100`}
-                          style={{
-                            aspectRatio: "1",
-                            borderRadius: 3,
-                            background: isGolden
-                              ? `rgba(249,115,22,${0.3 + alpha * 0.7})`
-                              : `rgba(249,115,22,${alpha * 0.85})`,
-                            border: isGolden ? `1px solid ${C.orange}` : "1px solid transparent",
-                            cursor: "pointer",
-                            transition: "transform 0.1s",
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.3)"; e.currentTarget.style.zIndex = "10"; }}
-                          onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.zIndex = "1"; }}
-                        />
-                      );
-                    })}
-                  </>
-                ))}
-              </div>
-            </div>
-            <div style={{ marginTop: 16, padding: "10px 14px", background: "#FFF7ED", borderRadius: 10, border: `1px solid ${C.orangeLight}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <span style={{ fontSize: 18 }}>🏆</span>
-                <div>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: C.orange }}>Janela de Ouro detectada</p>
-                  <p style={{ margin: 0, fontSize: 12, color: "#92400E" }}>Terça a Quinta · 19h–21h entrega +47% de velocity inicial. Clique para ver insights e aplicar.</p>
-                </div>
-              </div>
-              <button style={{ fontSize: 12, color: C.orange, background: "none", border: "none", cursor: "pointer", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                Ver insights <ChevronRight size={14} />
-              </button>
-            </div>
-          </SectionCard>
-        )}
-
-        {/* ── DEMOGRAPHICS + GEO ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-          {visibleSections.demo && (
-            <SectionCard title="Demografia da Audiência" subtitle="Clique em uma barra ou no donut para insights detalhados">
-              <div style={{ display: "flex", gap: 16 }}>
-                <div style={{ flex: 1 }}>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={AGE_DATA} barSize={14}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-                      <XAxis dataKey="faixa" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                      <Bar dataKey="f" name="Feminino" fill={C.orange} stackId="a" radius={[0,0,0,0]} cursor="pointer"
-                        onClick={(d) => setActiveAge(d)} />
-                      <Bar dataKey="m" name="Masculino" fill={C.purple} stackId="a" radius={[3,3,0,0]} cursor="pointer"
-                        onClick={(d) => setActiveAge(d)} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                  <p style={{ textAlign: "center", fontSize: 10, color: C.gray, marginTop: 4 }}>Faixa etária · % da audiência · clique para detalhes</p>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                  <PieChart width={120} height={120}>
-                    <Pie data={GENDER_DATA} cx={55} cy={55} innerRadius={32} outerRadius={52} dataKey="value"
-                      cursor="pointer" onClick={(d) => setActiveGender(d)}>
-                      {GENDER_DATA.map((g, i) => <Cell key={i} fill={g.color} />)}
-                    </Pie>
-                  </PieChart>
-                  <div style={{ fontSize: 11 }}>
-                    {GENDER_DATA.map(g => (
-                      <div key={g.name} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: g.color }} />
-                        <span>{g.name} {g.value}%</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </SectionCard>
-          )}
-
-          {visibleSections.geo && (
-            <SectionCard title="Alcance Geográfico" subtitle="Top localizações · clique em uma linha para insights">
-              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                {["cidades","regioes","paises"].map(tab => (
-                  <button key={tab} onClick={() => setGeoTab(tab)}
-                    style={{ padding: "5px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
-                      background: geoTab === tab ? C.orange : C.grayLight, color: geoTab === tab ? "#fff" : C.gray }}>
-                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  </button>
-                ))}
-              </div>
-              {LOCATIONS[geoTab].map(loc => (
-                <div key={loc.name} onClick={() => setActiveLocation(loc)}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.border}`, cursor: "pointer" }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#FAFAFA"}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <MapPin size={12} color={C.orange} style={{ flexShrink: 0 }} />
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{loc.name}</span>
-                  <div style={{ width: 80, height: 5, background: C.border, borderRadius: 3 }}>
-                    <div style={{ height: "100%", width: `${(loc.pct / LOCATIONS[geoTab][0].pct) * 100}%`, background: C.orange, borderRadius: 3 }} />
-                  </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, width: 40, textAlign: "right" }}>{loc.pct}%</span>
-                </div>
-              ))}
-            </SectionCard>
-          )}
-        </div>
-
-        {/* ── PLATFORM RADAR + CONTENT TYPES ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-          {visibleSections.platforms && (
-            <SectionCard title="Performance por Plataforma" subtitle="Comparativo multidimensional · clique em uma plataforma para detalhes">
-              <ResponsiveContainer width="100%" height={260}>
-                <RadarChart data={PLATFORM_RADAR}>
-                  <PolarGrid stroke="#F3F4F6" />
-                  <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11 }} />
-                  {Object.entries(PLATFORM_COLORS).map(([p, col]) => (
-                    <Radar key={p} name={p} dataKey={p} stroke={col} fill={col} fillOpacity={0.08} strokeWidth={2} />
-                  ))}
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </SectionCard>
-          )}
-
-          {visibleSections.content && (
-            <SectionCard title="Performance por Tipo de Conteúdo" subtitle="Engajamento médio e alcance por formato · clique para detalhes">
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {CONTENT_TYPES.sort((a, b) => b.eng - a.eng).map(ct => (
-                  <div key={ct.type} onClick={() => setActiveContent(ct)}
-                    style={{ cursor: "pointer", padding: "6px 10px", borderRadius: 8, transition: "background 0.1s" }}
-                    onMouseEnter={e => e.currentTarget.style.background = "#F9FAFB"}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                      <div>
-                        <span style={{ fontSize: 13, fontWeight: 700 }}>{ct.type} </span>
-                        <span style={{ fontSize: 11, color: C.gray }}>{ct.posts} posts · alcance {ct.alcance}</span>
-                      </div>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: ct.color }}>{ct.eng}%</span>
-                    </div>
-                    <div style={{ height: 8, background: C.border, borderRadius: 4 }}>
-                      <div style={{ height: "100%", width: `${(ct.eng / 7.5) * 100}%`, background: ct.color, borderRadius: 4, transition: "width 0.5s" }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
-          )}
-        </div>
-
-        {/* ── ROI CALCULATOR ── */}
-        {visibleSections.roi && (
-          <SectionCard title="Calculadora de ROI" subtitle="Retorno sobre investimento + ROAS, CPA, Hook Rate">
-            <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-              {["organico","pago"].map(m => (
-                <button key={m} onClick={() => setRoiMode(m)}
-                  style={{ padding: "5px 16px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
-                    background: roiMode === m ? C.orange : C.grayLight, color: roiMode === m ? "#fff" : C.gray }}>
-                  {m.charAt(0).toUpperCase() + m.slice(1)}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16, marginBottom: 20 }}>
-              {[
-                { label: "RECEITA ATRIBUÍDA (R$)", key: "receita" },
-                { label: "INVESTIMENTO EM MÍDIA (R$)", key: "investimento" },
-                { label: "CUSTO CRIATIVO (R$)", key: "criativo" },
-                { label: "CONVERSÕES", key: "conversoes" },
-                { label: "HORAS DE GESTÃO", key: "horas" },
-                { label: "TAXA POR HORA (R$)", key: "taxa" },
-              ].map(f => (
-                <div key={f.key}>
-                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: C.gray, letterSpacing: 0.5, marginBottom: 4 }}>{f.label}</label>
-                  <input
-                    type="number"
-                    value={roi[f.key]}
-                    onChange={e => setRoi(p => ({ ...p, [f.key]: +e.target.value }))}
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 14, fontWeight: 600, color: C.dark, background: "#fff" }}
-                  />
-                </div>
-              ))}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12 }}>
-              {[
-                { label: "INVESTIDO", value: `R$ ${roiCalc.total.toLocaleString("pt-BR")}`, color: C.dark },
-                { label: "ROI", value: `${roiCalc.roi >= 0 ? "+" : ""}${roiCalc.roi.toFixed(0)}%`, color: roiCalc.roi >= 0 ? C.green : C.red },
-                { label: "ROAS", value: `${roiCalc.roas.toFixed(2)}x`, color: C.blue },
-                { label: "CPA", value: `R$ ${roiCalc.cpa.toFixed(0)}`, color: C.orange },
-                { label: "HOOK RATE", value: `${roiCalc.hook.toFixed(1)}%`, color: C.purple },
-              ].map(s => (
-                <div key={s.label} style={{ textAlign: "center", padding: 14, background: C.grayLight, borderRadius: 10 }}>
-                  <p style={{ margin: "0 0 6px", fontSize: 10, fontWeight: 700, letterSpacing: 0.5, color: C.gray }}>{s.label}</p>
-                  <p style={{ margin: 0, fontSize: 20, fontWeight: 800, color: s.color }}>{s.value}</p>
-                </div>
-              ))}
-            </div>
-            <p style={{ fontSize: 10, color: "#9CA3AF", textAlign: "center", marginTop: 12 }}>
-              ROI = (Receita − Investimento Total) ÷ Investimento Total · ROAS = Receita ÷ Mídia · CPA = Custo ÷ Conversões
-            </p>
-          </SectionCard>
-        )}
       </div>
 
-      {/* ── CUSTOMIZE DRAWER ── */}
-      {customizeOpen && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 200 }} onClick={() => setCustomizeOpen(false)}>
-          <div style={{
-            position: "absolute", top: 0, right: 0, width: 300, height: "100vh",
-            background: "#fff", boxShadow: "-8px 0 32px rgba(0,0,0,0.12)",
-            padding: 24, overflowY: "auto", display: "flex", flexDirection: "column"
-          }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Personalizar visão</h3>
-                <p style={{ margin: "3px 0 0", fontSize: 12, color: C.gray }}>{Object.values(visibleSections).filter(Boolean).length} de {SECTIONS.length} seções visíveis</p>
-              </div>
-              <button onClick={() => setCustomizeOpen(false)} style={{ background: "none", border: "none", cursor: "pointer" }}>
-                <X size={18} />
-              </button>
-            </div>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
-              {SECTIONS.map(s => (
-                <div key={s.id} onClick={() => toggleSection(s.id)}
-                  style={{ display: "flex", gap: 12, alignItems: "center", padding: "10px 12px", borderRadius: 10, border: `1px solid ${C.border}`, cursor: "pointer", background: visibleSections[s.id] ? "#FFF7ED" : "#fff" }}>
-                  <div style={{ width: 22, height: 22, borderRadius: 6, background: visibleSections[s.id] ? C.orange : "#D1D5DB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    {visibleSections[s.id] && <span style={{ color: "#fff", fontSize: 14 }}>✓</span>}
-                  </div>
-                  <div>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>{s.label}</p>
-                    <p style={{ margin: 0, fontSize: 11, color: C.gray }}>{s.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-              <button onClick={() => setVisibleSections(Object.fromEntries(SECTIONS.map(s => [s.id, true])))}
-                style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: `1px solid ${C.border}`, background: "#fff", cursor: "pointer", fontSize: 13 }}>
-                Mostrar todas
-              </button>
-              <button onClick={() => setCustomizeOpen(false)}
-                style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: C.orange, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-                Aplicar
-              </button>
-            </div>
+      {/* ── KPI Grid — Posts ── */}
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Produção de Conteúdo</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <KpiTile label="Total de Posts" value={formatNumber(postKpis.total)} icon={FileText} color="#7C3AED"
+            trend={postKpis.recent > 0 ? ((postKpis.recent / Math.max(1, postKpis.total)) * 100) : undefined}
+            sub={`${postKpis.recent} no período`}
+            onClick={() => openModal('posts-status', {})} />
+          <KpiTile label="Aprovados" value={formatNumber(postKpis.aprovado)} icon={CheckCircle} color="#22C55E"
+            trend={postKpis.aprovRate} sub={`${formatPercent(postKpis.aprovRate)} de aprovação`}
+            onClick={() => openModal('posts-aprovados', {})} />
+          <KpiTile label="Em Análise" value={formatNumber(postKpis.emAnalise)} icon={Clock} color="#F59E0B"
+            onClick={() => openModal('posts-analise', {})} />
+          <KpiTile label="Rejeitados" value={formatNumber(postKpis.rejeitado)} icon={XCircle} color="#EF4444"
+            trend={-postKpis.rejRate}
+            onClick={() => openModal('posts-rejeitados', {})} />
+          <KpiTile label="Publicados" value={formatNumber(postKpis.publicado)} icon={Share2} color="#FF5C00"
+            onClick={() => openModal('posts-publicados', {})} />
+        </div>
+      </div>
+
+      {/* ── KPI Grid — Contas ── */}
+      {accounts.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Redes Conectadas</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <KpiTile label="Total de Seguidores" value={formatNumber(accountKpis.totalFollowers)} icon={Users} color="#0A66C2"
+              onClick={() => openModal('accounts-detail', {})} />
+            <KpiTile label="Engaj. Médio" value={formatPercent(accountKpis.avgEngagement)} icon={Heart} color="#E1306C"
+              onClick={() => openModal('accounts-detail', {})} />
+            <KpiTile label="Impressões" value={formatNumber(accountKpis.totalImpressions)} icon={Eye} color="#7C3AED"
+              sub="Meta acumulado" onClick={() => openModal('accounts-detail', {})} />
+            <KpiTile label="Alcance" value={formatNumber(accountKpis.totalReach)} icon={TrendingUp} color="#22C55E"
+              onClick={() => openModal('accounts-detail', {})} />
           </div>
         </div>
       )}
 
-      {/* ── MODALS ── */}
-      <KpiModal kpi={activeKpi} onClose={() => setActiveKpi(null)} />
-      <HeatmapModal cell={activeHeatCell} onClose={() => setActiveHeatCell(null)} />
-      <AgeModal age={activeAge} onClose={() => setActiveAge(null)} />
-      <GenderModal gender={activeGender} onClose={() => setActiveGender(null)} />
-      <LocationModal loc={activeLocation} onClose={() => setActiveLocation(null)} />
-      <ContentModal content={activeContent} onClose={() => setActiveContent(null)} />
+      {/* ── KPI Grid — Ads ── */}
+      {adsKpis && (
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Tráfego Pago (Meta)</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <KpiTile label="Investido" value={formatCurrency(adsKpis.spend)} icon={BarChart2} color="#1877F2" />
+            <KpiTile label="Cliques" value={formatNumber(adsKpis.clicks)} icon={TrendingUp} color="#7C3AED" />
+            <KpiTile label="Impressões" value={formatNumber(adsKpis.impressions)} icon={Eye} color="#9CA3AF" />
+            <KpiTile label="Conversões" value={formatNumber(adsKpis.conversions)} icon={CheckCircle} color="#22C55E" />
+            <KpiTile label="ROAS" value={`${adsKpis.roas.toFixed(2)}x`} icon={TrendingUp} color="#FF5C00" />
+            <KpiTile label="CPC Médio" value={formatCurrency(adsKpis.cpc)} icon={BarChart2} color="#F59E0B" />
+          </div>
+        </div>
+      )}
+
+      {/* ── Charts Row 1 ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        {/* Posts por mês */}
+        <SectionCard title="Posts por Mês" subtitle="Criados nos últimos 6 meses">
+          {monthlyData.every(m => m.Total === 0) ? (
+            <EmptyChart message="Nenhum post criado ainda" />
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={monthlyData} margin={{ top: 4, right: 0, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)', fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar dataKey="Total" fill="#7C3AED" radius={[4,4,0,0]} />
+                <Bar dataKey="Aprovados" fill="#22C55E" radius={[4,4,0,0]} />
+                <Bar dataKey="Rejeitados" fill="#EF4444" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </SectionCard>
+
+        {/* Mix de plataformas */}
+        <SectionCard title="Mix de Plataformas" subtitle="Distribuição de posts por rede">
+          {platformMix.length === 0 ? (
+            <EmptyChart message="Nenhum post com plataforma definida" />
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="flex-shrink-0">
+                <ResponsiveContainer width={160} height={160}>
+                  <PieChart>
+                    <Pie data={platformMix} dataKey="count" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70}>
+                      {platformMix.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ borderRadius: 10, border: 'none', fontSize: 12 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex-1 space-y-2">
+                {platformMix.map((p) => (
+                  <div key={p.platform} className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: p.color }} />
+                    <span className="text-xs text-gray-600 flex-1">{p.name}</span>
+                    <span className="text-xs font-semibold text-gray-900">{p.count}</span>
+                    <span className="text-[10px] text-gray-400">
+                      {posts.length > 0 ? formatPercent((p.count / posts.length) * 100, 0) : '0%'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </SectionCard>
+      </div>
+
+      {/* ── Charts Row 2 ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        {/* Distribuição de status */}
+        <SectionCard title="Status dos Posts" subtitle="Distribuição atual">
+          {statusDist.length === 0 ? (
+            <EmptyChart message="Nenhum post" />
+          ) : (
+            <div className="space-y-2.5">
+              {statusDist.map(s => (
+                <div key={s.status}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-gray-600">{s.name}</span>
+                    <span className="text-xs font-semibold text-gray-900">{s.count}</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${s.pct}%`, background: s.color }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+
+        {/* Performance por formato */}
+        <SectionCard title="Por Formato" subtitle="Taxa de aprovação por tipo">
+          {formatPerf.length === 0 ? (
+            <EmptyChart message="Nenhum formato identificado" />
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={formatPerf} layout="vertical" margin={{ top: 0, right: 0, bottom: 0, left: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 10 }} domain={[0, 'auto']} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={60} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: 'none', fontSize: 12 }} />
+                <Bar dataKey="total" name="Total" fill="#E5E7EB" radius={[0,4,4,0]} />
+                <Bar dataKey="aprovado" name="Aprovados" fill="#22C55E" radius={[0,4,4,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </SectionCard>
+
+        {/* Radar de contas / campanhas */}
+        <SectionCard title="Radar de Plataformas" subtitle="Comparativo das contas conectadas">
+          {radarData.length === 0 ? (
+            <EmptyChart message="Conecte ao menos uma conta" />
+          ) : (
+            <ResponsiveContainer width="100%" height={200}>
+              <RadarChart data={radarData} cx="50%" cy="50%" outerRadius={70}>
+                <PolarGrid stroke="#f3f4f6" />
+                <PolarAngleAxis dataKey="platform" tick={{ fontSize: 10 }} />
+                <PolarRadiusAxis tick={{ fontSize: 9 }} domain={[0, 100]} />
+                <Radar name="Seguidores" dataKey="Seguidores" stroke="#7C3AED" fill="#7C3AED" fillOpacity={0.15} />
+                <Radar name="Engaj." dataKey="Engajamento" stroke="#E1306C" fill="#E1306C" fillOpacity={0.15} />
+                <Radar name="Posts" dataKey="Posts" stroke="#FF5C00" fill="#FF5C00" fillOpacity={0.1} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: 'none', fontSize: 12 }} />
+              </RadarChart>
+            </ResponsiveContainer>
+          )}
+        </SectionCard>
+      </div>
+
+      {/* ── Contas conectadas ── */}
+      {accounts.length > 0 && (
+        <SectionCard title="Contas Conectadas" subtitle={`${accounts.length} conta(s) ativa(s)`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-100">
+                  <th className="text-left pb-2 font-medium">Plataforma</th>
+                  <th className="text-right pb-2 font-medium">Seguidores</th>
+                  <th className="text-right pb-2 font-medium">Engajamento</th>
+                  <th className="text-right pb-2 font-medium">Impressões</th>
+                  <th className="text-right pb-2 font-medium">Alcance</th>
+                  <th className="text-right pb-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {accounts.map(a => (
+                  <tr key={a.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="py-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg flex items-center justify-center text-white text-[10px] font-bold"
+                          style={{ background: PLATFORM_COLOR[a.platform] ?? '#9CA3AF' }}>
+                          {(PLATFORM_LABEL[a.platform] ?? a.platform).slice(0,2).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{a.name || PLATFORM_LABEL[a.platform]}</p>
+                          {a.handle && <p className="text-gray-400 text-[10px]">@{a.handle}</p>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-2.5 text-right font-semibold text-gray-900">{formatNumber(a.followers ?? 0)}</td>
+                    <td className="py-2.5 text-right">
+                      <span className={cn('font-semibold', (a.engagement ?? 0) > 3 ? 'text-green-600' : 'text-gray-500')}>
+                        {formatPercent(a.engagement ?? 0)}
+                      </span>
+                    </td>
+                    <td className="py-2.5 text-right text-gray-500">{a.impressions ? formatNumber(a.impressions) : '—'}</td>
+                    <td className="py-2.5 text-right text-gray-500">{a.reach ? formatNumber(a.reach) : '—'}</td>
+                    <td className="py-2.5 text-right">
+                      <span className={cn('px-2 py-0.5 rounded-full text-[10px] font-semibold',
+                        a.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
+                        {a.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
+      )}
+
+      {/* ── Ads metrics table ── */}
+      {accounts.some(a => a.adsMetrics) && (
+        <SectionCard title="Métricas de Anúncios (Meta)" subtitle="Dados sincronizados via Meta Ads API">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-100">
+                  <th className="text-left pb-2 font-medium">Conta</th>
+                  <th className="text-right pb-2 font-medium">Investido</th>
+                  <th className="text-right pb-2 font-medium">Cliques</th>
+                  <th className="text-right pb-2 font-medium">CPC</th>
+                  <th className="text-right pb-2 font-medium">CPM</th>
+                  <th className="text-right pb-2 font-medium">CTR</th>
+                  <th className="text-right pb-2 font-medium">ROAS</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {accounts.filter(a => a.adsMetrics).map(a => (
+                  <tr key={a.id} className="hover:bg-gray-50">
+                    <td className="py-2.5 font-medium text-gray-900">{a.name || PLATFORM_LABEL[a.platform]}</td>
+                    <td className="py-2.5 text-right">{formatCurrency(a.adsMetrics!.spend)}</td>
+                    <td className="py-2.5 text-right">{formatNumber(a.adsMetrics!.clicks)}</td>
+                    <td className="py-2.5 text-right">{formatCurrency(a.adsMetrics!.cpc)}</td>
+                    <td className="py-2.5 text-right">{formatCurrency(a.adsMetrics!.cpm)}</td>
+                    <td className="py-2.5 text-right">{formatPercent(a.adsMetrics!.ctr)}</td>
+                    <td className="py-2.5 text-right">
+                      <span className={cn('font-semibold', (a.adsMetrics!.roas ?? 0) >= 2 ? 'text-green-600' : 'text-orange-500')}>
+                        {(a.adsMetrics!.roas ?? 0).toFixed(2)}x
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-3 flex items-center gap-1">
+            <RefreshCw size={10} /> Sincronize as contas na página Contas para atualizar os dados de anúncios.
+          </p>
+        </SectionCard>
+      )}
+
+      {/* ── Campanhas ── */}
+      {campaigns.length > 0 && (
+        <SectionCard title="Campanhas" subtitle={`${campaignFunnel.total} total · ${campaignFunnel.ativa} ativa(s)`}>
+          <div className="grid grid-cols-3 gap-4 mb-5">
+            <div className="bg-blue-50 rounded-xl p-4 text-center">
+              <p className="text-2xl font-bold text-blue-700">{campaignFunnel.ativa}</p>
+              <p className="text-xs text-blue-500 mt-0.5">Ativas</p>
+            </div>
+            <div className="bg-green-50 rounded-xl p-4 text-center">
+              <p className="text-2xl font-bold text-green-700">{campaignFunnel.concluida}</p>
+              <p className="text-xs text-green-500 mt-0.5">Concluídas</p>
+            </div>
+            <div className="bg-orange-50 rounded-xl p-4 text-center">
+              <p className="text-2xl font-bold text-orange-700">{formatCurrency(campaignFunnel.budget)}</p>
+              <p className="text-xs text-orange-500 mt-0.5">Budget total</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {campaigns.slice(0, 5).map(c => (
+              <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors">
+                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: c.color ?? '#9CA3AF' }} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-900 truncate">{c.name}</p>
+                  <p className="text-[10px] text-gray-400">{c.platforms?.map(p => PLATFORM_LABEL[p]).join(', ')}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-semibold text-gray-900">{formatCurrency(c.budget ?? 0)}</p>
+                  <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium',
+                    c.status === 'ativa' ? 'bg-green-100 text-green-700' :
+                    c.status === 'concluida' ? 'bg-gray-100 text-gray-600' :
+                    'bg-yellow-100 text-yellow-700')}>
+                    {c.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      )}
+
+      {/* ── Posts recentes ── */}
+      <SectionCard title="Posts Recentes" subtitle="Últimos criados">
+        {recentPosts.length === 0 ? (
+          <EmptyChart message="Nenhum post criado ainda" />
+        ) : (
+          <div className="space-y-2">
+            {recentPosts.map(p => {
+              const thumb = p.creatives?.[0]?.url;
+              const platform = p.platforms?.[0];
+              const d = tsToDate(p.createdAt);
+              return (
+                <div key={p.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors">
+                  <div className="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
+                    {thumb
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={thumb} alt="" className="w-full h-full object-cover" />
+                      : <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">🖼️</div>
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-900 truncate">{p.title}</p>
+                    <p className="text-[10px] text-gray-400">
+                      {platform ? (PLATFORM_LABEL[platform] ?? platform) : '—'}
+                      {d ? ` · ${MONTHS_PT[d.getMonth()]} ${d.getDate()}` : ''}
+                    </p>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0"
+                    style={{ background: `${STATUS_COLOR[p.status]}18`, color: STATUS_COLOR[p.status] }}>
+                    {STATUS_LABEL[p.status]}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ── Empty state se sem dados ── */}
+      {posts.length === 0 && accounts.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
+            <BarChart2 size={28} className="text-gray-300" />
+          </div>
+          <h3 className="text-sm font-semibold text-gray-700 mb-1">Nenhum dado ainda</h3>
+          <p className="text-xs text-gray-400 max-w-xs">
+            Crie posts e conecte suas contas de redes sociais para visualizar Analytics aqui.
+          </p>
+        </div>
+      )}
+
+      {/* ── Modals ── */}
+
+      {activeModal === 'posts-status' && (
+        <Modal title="Distribuição de Status" onClose={closeModal}>
+          <div className="space-y-3">
+            {statusDist.map(s => (
+              <div key={s.status} className="flex items-center justify-between p-3 rounded-xl"
+                style={{ background: `${s.color}10` }}>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ background: s.color }} />
+                  <span className="text-sm font-medium text-gray-800">{s.name}</span>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-gray-900">{s.count}</p>
+                  <p className="text-xs text-gray-400">{formatPercent(s.pct)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
+
+      {(activeModal === 'posts-aprovados' || activeModal === 'posts-rejeitados' ||
+        activeModal === 'posts-analise'  || activeModal === 'posts-publicados') && (
+        <Modal
+          title={activeModal === 'posts-aprovados' ? 'Posts Aprovados' : activeModal === 'posts-rejeitados' ? 'Posts Rejeitados' : activeModal === 'posts-analise' ? 'Em Análise' : 'Posts Publicados'}
+          onClose={closeModal}
+        >
+          <div className="space-y-2">
+            {posts.filter(p => {
+              if (activeModal === 'posts-aprovados') return p.status === 'aprovado' || p.status === 'publicado';
+              if (activeModal === 'posts-rejeitados') return p.status === 'rejeitado';
+              if (activeModal === 'posts-analise')  return p.status === 'em_analise' || p.status === 'revisao' || p.status === 'aprovacao_cliente';
+              if (activeModal === 'posts-publicados') return p.status === 'publicado';
+              return false;
+            }).slice(0, 20).map(p => (
+              <div key={p.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50">
+                <div className="w-8 h-8 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
+                  {p.creatives?.[0]?.url
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={p.creatives[0].url} alt="" className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center text-[10px]">🖼️</div>
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-900 truncate">{p.title}</p>
+                  <p className="text-[10px] text-gray-400">{p.platforms?.map(pl => PLATFORM_LABEL[pl]).join(', ')}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
+
+      {activeModal === 'accounts-detail' && (
+        <Modal title="Detalhes das Contas" onClose={closeModal}>
+          <div className="space-y-3">
+            {accounts.map(a => (
+              <div key={a.id} className="p-3 rounded-xl border border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-lg text-white text-[11px] font-bold flex items-center justify-center"
+                      style={{ background: PLATFORM_COLOR[a.platform] ?? '#9CA3AF' }}>
+                      {(PLATFORM_LABEL[a.platform] ?? '?').slice(0,2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-gray-900">{a.name || PLATFORM_LABEL[a.platform]}</p>
+                      {a.handle && <p className="text-[10px] text-gray-400">@{a.handle}</p>}
+                    </div>
+                  </div>
+                  <span className={cn('text-[10px] px-2 py-0.5 rounded-full font-semibold',
+                    a.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500')}>
+                    {a.status}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-gray-50 rounded-lg p-2">
+                    <p className="text-xs font-bold text-gray-900">{formatNumber(a.followers ?? 0)}</p>
+                    <p className="text-[10px] text-gray-400">Seguidores</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-2">
+                    <p className="text-xs font-bold text-gray-900">{formatPercent(a.engagement ?? 0)}</p>
+                    <p className="text-[10px] text-gray-400">Engaj.</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-2">
+                    <p className="text-xs font-bold text-gray-900">{a.posts ?? 0}</p>
+                    <p className="text-[10px] text-gray-400">Posts</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      )}
+
     </div>
   );
 }
