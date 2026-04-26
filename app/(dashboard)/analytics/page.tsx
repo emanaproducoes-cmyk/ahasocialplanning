@@ -9,7 +9,6 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, RadarChart, Radar,
   PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend,
-  BarChart, Bar, Cell,
 } from 'recharts';
 import type { Post, ConnectedAccount } from '@/lib/types';
 
@@ -165,15 +164,13 @@ const RADAR_DATA = [
 
 // Geographic data
 const GEO_DATA = [
-  { city: 'São Paulo, SP',      pct: 28.4, eng: 7.6, peak: '20h', cpm: 11,
+  { city: 'São Paulo, SP',     pct: 28.4, eng: 7.6, peak: '20h', cpm: 11,
     platforms: { Instagram: 10, Facebook: 31, YouTube: 20, TikTok: 23, LinkedIn: 15 },
     color: '#FF5C00' },
-  { city: 'Rio de Janeiro, RJ', pct: 14.1, eng: 6.8, peak: '19h', cpm: 12, platforms: {}, color: '#7C3AED' },
-  { city: 'Belo Horizonte, MG', pct: 7.6,  eng: 5.9, peak: '20h', cpm: 9,  platforms: {}, color: '#3B82F6' },
-  { city: 'Porto Alegre, RS',   pct: 5.8,  eng: 5.2, peak: '18h', cpm: 8,  platforms: {}, color: '#10B981' },
-  { city: 'Curitiba, PR',       pct: 5.2,  eng: 4.7, peak: '21h', cpm: 7,  platforms: {}, color: '#F59E0B' },
-  { city: 'Brasília, DF',       pct: 4.7,  eng: 4.3, peak: '19h', cpm: 9,  platforms: {}, color: '#06B6D4' },
-  { city: 'Salvador, BA',       pct: 4.1,  eng: 4.0, peak: '20h', cpm: 7,  platforms: {}, color: '#F43F5E' },
+  { city: 'Rio de Janeiro, RJ', pct: 14.2, eng: 6.8, peak: '19h', cpm: 12, platforms: {}, color: '#7C3AED' },
+  { city: 'Belo Horizonte, MG', pct: 8.9,  eng: 5.9, peak: '20h', cpm: 9,  platforms: {}, color: '#3B82F6' },
+  { city: 'Curitiba, PR',       pct: 6.1,  eng: 5.2, peak: '18h', cpm: 8,  platforms: {}, color: '#10B981' },
+  { city: 'Porto Alegre, RS',   pct: 4.8,  eng: 4.7, peak: '21h', cpm: 7,  platforms: {}, color: '#F59E0B' },
 ];
 
 // Content types
@@ -184,101 +181,6 @@ const CONTENT_TYPES = [
   { type: 'Foto',      icon: '🖼',  posts: 31, eng: 3.9, reach: 290000, roi: 'Médio', color: '#F59E0B' },
   { type: 'Stories',   icon: '⭕', posts: 45, eng: 2.8, reach: 180000, roi: 'Médio', color: '#10B981' },
 ];
-
-// ─── Audience / Demographics Data ─────────────────────────────────────────────
-
-const AGE_GROUPS = [
-  { range: '13-17', feminino: 3,  masculino: 4,  total: 7  },
-  { range: '18-24', feminino: 11, masculino: 8,  total: 19 },
-  { range: '25-34', feminino: 27, masculino: 22, total: 49 },
-  { range: '35-44', feminino: 8,  masculino: 7,  total: 15 },
-  { range: '45-54', feminino: 3,  masculino: 3,  total: 6  },
-  { range: '55-64', feminino: 1,  masculino: 1,  total: 2  },
-  { range: '65+',   feminino: 1,  masculino: 1,  total: 2  },
-];
-
-const AGE_DETAIL: Record<string, {
-  total: number; feminino: number; masculino: number; engMedio: number;
-  contents: string[]; platforms: string[];
-  insight: string; tom: string; horarios: string; oportunidade: string;
-}> = {
-  '13-17': {
-    total: 7, feminino: 4, masculino: 3, engMedio: 6.2,
-    contents: ['Trends virais', 'Memes', 'Desafios'],
-    platforms: ['TikTok', 'Instagram'],
-    insight: 'Faixa em crescimento — foco em formatos curtos e virais.',
-    tom: 'Descontraído e autêntico. Humor e cultura pop.',
-    horarios: '15h–18h, 21h–23h',
-    oportunidade: 'Esta faixa cresceu 12% nos últimos 90 dias. Aposte em trends e desafios.',
-  },
-  '18-24': {
-    total: 19, feminino: 11, masculino: 8, engMedio: 8.4,
-    contents: ['Reels', 'Bastidores', 'Tendências'],
-    platforms: ['Instagram', 'TikTok', 'YouTube'],
-    insight: 'Alta receptividade a conteúdo autêntico e interativo.',
-    tom: 'Casual e próximo. Linguagem direta e moderna.',
-    horarios: '12h–14h, 20h–23h',
-    oportunidade: 'Esta faixa cresceu 9.1% nos últimos 90 dias. Considere lives interativas.',
-  },
-  '25-34': {
-    total: 49, feminino: 49, masculino: 45, engMedio: 10.1,
-    contents: ['Bastidores', 'Carrosséis educativos', 'Estudos de caso'],
-    platforms: ['Instagram', 'Linkedin', 'YouTube'],
-    insight: 'Faixa de maior poder de compra. Decide com base em prova social e ROI claro.',
-    tom: 'Profissional mas humano. Storytelling com dados, prova social, e propósito de marca.',
-    horarios: '08h, 12h–13h, 19h–21h',
-    oportunidade: 'Esta faixa cresceu 8.4% nos últimos 90 dias. Considere campanha segmentada com pelo menos 3 peças/semana.',
-  },
-  '35-44': {
-    total: 15, feminino: 8, masculino: 7, engMedio: 7.8,
-    contents: ['Artigos', 'Webinars', 'Comparativos'],
-    platforms: ['LinkedIn', 'Facebook', 'YouTube'],
-    insight: 'Consome conteúdo longo e aprofundado. Alta taxa de conversão.',
-    tom: 'Profissional e orientado a resultados. Dados e cases reais.',
-    horarios: '07h–09h, 12h–13h, 18h–20h',
-    oportunidade: 'Esta faixa cresceu 5.3% nos últimos 90 dias. Invista em webinars e conteúdo educativo.',
-  },
-  '45-54': {
-    total: 6, feminino: 3, masculino: 3, engMedio: 5.6,
-    contents: ['Tutoriais', 'Reviews', 'Notícias'],
-    platforms: ['Facebook', 'YouTube', 'LinkedIn'],
-    insight: 'Público fiel com alta taxa de retorno. Prefere conteúdo detalhado.',
-    tom: 'Formal e informativo. Clareza acima de criatividade.',
-    horarios: '08h–10h, 19h–21h',
-    oportunidade: 'Esta faixa cresceu 2.1% nos últimos 90 dias. Foque em tutoriais passo a passo.',
-  },
-  '55-64': {
-    total: 2, feminino: 1, masculino: 1, engMedio: 4.2,
-    contents: ['Notícias', 'Reviews', 'Dicas práticas'],
-    platforms: ['Facebook', 'YouTube'],
-    insight: 'Engajamento sólido mas menor volume. Valoriza confiança e autoridade.',
-    tom: 'Claro, direto e respeitoso. Evite gírias e referências muito recentes.',
-    horarios: '09h–11h, 19h–20h',
-    oportunidade: 'Faixa estável. Mantenha conteúdo consistente sem mudanças bruscas de estilo.',
-  },
-  '65+': {
-    total: 2, feminino: 1, masculino: 1, engMedio: 3.8,
-    contents: ['Notícias', 'Saúde e bem-estar', 'Dicas práticas'],
-    platforms: ['Facebook', 'YouTube'],
-    insight: 'Público crescente nas redes. Fidelidade alta quando conquistada.',
-    tom: 'Simples, acessível e acolhedor. Textos maiores e linguagem clara.',
-    horarios: '10h–12h, 20h–21h',
-    oportunidade: 'Faixa cresceu 4.5% no último trimestre. Oportunidade de nicho pouco explorada.',
-  },
-};
-
-const GENDER_DATA = {
-  feminino: {
-    pct: 54, engMedio: 8.9, tempoNaTela: '3m 12s',
-    platforms: { Instagram: 68, Facebook: 45, YouTube: 38, TikTok: 55, LinkedIn: 28 },
-    insight: 'Sua audiência feminina engaja mais em conteúdos inspiracionais, tutoriais e histórias de transformação. Considere séries de antes & depois.',
-  },
-  masculino: {
-    pct: 41, engMedio: 7.4, tempoNaTela: '2m 38s',
-    platforms: { Instagram: 52, Facebook: 42, YouTube: 32, TikTok: 35, LinkedIn: 32 },
-    insight: 'Sua audiência masculina engaja mais em comparativos, dados e conteúdo técnico. Considere séries de carrosséis com estatísticas.',
-  },
-};
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -369,6 +271,7 @@ function KpiDetailModal({ kpiKey, onClose }: { kpiKey: KpiKey; onClose: () => vo
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[600px] max-h-[85vh] overflow-y-auto">
+        {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
           <div>
             <h3 className="text-[16px] font-bold text-gray-900">{label} · Todas</h3>
@@ -378,6 +281,7 @@ function KpiDetailModal({ kpiKey, onClose }: { kpiKey: KpiKey; onClose: () => vo
         </div>
 
         <div className="p-6 space-y-6">
+          {/* KPI row */}
           <div className="grid grid-cols-4 gap-3">
             {[
               { label: 'TOTAL NO PERÍODO', value: fmt(d.total), color: '#FF5C00', sub: `+${d.variation}% vs anterior` },
@@ -393,6 +297,7 @@ function KpiDetailModal({ kpiKey, onClose }: { kpiKey: KpiKey; onClose: () => vo
             ))}
           </div>
 
+          {/* 12-month trend */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <p className="text-[13px] font-bold text-gray-800">Comparativo Atual × Período Anterior</p>
@@ -417,6 +322,7 @@ function KpiDetailModal({ kpiKey, onClose }: { kpiKey: KpiKey; onClose: () => vo
             </ResponsiveContainer>
           </div>
 
+          {/* Platform breakdown + Top Posts */}
           <div className="grid grid-cols-2 gap-5">
             <div>
               <p className="text-[13px] font-bold text-gray-800 mb-3">Quebra por Plataforma</p>
@@ -459,6 +365,7 @@ function KpiDetailModal({ kpiKey, onClose }: { kpiKey: KpiKey; onClose: () => vo
             </div>
           </div>
 
+          {/* AI Insights */}
           <div>
             <p className="text-[13px] font-bold text-gray-800 mb-3">Insights & Recomendações</p>
             <div className="space-y-2">
@@ -474,7 +381,7 @@ function KpiDetailModal({ kpiKey, onClose }: { kpiKey: KpiKey; onClose: () => vo
                 { icon: '🎯', label: 'Maior contribuição', desc: 'Facebook representa 30% do total — concentre 40% do seu cronograma aqui.', color: 'green' },
                 { icon: '🕐', label: 'Janela ótima', desc: 'Posts publicados entre Ter–Qui das 19h às 21h geram +47% deste KPI no primeiro dia.', color: 'blue' },
                 { icon: '⚡', label: 'Hipótese a testar', desc: 'Adicionar CTA explícito ("salve para depois" / "marque alguém") pode elevar curtidas em 15–22% segundo benchmarks AHA.', color: 'amber' },
-              ].map(({ icon, label, desc }) => (
+              ].map(({ icon, label, desc, color }) => (
                 <div key={label} className="p-3 bg-gray-50 rounded-xl flex items-start gap-3">
                   <span className="w-6 h-6 flex items-center justify-center shrink-0 mt-0.5">{icon}</span>
                   <div>
@@ -486,6 +393,7 @@ function KpiDetailModal({ kpiKey, onClose }: { kpiKey: KpiKey; onClose: () => vo
             </div>
           </div>
 
+          {/* Footer */}
           <div className="flex items-center justify-between pt-2 border-t border-gray-100">
             <button onClick={onClose} className="text-[13px] text-gray-500 hover:text-gray-700 font-medium">Fechar</button>
             <button className="flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold text-white" style={{ background: '#FF5C00' }}>
@@ -514,6 +422,7 @@ function GoldenWindowModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="p-6 space-y-6">
+          {/* Stats row */}
           <div className="grid grid-cols-4 gap-3">
             {[
               { label: 'VELOCITY INICIAL', value: GOLDEN_WINDOW.velocidade, color: '#22C55E', sub: 'Primeiras 4h' },
@@ -529,6 +438,7 @@ function GoldenWindowModal({ onClose }: { onClose: () => void }) {
             ))}
           </div>
 
+          {/* Top 5 */}
           <div>
             <p className="text-[13px] font-bold text-gray-800 mb-3">Top 5 Horários · Maior Lift</p>
             <div className="space-y-2">
@@ -547,6 +457,7 @@ function GoldenWindowModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
+          {/* By platform */}
           <div>
             <p className="text-[13px] font-bold text-gray-800 mb-3">Melhor Horário por Plataforma</p>
             <div className="grid grid-cols-2 gap-2">
@@ -565,6 +476,7 @@ function GoldenWindowModal({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
+          {/* AI Recommendations */}
           <div>
             <p className="text-[13px] font-bold text-gray-800 mb-3">Recomendações para Social Media Manager</p>
             <div className="space-y-2">
@@ -607,22 +519,17 @@ function GoldenWindowModal({ onClose }: { onClose: () => void }) {
 
 function HeatCell({ value, day, hour, onClick }: { value: number; day: number; hour: number; onClick: () => void }) {
   const intensity = value / 100;
-
-  // Color scale from light salmon/pink → medium orange → deep orange-red
-  const getColor = (v: number) => {
-    if (v <= 0) return 'rgba(254, 226, 226, 0.3)';
-    if (v < 15) return `rgba(254, 205, 170, ${0.3 + v * 0.01})`;
-    if (v < 30) return `rgba(253, 165, 110, ${0.4 + v * 0.008})`;
-    if (v < 50) return `rgba(251, 120, 70, ${0.5 + v * 0.005})`;
-    if (v < 70) return `rgba(239, 90, 40, ${0.65 + v * 0.003})`;
-    return `rgba(220, 60, 20, ${0.8 + (v - 70) * 0.006})`;
-  };
+  const bg = intensity > 0.65
+    ? `rgba(255,92,0,${0.4 + intensity * 0.6})`
+    : intensity > 0.35
+    ? `rgba(255,184,0,${0.25 + intensity * 0.5})`
+    : `rgba(229,231,235,${0.3 + intensity * 0.6})`;
 
   return (
     <div
       onClick={onClick}
       className="rounded-sm cursor-pointer hover:scale-125 hover:z-10 relative transition-transform duration-150"
-      style={{ background: getColor(value), width: '100%', paddingBottom: '100%' }}
+      style={{ background: bg, width: '100%', paddingBottom: '100%' }}
       title={`${DAYS_SHORT[day]} ${String(hour).padStart(2,'0')}h — ${value}%`}
     />
   );
@@ -816,165 +723,6 @@ function GeoModal({ city, onClose }: { city: typeof GEO_DATA[0]; onClose: () => 
   );
 }
 
-// ─── Age Group Modal ──────────────────────────────────────────────────────────
-
-function AgeGroupModal({ range, onClose }: { range: string; onClose: () => void }) {
-  const d = AGE_DETAIL[range];
-  if (!d) return null;
-  const PLATFORM_COLORS: Record<string, string> = { Instagram:'#E1306C', Linkedin:'#0A66C2', YouTube:'#FF0000', TikTok:'#010101', Facebook:'#1877F2' };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[520px] max-h-[85vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
-          <div>
-            <h3 className="text-[16px] font-bold text-gray-900">Faixa etária {range}</h3>
-            <p className="text-[12px] text-gray-400">{d.total}% de sua audiência total — análise comportamental e recomendações</p>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400">✕</button>
-        </div>
-        <div className="p-6 space-y-5">
-          {/* Stats */}
-          <div className="grid grid-cols-4 gap-3">
-            {[
-              { label: 'TOTAL NA FAIXA', value: `${d.total}%`, color: '#FF5C00' },
-              { label: 'FEMININO',       value: `${d.feminino}%`, color: '#E1306C', sub: `${Math.round(d.feminino / 2)}% audiência` },
-              { label: 'MASCULINO',      value: `${d.masculino}%`, color: '#7C3AED', sub: `${Math.round(d.masculino / 2)}% audiência` },
-              { label: 'ENG. MÉDIO',     value: `${d.engMedio}%`, color: '#374151', sub: 'vs 5.8% global' },
-            ].map(({ label, value, color, sub }) => (
-              <div key={label} className="text-center">
-                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
-                <p className="text-[18px] font-black leading-none" style={{ color }}>{value}</p>
-                {sub && <p className="text-[10px] text-gray-400 mt-1">{sub}</p>}
-              </div>
-            ))}
-          </div>
-
-          {/* Contents & Platforms */}
-          <div>
-            <p className="text-[12px] font-bold text-gray-800 mb-2">Conteúdos com Melhor Performance</p>
-            <div className="flex flex-wrap gap-2">
-              {d.contents.map(c => (
-                <span key={c} className="px-3 py-1 rounded-full text-[12px] font-semibold text-white" style={{ background: '#FF5C00' }}>{c}</span>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="text-[12px] font-bold text-gray-800 mb-2">Plataformas Preferidas</p>
-            <div className="flex flex-wrap gap-2">
-              {d.platforms.map(p => (
-                <span key={p} className="px-3 py-1 rounded-full text-[12px] font-semibold text-white" style={{ background: PLATFORM_COLORS[p] ?? '#374151' }}>{p}</span>
-              ))}
-            </div>
-          </div>
-
-          {/* AI Insight */}
-          <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl flex items-start gap-3">
-            <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center shrink-0 mt-0.5 text-[10px]">✨</span>
-            <p className="text-[12px] text-purple-900">
-              <span className="font-bold text-purple-700">Insight IA</span> · {d.insight}
-            </p>
-          </div>
-
-          {/* Recommendations */}
-          {[
-            { icon: '💬', label: 'Tom de voz recomendado', desc: d.tom },
-            { icon: '🕐', label: 'Melhores horários para esta faixa', desc: d.horarios },
-            { icon: '📈', label: 'Oportunidade detectada', desc: d.oportunidade },
-          ].map(({ icon, label, desc }) => (
-            <div key={label} className="p-3 bg-gray-50 rounded-xl flex items-start gap-3">
-              <span className="w-6 h-6 flex items-center justify-center shrink-0">{icon}</span>
-              <div>
-                <p className="text-[12px] font-bold text-gray-800">{label}</p>
-                <p className="text-[11px] text-gray-500 mt-0.5">{desc}</p>
-              </div>
-            </div>
-          ))}
-
-          <div className="flex justify-end pt-2 border-t border-gray-100">
-            <button onClick={onClose} className="text-[13px] text-gray-500 font-medium">Fechar</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Gender Modal ─────────────────────────────────────────────────────────────
-
-function GenderModal({ gender, onClose }: { gender: 'feminino' | 'masculino'; onClose: () => void }) {
-  const d = GENDER_DATA[gender];
-  const label = gender === 'feminino' ? 'Feminino' : 'Masculino';
-  const platformColors: Record<string, string> = { Instagram:'#E1306C', Facebook:'#1877F2', YouTube:'#FF0000', TikTok:'#010101', LinkedIn:'#0A66C2' };
-  const maxPlatform = Math.max(...Object.values(d.platforms));
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-[480px] max-h-[85vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
-          <div>
-            <h3 className="text-[16px] font-bold text-gray-900">Gênero · {label}</h3>
-            <p className="text-[12px] text-gray-400">{d.pct}% da sua audiência — comportamento e canais preferidos</p>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400">✕</button>
-        </div>
-        <div className="p-6 space-y-5">
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { label: '% AUDIÊNCIA', value: `${d.pct}%`, color: '#FF5C00' },
-              { label: 'ENG. MÉDIO',  value: `${d.engMedio}%`, color: '#374151', sub: 'vs 5.8% global' },
-              { label: 'TEMPO NA TELA', value: d.tempoNaTela, color: '#374151' },
-            ].map(({ label, value, color, sub }) => (
-              <div key={label} className="text-center">
-                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
-                <p className="text-[20px] font-black leading-none" style={{ color }}>{value}</p>
-                {sub && <p className="text-[10px] text-gray-400 mt-1">{sub}</p>}
-              </div>
-            ))}
-          </div>
-
-          {/* Platform distribution */}
-          <div>
-            <p className="text-[13px] font-bold text-gray-800 mb-3">Distribuição por Plataforma</p>
-            <div className="space-y-2">
-              {Object.entries(d.platforms).map(([plat, pct]) => (
-                <div key={plat} className="flex items-center gap-3">
-                  <span className="text-[12px] font-medium text-gray-600 w-20">{plat}</span>
-                  <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${(pct / maxPlatform) * 100}%`,
-                        background: platformColors[plat] ?? '#FF5C00',
-                      }}
-                    />
-                  </div>
-                  <span className="text-[12px] font-bold text-gray-700 w-8 text-right">{pct}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* AI Insight */}
-          <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl flex items-start gap-3">
-            <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-purple-500 to-orange-400 flex items-center justify-center shrink-0 mt-0.5 text-[10px]">✨</span>
-            <p className="text-[12px] text-purple-900">
-              <span className="font-bold text-purple-700">Insight IA</span> · {d.insight}
-            </p>
-          </div>
-
-          <div className="flex justify-end pt-2 border-t border-gray-100">
-            <button onClick={onClose} className="text-[13px] text-gray-500 font-medium">Fechar</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Customize View Panel ──────────────────────────────────────────────────────
 
 const SECTIONS = [
@@ -1089,7 +837,7 @@ function ConversionFunnel() {
         <p className="text-[12px] text-gray-400">Visitantes → Leads → Vendas (atribuição UTM + Firebase)</p>
       </div>
       <div className="space-y-2.5">
-        {FUNNEL.map((step) => (
+        {FUNNEL.map((step, i) => (
           <div key={step.label}>
             <div className="flex items-center justify-between text-[12px] mb-1">
               <div>
@@ -1127,304 +875,6 @@ function ConversionFunnel() {
   );
 }
 
-// ─── Audience Demographics Section ────────────────────────────────────────────
-
-function AudienceDemographics({
-  onAgeClick,
-  onGenderClick,
-}: {
-  onAgeClick: (range: string) => void;
-  onGenderClick: (gender: 'feminino' | 'masculino') => void;
-}) {
-  // Donut chart via SVG
-  const donutData = [
-    { label: 'Feminino', value: 54, color: '#FF5C00' },
-    { label: 'Masculino', value: 41, color: '#7C3AED' },
-    { label: 'Não informado', value: 5, color: '#E5E7EB' },
-  ];
-  const total = donutData.reduce((a, b) => a + b.value, 0);
-  let cumulative = 0;
-  const cx = 50; const cy = 50; const r = 38; const innerR = 24;
-  const segments = donutData.map(d => {
-    const startAngle = (cumulative / total) * 360 - 90;
-    cumulative += d.value;
-    const endAngle = (cumulative / total) * 360 - 90;
-    const start = polarToCartesian(cx, cy, r, endAngle);
-    const end = polarToCartesian(cx, cy, r, startAngle);
-    const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-    const innerStart = polarToCartesian(cx, cy, innerR, endAngle);
-    const innerEnd = polarToCartesian(cx, cy, innerR, startAngle);
-    return {
-      ...d,
-      path: `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y} L ${innerEnd.x} ${innerEnd.y} A ${innerR} ${innerR} 0 ${largeArc} 1 ${innerStart.x} ${innerStart.y} Z`,
-    };
-  });
-
-  const maxAge = Math.max(...AGE_GROUPS.map(g => g.total));
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-      <div className="flex items-start justify-between mb-5">
-        <div>
-          <h3 className="text-[15px] font-bold text-gray-900">Demografia da Audiência</h3>
-          <p className="text-[12px] text-gray-400">Clique em uma barra ou no donut para insights detalhados</p>
-        </div>
-        <div className="w-7 h-7 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 text-[12px]">
-          👤
-        </div>
-      </div>
-
-      <div className="flex flex-col lg:flex-row items-start gap-6">
-        {/* Bar chart - age groups */}
-        <div className="flex-1 w-full">
-          <div className="flex items-end gap-2 h-44">
-            {AGE_GROUPS.map(group => (
-              <div key={group.range} className="flex-1 flex flex-col items-center gap-1">
-                <div className="w-full flex flex-col items-center gap-0.5 justify-end" style={{ height: '140px' }}>
-                  {/* Feminino bar */}
-                  <button
-                    onClick={() => onAgeClick(group.range)}
-                    className="w-full rounded-t-sm hover:opacity-80 transition-opacity"
-                    style={{
-                      height: `${(group.feminino / maxAge) * 120}px`,
-                      background: '#FF5C00',
-                      minHeight: 4,
-                    }}
-                    title={`Feminino ${group.feminino}%`}
-                  />
-                  {/* Masculino bar */}
-                  <button
-                    onClick={() => onAgeClick(group.range)}
-                    className="w-full hover:opacity-80 transition-opacity"
-                    style={{
-                      height: `${(group.masculino / maxAge) * 120}px`,
-                      background: '#7C3AED',
-                      minHeight: 4,
-                    }}
-                    title={`Masculino ${group.masculino}%`}
-                  />
-                </div>
-                <p className="text-[9px] text-gray-400 whitespace-nowrap">{group.range}</p>
-              </div>
-            ))}
-          </div>
-          <p className="text-[10px] text-gray-400 mt-2 text-center">Faixa etária = % de audiência · clique para detalhes</p>
-        </div>
-
-        {/* Donut */}
-        <div className="flex items-center gap-5 shrink-0">
-          <svg viewBox="0 0 100 100" className="w-28 h-28">
-            {segments.map(s => (
-              <path
-                key={s.label}
-                d={s.path}
-                fill={s.color}
-                className="cursor-pointer hover:opacity-80 transition-opacity"
-                onClick={() => {
-                  if (s.label === 'Feminino') onGenderClick('feminino');
-                  else if (s.label === 'Masculino') onGenderClick('masculino');
-                }}
-              />
-            ))}
-          </svg>
-          <div className="space-y-2">
-            {donutData.map(d => (
-              <button
-                key={d.label}
-                onClick={() => {
-                  if (d.label === 'Feminino') onGenderClick('feminino');
-                  else if (d.label === 'Masculino') onGenderClick('masculino');
-                }}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity text-left"
-              >
-                <span className="w-3 h-3 rounded-full shrink-0" style={{ background: d.color }} />
-                <span className="text-[12px] text-gray-700">{d.label}</span>
-                <span className="text-[12px] font-bold text-gray-900">{d.value}%</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
-  const rad = (angleDeg * Math.PI) / 180;
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
-}
-
-// ─── Geographic Reach Section ─────────────────────────────────────────────────
-
-type GeoTab = 'Cidades' | 'Regiões' | 'Países';
-
-function GeoSection({ onCityClick }: { onCityClick: (city: typeof GEO_DATA[0]) => void }) {
-  const [tab, setTab] = useState<GeoTab>('Cidades');
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-      <div className="flex items-start justify-between mb-5">
-        <div>
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-[#FF5C00]">📍</span>
-            <h3 className="text-[15px] font-bold text-gray-900">Alcance Geográfico</h3>
-          </div>
-          <p className="text-[12px] text-gray-400">Top localizações · clique em uma linha para insights</p>
-        </div>
-        <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1">
-          {(['Cidades', 'Regiões', 'Países'] as GeoTab[]).map(t => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={cn(
-                'px-3 py-1 rounded-lg text-[11px] font-semibold transition-all',
-                tab === t ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-              )}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        {GEO_DATA.map(city => (
-          <button
-            key={city.city}
-            onClick={() => onCityClick(city)}
-            className="w-full flex items-center gap-3 hover:bg-gray-50 rounded-xl px-2 py-2 transition-colors text-left group"
-          >
-            <div className="w-2 h-2 rounded-full shrink-0" style={{ background: city.color }} />
-            <div className="flex-1 min-w-0">
-              <p className="text-[13px] font-semibold text-gray-800 group-hover:text-gray-900">{city.city}</p>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full"
-                  style={{ width: `${(city.pct / GEO_DATA[0].pct) * 100}%`, background: city.color }}
-                />
-              </div>
-              <span className="text-[13px] font-bold text-gray-700 w-10 text-right">{city.pct}%</span>
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── ROI Calculator ───────────────────────────────────────────────────────────
-
-function RoiCalculator() {
-  const [mode, setMode] = useState<'Orgânico' | 'Pago'>('Pago');
-  const [values, setValues] = useState({
-    receita: 48000,
-    midia: 8500,
-    criativo: 2400,
-    conversoes: 612,
-    horas: 36,
-    taxaPorHora: 180,
-  });
-
-  const investimentoTotal = values.midia + values.criativo + (values.horas * values.taxaPorHora);
-  const roi = investimentoTotal > 0 ? ((values.receita - investimentoTotal) / investimentoTotal) * 100 : 0;
-  const roas = values.midia > 0 ? values.receita / values.midia : 0;
-  const cpa = values.conversoes > 0 ? investimentoTotal / values.conversoes : 0;
-  const hookRate = 24.6; // mock
-
-  const handleChange = (key: keyof typeof values) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = parseFloat(e.target.value.replace(/[^0-9.]/g, '')) || 0;
-    setValues(prev => ({ ...prev, [key]: v }));
-  };
-
-  const inputClass = "w-full border-0 border-b border-gray-200 py-2 text-[14px] font-semibold text-gray-900 bg-transparent focus:outline-none focus:border-[#FF5C00] transition-colors";
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h3 className="text-[15px] font-bold text-gray-900">Calculadora de ROI</h3>
-          <p className="text-[12px] text-gray-400">Retorno sobre investimento + ROAS, CPA, Hook Rate</p>
-        </div>
-        <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1">
-          {(['Orgânico', 'Pago'] as const).map(m => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={cn(
-                'px-4 py-1.5 rounded-lg text-[12px] font-semibold transition-all',
-                mode === m ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-              )}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Inputs grid */}
-      <div className="grid grid-cols-2 gap-x-8 gap-y-4 mb-6">
-        {[
-          { label: 'RECEITA ATRIBUÍDA (R$)', key: 'receita' as const },
-          { label: 'INVESTIMENTO EM MÍDIA (R$)', key: 'midia' as const },
-          { label: 'CUSTO CRIATIVO (R$)', key: 'criativo' as const },
-          { label: 'CONVERSÕES', key: 'conversoes' as const },
-          { label: 'HORAS DE GESTÃO', key: 'horas' as const },
-          { label: 'TAXA POR HORA (R$)', key: 'taxaPorHora' as const },
-        ].map(({ label, key }) => (
-          <div key={key}>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">{label}</p>
-            <input
-              type="text"
-              className={inputClass}
-              value={values[key]}
-              onChange={handleChange(key)}
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* Results bar */}
-      <div className="grid grid-cols-5 gap-2 pt-4 border-t border-gray-100">
-        <div className="text-center bg-gray-50 rounded-xl p-3">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">INVESTIDO</p>
-          <p className="text-[16px] font-black text-gray-900">{fmtCurrency(investimentoTotal)}</p>
-        </div>
-        <div className="text-center bg-green-50 rounded-xl p-3">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">ROI</p>
-          <p className="text-[20px] font-black" style={{ color: roi >= 0 ? '#22C55E' : '#EF4444' }}>
-            {roi >= 0 ? '+' : ''}{roi.toFixed(0)}%
-          </p>
-        </div>
-        <div className="text-center bg-gray-50 rounded-xl p-3">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">ROAS</p>
-          <p className="text-[16px] font-black text-gray-900">{roas.toFixed(2)}x</p>
-        </div>
-        <div className="text-center bg-gray-50 rounded-xl p-3">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">CPA</p>
-          <p className="text-[16px] font-black text-gray-900">{fmtCurrency(cpa)}</p>
-        </div>
-        <div className="text-center bg-gray-50 rounded-xl p-3">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">HOOK</p>
-          <p className="text-[16px] font-black" style={{ color: '#FF5C00' }}>{hookRate}%</p>
-          <p className="text-[9px] text-gray-400">3s/imp</p>
-        </div>
-      </div>
-
-      {/* Formula footer */}
-      <p className="text-center text-[10px] text-gray-300 mt-3">
-        ROI = (Receita − Investimento Total) ÷ Investimento Total × 100 · ROAS = Receita ÷ Mídia · CPA = Custo ÷ Conversões
-      </p>
-
-      {/* Footer tag */}
-      <div className="flex items-center justify-center gap-2 mt-4 pt-3 border-t border-gray-50">
-        <span className="text-[10px] text-gray-400">⚡ Dados em tempo real via Firebase · Atribuição UTM + Lead Scoring habilitados</span>
-      </div>
-    </div>
-  );
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 type ModalState =
@@ -1433,8 +883,6 @@ type ModalState =
   | { type: 'heatcell'; day: number; hour: number; value: number }
   | { type: 'content'; item: typeof CONTENT_TYPES[0] }
   | { type: 'geo'; city: typeof GEO_DATA[0] }
-  | { type: 'age'; range: string }
-  | { type: 'gender'; gender: 'feminino' | 'masculino' }
   | null;
 
 const PLATFORM_FILTERS: { key: PlatformFilter; label: string; color: string }[] = [
@@ -1468,6 +916,7 @@ export default function AnalyticsPage() {
 
   const toggleSection = (id: string) => setSections(s => ({ ...s, [id]: !s[id] }));
 
+  // Which KPI keys to show based on category
   const activeKpis: KpiKey[] = categoryFilter === 'alcance'
     ? REACH_KPIS
     : ENGAGEMENT_KPIS;
@@ -1481,8 +930,6 @@ export default function AnalyticsPage() {
       {modal?.type === 'heatcell' && <HeatCellModal day={modal.day} hour={modal.hour} value={modal.value} onClose={() => setModal(null)} />}
       {modal?.type === 'content'  && <ContentTypeModal type={modal.item} onClose={() => setModal(null)} />}
       {modal?.type === 'geo'      && <GeoModal city={modal.city} onClose={() => setModal(null)} />}
-      {modal?.type === 'age'      && <AgeGroupModal range={modal.range} onClose={() => setModal(null)} />}
-      {modal?.type === 'gender'   && <GenderModal gender={modal.gender} onClose={() => setModal(null)} />}
 
       {/* Customize Panel */}
       <CustomizePanel
@@ -1505,6 +952,7 @@ export default function AnalyticsPage() {
 
       {/* ── Filter Bar ── */}
       <div className="flex items-center gap-2 flex-wrap">
+        {/* Platform filters */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {PLATFORM_FILTERS.map(({ key, label, color }) => (
             <button
@@ -1528,6 +976,7 @@ export default function AnalyticsPage() {
 
         <div className="w-px h-5 bg-gray-200" />
 
+        {/* Category filters */}
         <div className="flex items-center gap-1">
           {CATEGORY_FILTERS.map(({ key, label }) => (
             <button
@@ -1544,6 +993,7 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Period selector */}
           <select
             value={period}
             onChange={e => setPeriod(e.target.value)}
@@ -1552,6 +1002,7 @@ export default function AnalyticsPage() {
             {['7 dias', '30 dias', '90 dias'].map(p => <option key={p}>{p}</option>)}
           </select>
 
+          {/* Customize */}
           <button
             onClick={() => setShowCustomize(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-semibold text-gray-600 bg-white border border-gray-200 hover:border-gray-300 transition-all"
@@ -1559,17 +1010,19 @@ export default function AnalyticsPage() {
             <span>⊞</span> Personalizar visão
           </button>
 
+          {/* Export */}
           <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[12px] font-semibold text-gray-600 bg-white border border-gray-200 hover:border-gray-300">
             <span>⬇</span> Exportar
           </button>
 
+          {/* AI Insights */}
           <button className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-[12px] font-semibold text-white shadow-sm" style={{ background: '#FF5C00' }}>
             ✨ Insights IA
           </button>
         </div>
       </div>
 
-      {/* ── KPIs ── */}
+      {/* ── KPI Label ── */}
       {sections.kpis && (
         <div>
           <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
@@ -1602,121 +1055,119 @@ export default function AnalyticsPage() {
 
       {/* ── Heatmap ── */}
       {sections.heatmap && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="p-6 pb-4">
-            <div className="flex items-start justify-between mb-5">
-              <div>
-                <h3 className="text-[15px] font-bold text-gray-900">Heatmap de Engajamento</h3>
-                <p className="text-[12px] text-gray-400">Densidade de interações por hora e dia da semana (últimos 90 dias)</p>
-              </div>
-              <div className="flex items-center gap-4">
-                {/* Legend */}
-                <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                  <span className="text-gray-400">Baixo</span>
-                  <div className="flex gap-0.5">
-                    {['rgba(254,226,226,0.5)', 'rgba(254,180,150,0.7)', 'rgba(251,120,70,0.8)', 'rgba(239,80,30,0.9)', 'rgba(210,50,10,1)'].map((c, i) => (
-                      <span key={i} className="w-4 h-2.5 rounded-sm inline-block" style={{ background: c }} />
-                    ))}
-                  </div>
-                  <span className="text-gray-400">Alto</span>
-                </div>
-              </div>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <div className="flex items-start justify-between mb-5">
+            <div>
+              <h3 className="text-[15px] font-bold text-gray-900">Heatmap de Engajamento</h3>
+              <p className="text-[12px] text-gray-400">Densidade de interações por hora e dia da semana (últimos 90 dias)</p>
             </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4 text-[10px] text-gray-400">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-gray-200 inline-block" />Baixo</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-300 inline-block" />Médio</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[#FF5C00] inline-block" />Alto</span>
+              </div>
+              <button
+                onClick={() => setModal({ type: 'golden' })}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold text-white shadow-sm"
+                style={{ background: '#FF5C00' }}
+              >
+                ⭐ Janela de Ouro
+              </button>
+            </div>
+          </div>
 
-            <div className="overflow-x-auto">
-              <div style={{ minWidth: 700 }}>
-                {/* Hour labels */}
-                <div className="flex mb-1 ml-9">
-                  {HOURS.map(h => (
-                    <div key={h} className="flex-1 text-center text-[8px] text-gray-300 font-medium">
-                      {h % 3 === 0 ? `${String(h).padStart(2,'0')}` : ''}
-                    </div>
-                  ))}
-                </div>
-                {/* Rows */}
-                {DAYS_SHORT.map((day, d) => (
-                  <div key={day} className="flex items-center mb-0.5 gap-0.5">
-                    <div className="text-[10px] text-gray-400 font-medium w-8 text-right pr-1 shrink-0">{day}</div>
-                    {HOURS.map(h => (
-                      <div key={h} className="flex-1">
-                        <HeatCell
-                          value={HEATMAP[d][h]}
-                          day={d} hour={h}
-                          onClick={() => setModal({ type: 'heatcell', day: d, hour: h, value: HEATMAP[d][h] })}
-                        />
-                      </div>
-                    ))}
+          <div className="overflow-x-auto">
+            <div style={{ minWidth: 700 }}>
+              {/* Hour labels */}
+              <div className="flex mb-1 ml-9">
+                {HOURS.map(h => (
+                  <div key={h} className="flex-1 text-center text-[8px] text-gray-300 font-medium">
+                    {h % 3 === 0 ? `${String(h).padStart(2,'0')}` : ''}
                   </div>
                 ))}
               </div>
+              {/* Rows */}
+              {DAYS_SHORT.map((day, d) => (
+                <div key={day} className="flex items-center mb-0.5 gap-0.5">
+                  <div className="text-[10px] text-gray-400 font-medium w-8 text-right pr-1 shrink-0">{day}</div>
+                  {HOURS.map(h => (
+                    <div key={h} className="flex-1">
+                      <HeatCell
+                        value={HEATMAP[d][h]}
+                        day={d} hour={h}
+                        onClick={() => setModal({ type: 'heatcell', day: d, hour: h, value: HEATMAP[d][h] })}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ))}
             </div>
-          </div>
-
-          {/* Golden Window banner at the bottom - fidelity to screenshot */}
-          <div
-            className="flex items-center justify-between px-6 py-3"
-            style={{ background: '#FFF7F0', borderTop: '1px solid #FFE5CC' }}
-          >
-            <div className="flex items-center gap-3">
-              <div
-                className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-                style={{ background: '#FF5C00' }}
-              >
-                <span className="text-white text-[13px]">⭐</span>
-              </div>
-              <div>
-                <span className="text-[13px] font-bold text-gray-900">Janela de Ouro detectada</span>
-                <span className="text-[12px] text-gray-600 ml-2">
-                  Terça a Quinta · <strong>19h–21h</strong> entrega{' '}
-                  <span className="font-bold text-[#FF5C00]">+47%</span> de velocity inicial. Clique para ver insights e aplicar.
-                </span>
-              </div>
-            </div>
-            <button
-              onClick={() => setModal({ type: 'golden' })}
-              className="text-[12px] font-bold whitespace-nowrap"
-              style={{ color: '#FF5C00' }}
-            >
-              Ver insights →
-            </button>
           </div>
         </div>
       )}
 
-      {/* ── Audience Demographics + Geographic Reach ── */}
-      {(sections.audience || sections.geo) && (
+      {/* ── Geo + Platform Radar ── */}
+      {(sections.geo || sections.platforms) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {sections.audience && (
-            <AudienceDemographics
-              onAgeClick={(range) => setModal({ type: 'age', range })}
-              onGenderClick={(gender) => setModal({ type: 'gender', gender })}
-            />
-          )}
-          {sections.geo && (
-            <GeoSection onCityClick={(city) => setModal({ type: 'geo', city })} />
-          )}
-        </div>
-      )}
 
-      {/* ── Platform Radar ── */}
-      {sections.platforms && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <div className="mb-4">
-            <h3 className="text-[15px] font-bold text-gray-900">Performance por Plataforma</h3>
-            <p className="text-[12px] text-gray-400">Radar comparativo multidimensional</p>
-          </div>
-          <ResponsiveContainer width="100%" height={280}>
-            <RadarChart data={RADAR_DATA}>
-              <PolarGrid stroke="#f0f0f0" />
-              <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: '#9CA3AF' }} />
-              <PolarRadiusAxis tick={{ fontSize: 9 }} domain={[0, 100]} />
-              <Radar name="Instagram" dataKey="instagram" stroke="#E1306C" fill="#E1306C" fillOpacity={0.12} strokeWidth={2} />
-              <Radar name="TikTok"    dataKey="tiktok"    stroke="#00CED1" fill="#00CED1" fillOpacity={0.12} strokeWidth={2} />
-              <Radar name="LinkedIn"  dataKey="linkedin"  stroke="#0A66C2" fill="#0A66C2" fillOpacity={0.12} strokeWidth={2} />
-              <Legend wrapperStyle={{ fontSize: '11px' }} />
-              <Tooltip />
-            </RadarChart>
-          </ResponsiveContainer>
+          {/* Geographic */}
+          {sections.geo && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+              <div className="mb-4">
+                <h3 className="text-[15px] font-bold text-gray-900">Alcance Geográfico</h3>
+                <p className="text-[12px] text-gray-400">Top cidades por volume de audiência</p>
+              </div>
+              <div className="space-y-3">
+                {GEO_DATA.map((city) => (
+                  <button
+                    key={city.city}
+                    onClick={() => setModal({ type: 'geo', city })}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-white text-[11px] font-bold" style={{ background: city.color }}>
+                      {city.city.split(',')[0].slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-gray-800">{city.city}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${(city.pct / GEO_DATA[0].pct) * 100}%`, background: city.color }} />
+                        </div>
+                        <span className="text-[11px] text-gray-400">{city.pct}%</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-[12px] font-bold text-gray-700">Eng. {city.eng}%</p>
+                      <p className="text-[10px] text-gray-400">Pico {city.peak}h</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Platform Radar */}
+          {sections.platforms && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+              <div className="mb-4">
+                <h3 className="text-[15px] font-bold text-gray-900">Performance por Plataforma</h3>
+                <p className="text-[12px] text-gray-400">Radar comparativo multidimensional</p>
+              </div>
+              <ResponsiveContainer width="100%" height={250}>
+                <RadarChart data={RADAR_DATA}>
+                  <PolarGrid stroke="#f0f0f0" />
+                  <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: '#9CA3AF' }} />
+                  <PolarRadiusAxis tick={{ fontSize: 9 }} domain={[0, 100]} />
+                  <Radar name="Instagram" dataKey="instagram" stroke="#E1306C" fill="#E1306C" fillOpacity={0.12} strokeWidth={2} />
+                  <Radar name="TikTok"    dataKey="tiktok"    stroke="#00CED1" fill="#00CED1" fillOpacity={0.12} strokeWidth={2} />
+                  <Radar name="LinkedIn"  dataKey="linkedin"  stroke="#0A66C2" fill="#0A66C2" fillOpacity={0.12} strokeWidth={2} />
+                  <Legend wrapperStyle={{ fontSize: '11px' }} />
+                  <Tooltip />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
 
@@ -1749,9 +1200,6 @@ export default function AnalyticsPage() {
           </div>
         </div>
       )}
-
-      {/* ── ROI Calculator ── */}
-      {sections.roi && <RoiCalculator />}
 
     </div>
   );
