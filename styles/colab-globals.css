@@ -1,0 +1,419 @@
+/* ═══════════════════════════════════════════════════════════════
+   AHA SOCIAL COLAB — Design System
+   Apple-inspired gradient mesh · Blues · Purples · Lilacs
+═══════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap');
+
+/* ── Tokens ─────────────────────────────────────────────────── */
+:root {
+  /* Core palette */
+  --colab-indigo:   #4F46E5;
+  --colab-violet:   #7C3AED;
+  --colab-purple:   #9333EA;
+  --colab-lilac:    #A78BFA;
+  --colab-sky:      #38BDF8;
+  --colab-blue:     #3B82F6;
+
+  /* Surfaces */
+  --colab-bg:       #06061A;
+  --colab-surface:  rgba(255,255,255,0.04);
+  --colab-card:     rgba(255,255,255,0.06);
+  --colab-border:   rgba(255,255,255,0.08);
+  --colab-hover:    rgba(255,255,255,0.10);
+
+  /* Text */
+  --colab-text:     #F1F0FF;
+  --colab-muted:    rgba(241,240,255,0.55);
+  --colab-subtle:   rgba(241,240,255,0.30);
+
+  /* Gradient presets */
+  --grad-hero: linear-gradient(135deg, #0D0D2B 0%, #1A0B3B 30%, #0B1A3B 60%, #0A0A20 100%);
+  --grad-card: linear-gradient(135deg, rgba(79,70,229,0.15) 0%, rgba(124,58,237,0.08) 100%);
+  --grad-btn:  linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #9333EA 100%);
+  --grad-glow: radial-gradient(ellipse at center, rgba(124,58,237,0.35) 0%, transparent 70%);
+
+  /* Radii */
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+
+  /* Shadows */
+  --shadow-card: 0 4px 24px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.04) inset;
+  --shadow-glow: 0 0 40px rgba(124,58,237,0.25);
+
+  /* Font */
+  --font-display: 'Sora', sans-serif;
+  --font-body:    'Inter', sans-serif;
+}
+
+/* ── Reset base ──────────────────────────────────────────────── */
+.colab-root *, .colab-root *::before, .colab-root *::after { box-sizing: border-box; }
+.colab-root {
+  font-family: var(--font-body);
+  background:  var(--colab-bg);
+  color:       var(--colab-text);
+  min-height:  100vh;
+}
+
+/* ── Glassmorphism card ──────────────────────────────────────── */
+.glass {
+  background:   var(--colab-card);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border:       1px solid var(--colab-border);
+  box-shadow:   var(--shadow-card);
+}
+
+.glass-hover {
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.glass-hover:hover {
+  background:   rgba(255,255,255,0.09);
+  border-color: rgba(167,139,250,0.30);
+  box-shadow:   var(--shadow-card), 0 0 20px rgba(124,58,237,0.15);
+}
+
+/* ── Gradient button ─────────────────────────────────────────── */
+.btn-colab {
+  display:       inline-flex;
+  align-items:   center;
+  justify-content: center;
+  gap:           8px;
+  padding:       12px 28px;
+  border-radius: var(--r-md);
+  background:    var(--grad-btn);
+  color:         #fff;
+  font-family:   var(--font-display);
+  font-weight:   600;
+  font-size:     14px;
+  letter-spacing: 0.01em;
+  border:        none;
+  cursor:        pointer;
+  position:      relative;
+  overflow:      hidden;
+  transition:    transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+  box-shadow:    0 4px 20px rgba(124,58,237,0.45);
+}
+.btn-colab::before {
+  content:  '';
+  position: absolute;
+  inset:    0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 60%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+.btn-colab:hover  { transform: translateY(-1px); box-shadow: 0 8px 32px rgba(124,58,237,0.55); }
+.btn-colab:active { transform: translateY(0); opacity: 0.9; }
+.btn-colab:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.btn-colab-ghost {
+  background:    transparent;
+  border:        1px solid rgba(167,139,250,0.40);
+  color:         var(--colab-lilac);
+  box-shadow:    none;
+  padding:       10px 22px;
+  border-radius: var(--r-md);
+  font-family:   var(--font-display);
+  font-weight:   500;
+  font-size:     14px;
+  cursor:        pointer;
+  transition:    background 0.15s, border-color 0.15s;
+  display:       inline-flex;
+  align-items:   center;
+  gap:           6px;
+}
+.btn-colab-ghost:hover {
+  background:    rgba(167,139,250,0.12);
+  border-color:  rgba(167,139,250,0.70);
+}
+
+/* ── Typography ─────────────────────────────────────────────── */
+.colab-display { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+.colab-title   { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; }
+.colab-label   { font-family: var(--font-display); font-weight: 600; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--colab-muted); }
+
+/* ── Mesh background ─────────────────────────────────────────── */
+.colab-mesh {
+  position: relative;
+  overflow: hidden;
+}
+.colab-mesh::before {
+  content:  '';
+  position: absolute;
+  width:    600px; height: 600px;
+  top: -200px; left: -100px;
+  background: radial-gradient(ellipse, rgba(79,70,229,0.25) 0%, transparent 70%);
+  pointer-events: none;
+  animation: meshFloat 8s ease-in-out infinite alternate;
+}
+.colab-mesh::after {
+  content:  '';
+  position: absolute;
+  width:    500px; height: 500px;
+  bottom: -100px; right: -50px;
+  background: radial-gradient(ellipse, rgba(147,51,234,0.20) 0%, transparent 70%);
+  pointer-events: none;
+  animation: meshFloat 10s ease-in-out infinite alternate-reverse;
+}
+@keyframes meshFloat {
+  from { transform: translate(0,0) scale(1); }
+  to   { transform: translate(30px, 20px) scale(1.05); }
+}
+
+/* ── Status pill ─────────────────────────────────────────────── */
+.colab-status {
+  display:       inline-flex;
+  align-items:   center;
+  gap:           5px;
+  padding:       3px 10px;
+  border-radius: 99px;
+  font-size:     11px;
+  font-weight:   600;
+  letter-spacing: 0.03em;
+}
+.status-draft     { background: rgba(255,255,255,0.08); color: rgba(241,240,255,0.6); }
+.status-review    { background: rgba(251,191,36,0.15);  color: #FBD44B; }
+.status-approved  { background: rgba(52,211,153,0.15);  color: #34D399; }
+.status-rejected  { background: rgba(239,68,68,0.15);   color: #F87171; }
+.status-published { background: rgba(56,189,248,0.15);  color: #38BDF8; }
+.status-scheduled { background: rgba(167,139,250,0.15); color: #A78BFA; }
+
+/* ── Scrollbar ───────────────────────────────────────────────── */
+.colab-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+.colab-scroll::-webkit-scrollbar-track { background: transparent; }
+.colab-scroll::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.3); border-radius: 99px; }
+.colab-scroll::-webkit-scrollbar-thumb:hover { background: rgba(167,139,250,0.5); }
+
+/* ── Input ───────────────────────────────────────────────────── */
+.colab-input {
+  width:         100%;
+  background:    rgba(255,255,255,0.05);
+  border:        1px solid var(--colab-border);
+  border-radius: var(--r-sm);
+  color:         var(--colab-text);
+  padding:       10px 14px;
+  font-size:     14px;
+  font-family:   var(--font-body);
+  outline:       none;
+  transition:    border-color 0.15s, box-shadow 0.15s;
+}
+.colab-input:focus {
+  border-color: rgba(124,58,237,0.7);
+  box-shadow:   0 0 0 3px rgba(124,58,237,0.15);
+}
+.colab-input::placeholder { color: var(--colab-subtle); }
+
+/* ── Tab bar ─────────────────────────────────────────────────── */
+.colab-tabs {
+  display:       flex;
+  gap:           2px;
+  background:    rgba(255,255,255,0.04);
+  border-radius: var(--r-md);
+  padding:       3px;
+  border:        1px solid var(--colab-border);
+}
+.colab-tab {
+  flex:          1;
+  padding:       8px 16px;
+  border-radius: 10px;
+  font-size:     13px;
+  font-weight:   500;
+  color:         var(--colab-muted);
+  cursor:        pointer;
+  transition:    all 0.15s;
+  text-align:    center;
+  border:        none;
+  background:    transparent;
+}
+.colab-tab.active {
+  background:    var(--grad-btn);
+  color:         #fff;
+  box-shadow:    0 2px 12px rgba(124,58,237,0.4);
+}
+.colab-tab:not(.active):hover {
+  background:    rgba(255,255,255,0.06);
+  color:         var(--colab-text);
+}
+
+/* ── Star rating ─────────────────────────────────────────────── */
+.colab-stars { display: flex; gap: 4px; }
+.colab-star {
+  font-size:   24px;
+  cursor:      pointer;
+  transition:  transform 0.1s;
+  filter:      grayscale(1) opacity(0.4);
+  line-height: 1;
+}
+.colab-star.active  { filter: none; }
+.colab-star:hover   { transform: scale(1.2); }
+
+/* ── Calendar cell ───────────────────────────────────────────── */
+.cal-cell {
+  min-height: 88px;
+  border-right: 1px solid var(--colab-border);
+  border-bottom: 1px solid var(--colab-border);
+  padding: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+.cal-cell:hover { background: rgba(124,58,237,0.08); }
+.cal-cell.today { background: rgba(79,70,229,0.12); }
+.cal-cell.today .cal-day-num {
+  background: var(--grad-btn);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(124,58,237,0.5);
+}
+.cal-cell.other-month { opacity: 0.35; }
+.cal-day-num {
+  width:        24px; height: 24px;
+  border-radius: 50%;
+  display:      flex; align-items: center; justify-content: center;
+  font-size:    12px; font-weight: 600;
+  margin-bottom: 4px;
+  transition:   background 0.15s;
+}
+
+/* ── Post pill inside calendar ───────────────────────────────── */
+.cal-post-pill {
+  display:       flex;
+  align-items:   center;
+  gap:           5px;
+  padding:       3px 6px;
+  border-radius: 5px;
+  font-size:     10px;
+  font-weight:   500;
+  margin-bottom: 2px;
+  cursor:        pointer;
+  transition:    opacity 0.15s;
+  overflow:      hidden;
+  white-space:   nowrap;
+  text-overflow: ellipsis;
+  max-width:     100%;
+}
+.cal-post-pill:hover { opacity: 0.8; }
+
+/* ── Sidebar nav ─────────────────────────────────────────────── */
+.colab-nav-item {
+  display:       flex;
+  align-items:   center;
+  gap:           10px;
+  padding:       10px 14px;
+  border-radius: var(--r-sm);
+  font-size:     14px;
+  font-weight:   500;
+  color:         var(--colab-muted);
+  cursor:        pointer;
+  transition:    all 0.15s;
+  text-decoration: none;
+}
+.colab-nav-item:hover { background: var(--colab-hover); color: var(--colab-text); }
+.colab-nav-item.active {
+  background:  rgba(124,58,237,0.18);
+  color:       var(--colab-lilac);
+  border-left: 2px solid var(--colab-violet);
+  padding-left: 12px;
+}
+
+/* ── Badge ───────────────────────────────────────────────────── */
+.colab-badge {
+  display:       inline-flex;
+  align-items:   center;
+  padding:       2px 8px;
+  border-radius: 99px;
+  font-size:     10px;
+  font-weight:   700;
+  background:    var(--grad-btn);
+  color:         white;
+}
+
+/* ── Avatar ──────────────────────────────────────────────────── */
+.colab-avatar {
+  width:         36px; height: 36px;
+  border-radius: 50%;
+  background:    var(--grad-btn);
+  display:       flex;
+  align-items:   center;
+  justify-content: center;
+  font-weight:   700;
+  font-size:     14px;
+  color:         white;
+  font-family:   var(--font-display);
+  flex-shrink:   0;
+}
+
+/* ── Fade-in animation ───────────────────────────────────────── */
+@keyframes colabFadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.colab-fade-up { animation: colabFadeUp 0.4s ease both; }
+.colab-fade-up-d1 { animation-delay: 0.08s; }
+.colab-fade-up-d2 { animation-delay: 0.16s; }
+.colab-fade-up-d3 { animation-delay: 0.24s; }
+.colab-fade-up-d4 { animation-delay: 0.32s; }
+
+/* ── Divider ─────────────────────────────────────────────────── */
+.colab-divider { height: 1px; background: var(--colab-border); margin: 20px 0; }
+
+/* ── Modal overlay ───────────────────────────────────────────── */
+.colab-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(6,6,26,0.85);
+  backdrop-filter: blur(8px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: colabFadeUp 0.2s ease both;
+}
+.colab-modal {
+  width:      100%;
+  max-width:  560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: var(--r-xl);
+}
+
+/* ── Progress bar ────────────────────────────────────────────── */
+.colab-progress-bar {
+  height: 4px;
+  border-radius: 99px;
+  background: var(--colab-border);
+  overflow: hidden;
+}
+.colab-progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--grad-btn);
+  transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* ── Tooltip ─────────────────────────────────────────────────── */
+[data-tooltip] { position: relative; }
+[data-tooltip]:hover::after {
+  content:    attr(data-tooltip);
+  position:   absolute;
+  bottom:     calc(100% + 6px);
+  left:       50%;
+  transform:  translateX(-50%);
+  background: rgba(30,20,60,0.95);
+  color:      var(--colab-text);
+  font-size:  11px;
+  padding:    5px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  border:     1px solid var(--colab-border);
+  z-index:    9999;
+}
+
+/* ── Responsive ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .colab-sidebar { display: none; }
+  .colab-modal   { max-width: 100%; border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  .colab-modal-overlay { align-items: flex-end; padding: 0; }
+}
