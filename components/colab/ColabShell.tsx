@@ -1,44 +1,55 @@
 'use client';
-// lib/colab/useColabSession.ts
-// Gerencia a sessão do cliente no Colab (sem Firebase Auth para o convidado)
-// A sessão é armazenada no localStorage e validada contra o Firestore
+import { useRouter } from 'next/navigation';
+import { useColabSession } from '@/lib/colab/useColabSession';
 
-import { useState, useEffect } from 'react';
-import { getInviteByToken }    from './firestore';
-import type { ColabSession }   from './types';
+export default function ColabShell({ children }: { children: React.ReactNode }) {
+  const { session, clearSession } = useColabSession();
+  const router = useRouter();
 
-const SESSION_KEY = 'aha_colab_session';
+  function handleLogout() {
+    clearSession();
+    router.push('/');
+  }
 
-export function useColabSession() {
-  const [session,  setSession]  = useState<ColabSession | null>(null);
-  const [loading,  setLoading]  = useState(true);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(SESSION_KEY);
-      if (raw) setSession(JSON.parse(raw));
-    } catch (_e) { /* ignore */ }
-    setLoading(false);
-  }, []);
-
-  const saveSession = (s: ColabSession) => {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(s));
-    setSession(s);
-  };
-
-  const clearSession = () => {
-    localStorage.removeItem(SESSION_KEY);
-    setSession(null);
-  };
-
-  return { session, loading, saveSession, clearSession };
-}
-
-/** Verifica se o token do convite ainda é válido */
-export async function validateInviteToken(token: string) {
-  const invite = await getInviteByToken(token);
-  if (!invite)                             return { valid: false, reason: 'not_found'  as const };
-  if (invite.status === 'expired')         return { valid: false, reason: 'expired'    as const };
-  if (new Date(invite.expiresAt) < new Date()) return { valid: false, reason: 'expired' as const };
-  return { valid: true, invite };
+  return (
+    <div className="colab-root" style={{ minHeight: '100vh' }}>
+      <header style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '1rem 2rem',
+        borderBottom: '1px solid rgba(124,111,255,0.15)',
+        background: 'rgba(10,10,26,0.6)',
+        backdropFilter: 'blur(12px)',
+        position: 'sticky', top: 0, zIndex: 50,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #7c6fff, #4f8fff)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, fontWeight: 700, color: '#fff',
+          }}>A</div>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#f0eeff', margin: 0 }}>
+              AHA Social Colab
+            </p>
+            <p style={{ fontSize: 11, color: '#9b93c8', margin: 0 }}>
+              {session?.agencyName ?? 'Calendário do Cliente'}
+            </p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span style={{ fontSize: 12, color: '#9b93c8' }}>
+            {session?.clientEmail}
+          </span>
+          <button className="colab-btn-ghost" onClick={handleLogout}
+            style={{ padding: '6px 16px', fontSize: 12 }}>
+            Sair
+          </button>
+        </div>
+      </header>
+      <main style={{ padding: '2rem' }}>
+        {children}
+      </main>
+    </div>
+  );
 }

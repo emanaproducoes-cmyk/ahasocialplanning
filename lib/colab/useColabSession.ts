@@ -1,44 +1,35 @@
 'use client';
-// lib/colab/useColabSession.ts
-// Gerencia a sessão do cliente no Colab (sem Firebase Auth para o convidado)
-// A sessão é armazenada no localStorage e validada contra o Firestore
-
 import { useState, useEffect } from 'react';
-import { getInviteByToken }    from './firestore';
-import type { ColabSession }   from './types';
+import { ColabSession } from './types';
 
-const SESSION_KEY = 'aha_colab_session';
+const SESSION_KEY = 'colab_session';
 
 export function useColabSession() {
-  const [session,  setSession]  = useState<ColabSession | null>(null);
-  const [loading,  setLoading]  = useState(true);
+  const [session, setSession] = useState<ColabSession | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(SESSION_KEY);
+      const raw = sessionStorage.getItem(SESSION_KEY);
       if (raw) setSession(JSON.parse(raw));
-    } catch (_e) { /* ignore */ }
+    } catch {}
     setLoading(false);
   }, []);
 
-  const saveSession = (s: ColabSession) => {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(s));
-    setSession(s);
-  };
+  function saveSession(data: ColabSession) {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
+    setSession(data);
+  }
 
-  const clearSession = () => {
-    localStorage.removeItem(SESSION_KEY);
+  function clearSession() {
+    sessionStorage.removeItem(SESSION_KEY);
     setSession(null);
-  };
+  }
 
-  return { session, loading, saveSession, clearSession };
-}
+  function isExpired(): boolean {
+    if (!session) return true;
+    return !session.isActive;
+  }
 
-/** Verifica se o token do convite ainda é válido */
-export async function validateInviteToken(token: string) {
-  const invite = await getInviteByToken(token);
-  if (!invite)                             return { valid: false, reason: 'not_found'  as const };
-  if (invite.status === 'expired')         return { valid: false, reason: 'expired'    as const };
-  if (new Date(invite.expiresAt) < new Date()) return { valid: false, reason: 'expired' as const };
-  return { valid: true, invite };
+  return { session, loading, saveSession, clearSession, isExpired };
 }
