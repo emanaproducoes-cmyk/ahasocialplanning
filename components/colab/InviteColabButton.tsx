@@ -14,7 +14,6 @@ export function InviteColabButton({ adminUid, adminEmail, agencyName }: Props) {
   const [clientName, setClientName] = useState('');
   const [loading, setLoading] = useState(false);
   const [link, setLink] = useState('');
-  const [copied, setCopied] = useState(false);
 
   async function handleInvite() {
     if (!clientEmail) return;
@@ -22,130 +21,109 @@ export function InviteColabButton({ adminUid, adminEmail, agencyName }: Props) {
     const { token } = await createColabInvite({ adminUid, adminEmail, agencyName, clientEmail, clientName });
     const url = `${window.location.origin}/colab/invite/${token}`;
     setLink(url);
-    try {
-      await fetch('/api/colab/notify-rating', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: clientEmail, agencyName, inviteUrl: url, type: 'invite' }),
-      });
-    } catch {}
     setLoading(false);
   }
 
-  async function copyLink() {
-    await navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  function handleCopy() {
+    navigator.clipboard.writeText(link);
   }
 
   return (
     <>
       <button
         onClick={() => setOpen(true)}
+        className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
         style={{
           background: 'linear-gradient(135deg, #7c6fff, #4f8fff)',
-          color: '#fff', border: 'none', borderRadius: 8,
-          padding: '8px 18px', fontSize: 13, fontWeight: 600,
-          cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+          color: '#fff',
+          border: 'none',
+          cursor: 'pointer',
+          boxShadow: '0 4px 15px rgba(124,111,255,0.3)',
         }}
       >
-        <span>＋</span> Convidar para Colab
+        <span>🔗</span> Convidar para Colab
       </button>
 
       {open && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
-          backdropFilter: 'blur(6px)',
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <div style={{
-            background: '#12122a', border: '1px solid rgba(124,111,255,0.2)',
-            borderRadius: 16, padding: '2rem', width: '100%', maxWidth: 420,
+            background: 'linear-gradient(135deg, #1a1a4e 0%, #0d1b4b 40%, #1a0a3e 100%)',
+            border: '1px solid rgba(124,111,255,0.25)',
+            borderRadius: 16,
+            padding: '2rem',
+            width: '100%',
+            maxWidth: 420,
+            boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
           }}>
-            <h3 style={{ color: '#f0eeff', fontWeight: 700, fontSize: 18, margin: '0 0 0.5rem' }}>
-              Convidar Cliente
-            </h3>
-            <p style={{ color: '#9b93c8', fontSize: 13, margin: '0 0 1.5rem' }}>
-              O cliente receberá acesso ao calendário da {agencyName}.
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div>
+                <h3 style={{ color: '#f0eeff', fontWeight: 700, fontSize: 18, margin: 0 }}>Convidar para Colab</h3>
+                <p style={{ color: '#9b93c8', fontSize: 12, margin: '4px 0 0' }}>O cliente terá acesso visual ao calendário</p>
+              </div>
+              <button onClick={() => { setOpen(false); setLink(''); setClientEmail(''); setClientName(''); }}
+                style={{ background: 'none', border: 'none', color: '#9b93c8', fontSize: 20, cursor: 'pointer' }}>✕</button>
+            </div>
 
             {!link ? (
-              <>
-                <div style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 11, color: '#9b93c8', display: 'block', marginBottom: 4 }}>Nome do cliente</label>
-                  <input
-                    value={clientName}
-                    onChange={e => setClientName(e.target.value)}
-                    placeholder="Nome completo"
-                    style={{
-                      width: '100%', background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(124,111,255,0.2)', borderRadius: 8,
-                      color: '#f0eeff', padding: '10px 14px', fontSize: 14,
-                      outline: 'none', boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-                <div style={{ marginBottom: 20 }}>
-                  <label style={{ fontSize: 11, color: '#9b93c8', display: 'block', marginBottom: 4 }}>E-mail do cliente *</label>
-                  <input
-                    value={clientEmail}
-                    onChange={e => setClientEmail(e.target.value)}
-                    placeholder="cliente@email.com"
-                    type="email"
-                    style={{
-                      width: '100%', background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(124,111,255,0.2)', borderRadius: 8,
-                      color: '#f0eeff', padding: '10px 14px', fontSize: 14,
-                      outline: 'none', boxSizing: 'border-box',
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button
-                    onClick={handleInvite}
-                    disabled={!clientEmail || loading}
-                    style={{
-                      flex: 1, background: 'linear-gradient(135deg, #7c6fff, #4f8fff)',
-                      color: '#fff', border: 'none', borderRadius: 8,
-                      padding: '10px', fontSize: 14, fontWeight: 600,
-                      cursor: clientEmail ? 'pointer' : 'not-allowed', opacity: clientEmail ? 1 : 0.5,
-                    }}
-                  >{loading ? 'Gerando...' : 'Gerar Convite'}</button>
-                  <button
-                    onClick={() => { setOpen(false); setClientEmail(''); setClientName(''); setLink(''); }}
-                    style={{
-                      background: 'rgba(255,255,255,0.05)', color: '#9b93c8',
-                      border: '1px solid rgba(124,111,255,0.15)', borderRadius: 8,
-                      padding: '10px 18px', fontSize: 14, cursor: 'pointer',
-                    }}
-                  >Cancelar</button>
-                </div>
-              </>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                <input
+                  placeholder="Nome do cliente (opcional)"
+                  value={clientName}
+                  onChange={e => setClientName(e.target.value)}
+                  style={{
+                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(124,111,255,0.25)',
+                    borderRadius: 8, color: '#f0eeff', padding: '10px 14px', fontSize: 14,
+                    outline: 'none', width: '100%', boxSizing: 'border-box',
+                  }}
+                />
+                <input
+                  placeholder="E-mail do cliente *"
+                  value={clientEmail}
+                  onChange={e => setClientEmail(e.target.value)}
+                  type="email"
+                  style={{
+                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(124,111,255,0.25)',
+                    borderRadius: 8, color: '#f0eeff', padding: '10px 14px', fontSize: 14,
+                    outline: 'none', width: '100%', boxSizing: 'border-box',
+                  }}
+                />
+                <button onClick={handleInvite} disabled={loading || !clientEmail}
+                  style={{
+                    background: 'linear-gradient(135deg, #7c6fff, #4f8fff)',
+                    color: '#fff', border: 'none', borderRadius: 8,
+                    padding: '11px', fontSize: 14, fontWeight: 600,
+                    cursor: clientEmail ? 'pointer' : 'not-allowed',
+                    opacity: clientEmail ? 1 : 0.5, marginTop: 4,
+                  }}>
+                  {loading ? 'Gerando link...' : 'Gerar Link de Convite'}
+                </button>
+              </div>
             ) : (
-              <>
-                <div style={{ background: 'rgba(124,111,255,0.1)', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
-                  <p style={{ color: '#9b93c8', fontSize: 11, margin: '0 0 6px' }}>Link de convite gerado:</p>
-                  <p style={{ color: '#b39dff', fontSize: 12, wordBreak: 'break-all', margin: 0 }}>{link}</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
+                  <span style={{ fontSize: 32 }}>✅</span>
+                  <p style={{ color: '#b39dff', fontWeight: 600, margin: '8px 0 4px' }}>Link gerado com sucesso!</p>
+                  <p style={{ color: '#9b93c8', fontSize: 12, margin: 0 }}>Válido por 7 dias</p>
                 </div>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button
-                    onClick={copyLink}
-                    style={{
-                      flex: 1, background: copied ? 'rgba(79,255,143,0.15)' : 'linear-gradient(135deg, #7c6fff, #4f8fff)',
-                      color: copied ? '#4fff8f' : '#fff', border: 'none', borderRadius: 8,
-                      padding: '10px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                    }}
-                  >{copied ? '✓ Copiado!' : 'Copiar Link'}</button>
-                  <button
-                    onClick={() => { setOpen(false); setClientEmail(''); setClientName(''); setLink(''); }}
-                    style={{
-                      background: 'rgba(255,255,255,0.05)', color: '#9b93c8',
-                      border: '1px solid rgba(124,111,255,0.15)', borderRadius: 8,
-                      padding: '10px 18px', fontSize: 14, cursor: 'pointer',
-                    }}
-                  >Fechar</button>
-                </div>
-              </>
+                <div style={{
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(124,111,255,0.2)',
+                  borderRadius: 8, padding: '10px 14px', fontSize: 12,
+                  color: '#b39dff', wordBreak: 'break-all',
+                }}>{link}</div>
+                <button onClick={handleCopy}
+                  style={{
+                    background: 'linear-gradient(135deg, #7c6fff, #4f8fff)',
+                    color: '#fff', border: 'none', borderRadius: 8,
+                    padding: '11px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  }}>
+                  📋 Copiar Link
+                </button>
+              </div>
             )}
           </div>
         </div>
