@@ -2,16 +2,13 @@
 
 /**
  * AgendamentoCalendario.tsx
- * 
- * Melhoria: passa view="calendario" para AgendamentoCard,
- * que agora exibe miniatura compacta com lightbox ao clicar.
  */
 
-import { useState }        from 'react';
-import { cn }              from '@/lib/utils/cn';
-import { AgendamentoCard } from './AgendamentoCard';
-import type { Post, Responsavel } from '@/lib/types';
+import { useState }          from 'react';
+import { cn }                from '@/lib/utils/cn';
+import { AgendamentoCard }   from './AgendamentoCard';
 import { InviteColabButton } from '@/components/colab/InviteColabButton';
+import type { Post, Responsavel } from '@/lib/types';
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval,
   startOfWeek, endOfWeek, isSameMonth, isSameDay, isToday,
@@ -69,7 +66,21 @@ export function AgendamentoCalendario({
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-      {/* Header de navegação */}
+
+      {/* ── Botão Convidar para Colab ── */}
+      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50 bg-gray-50/60">
+        <div>
+          <p className="text-[12px] font-semibold text-gray-700">AHA Social Colab</p>
+          <p className="text-[10px] text-gray-400">Convide seu cliente para acompanhar o calendário</p>
+        </div>
+        <InviteColabButton
+          adminUid={uid}
+          adminEmail={responsavel?.email ?? ''}
+          agencyName={responsavel?.agencia ?? responsavel?.nome ?? 'AHA Social'}
+        />
+      </div>
+
+      {/* ── Header de navegação ── */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <button
           onClick={() => setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
@@ -82,7 +93,6 @@ export function AgendamentoCalendario({
             {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
           </h3>
           <p className="text-[11px] text-gray-400">{totalThisMonth} posts agendados</p>
-          <InviteColabButton adminUid={uid} adminEmail="" agencyName="AHA Social" />
         </div>
         <button
           onClick={() => setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
@@ -92,7 +102,7 @@ export function AgendamentoCalendario({
         </button>
       </div>
 
-      {/* Grade do calendário */}
+      {/* ── Grade do calendário ── */}
       <div className="p-4">
         {/* Cabeçalho dos dias */}
         <div className="grid grid-cols-7 mb-2">
@@ -137,7 +147,7 @@ export function AgendamentoCalendario({
                   )}
                 </div>
 
-                {/* Posts do dia — modo calendário (compacto com miniatura) */}
+                {/* Posts do dia */}
                 <div className="space-y-0.5">
                   {dayPosts.slice(0, 3).map((post) => (
                     <AgendamentoCard
@@ -156,10 +166,7 @@ export function AgendamentoCalendario({
                   )}
                 </div>
 
-                {/* Dots de status (alternativa visual) */}
-                {dayPosts.length === 0 && inMonth && (
-                  <div className="h-full" /> /* célula vazia */
-                )}
+                {dayPosts.length === 0 && inMonth && <div className="h-full" />}
               </div>
             );
           })}
