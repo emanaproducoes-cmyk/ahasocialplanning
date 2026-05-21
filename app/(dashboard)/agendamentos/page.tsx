@@ -10,7 +10,7 @@ import {
   Plus, RefreshCw,
   ChevronLeft, ChevronRight, Edit, ZoomIn,
 } from 'lucide-react';
-import { InviteColabButton } from '@/components/colab/InviteColabButton';
+import InviteColabButton from '@/components/colab/InviteColabButton';
 import { cn }               from '@/lib/utils/cn';
 import PostCard             from '@/components/posts/PostCard';
 import PostPreviewModal     from '@/components/modals/PostPreviewModal';
