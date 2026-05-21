@@ -42,7 +42,7 @@ export default function ColabCalendar({ posts, onDayClick }: Props) {
     else setMonth(m => m + 1);
   }
 
-  const cells = [];
+  const cells: (number | null)[] = [];
   for (let i = 0; i < firstDay; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 

@@ -1,49 +1,17 @@
-'use client';
-import { useRouter } from 'next/navigation';
-
-export default function ColabExpiredPage() {
-  const router = useRouter();
-
+export default function ExpiredPage() {
   return (
     <div style={{
-      minHeight: '100vh',
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'linear-gradient(135deg, #1a1a4e 0%, #0d1b4b 40%, #1a0a3e 100%)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: '-apple-system, BlinkMacSystemFont, SF Pro Display, sans-serif',
     }}>
-      <div style={{
-        textAlign: 'center', maxWidth: 420, padding: '2rem',
-        background: 'rgba(124,111,255,0.08)',
-        border: '1px solid rgba(124,111,255,0.2)',
-        borderRadius: 20,
-        backdropFilter: 'blur(12px)',
-      }}>
-        <div style={{
-          width: 72, height: 72, borderRadius: '50%',
-          background: 'rgba(124,111,255,0.15)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 32, margin: '0 auto 1.5rem',
-        }}>⏳</div>
-
-        <h1 style={{ color: '#f0eeff', fontWeight: 700, fontSize: 22, margin: '0 0 0.75rem' }}>
-          Sessão Encerrada
+      <div style={{ textAlign: 'center', padding: '2rem' }}>
+        <div style={{ fontSize: 64, marginBottom: 16 }}>⏰</div>
+        <h1 style={{ color: '#f0eeff', fontWeight: 700, fontSize: 28, margin: '0 0 12px' }}>
+          Sessão Expirada
         </h1>
-        <p style={{ color: '#9b93c8', fontSize: 14, lineHeight: 1.6, margin: '0 0 2rem' }}>
-          Seu acesso ao AHA Social Colab expirou ou não está mais ativo.
-          Entre em contato com o social media responsável para receber um novo convite.
+        <p style={{ color: '#9b93c8', fontSize: 15, margin: '0 0 24px' }}>
+          Seu acesso ao AHA Social Colab expirou.<br />Solicite um novo convite ao seu social media.
         </p>
-
-        <button
-          onClick={() => router.push('/')}
-          style={{
-            background: 'linear-gradient(135deg, #7c6fff, #4f8fff)',
-            color: '#fff', border: 'none', borderRadius: 10,
-            padding: '12px 32px', fontSize: 14, fontWeight: 600,
-            cursor: 'pointer', width: '100%',
-          }}
-        >
-          Voltar ao Início
-        </button>
       </div>
     </div>
   );
