@@ -12,6 +12,7 @@ import { cn }              from '@/lib/utils/cn';
 import { AgendamentoCard } from './AgendamentoCard';
 import type { Post, Responsavel } from '@/lib/types';
 import { InviteColabButton } from '@/components/colab/InviteColabButton';
+import { InviteColabButton } from '@/components/colab/InviteColabButton';
 import {
   format, startOfMonth, endOfMonth, eachDayOfInterval,
   startOfWeek, endOfWeek, isSameMonth, isSameDay, isToday,
@@ -82,6 +83,7 @@ export function AgendamentoCalendario({
             {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
           </h3>
           <p className="text-[11px] text-gray-400">{totalThisMonth} posts agendados</p>
+          <InviteColabButton adminUid={uid} adminEmail="" agencyName="AHA Social" />
           <InviteColabButton adminUid={uid} adminEmail="" agencyName="AHA Social" />
         </div>
         <button
