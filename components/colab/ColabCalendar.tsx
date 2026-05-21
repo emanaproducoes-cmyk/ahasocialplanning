@@ -15,7 +15,7 @@ interface Props {
   onDayClick: (date: string) => void;
 }
 
-export default function ColabCalendar({ posts, onDayClick }: Props) {
+export default function ColabCalendar({ posts = [], onDayClick }: Props) {
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
