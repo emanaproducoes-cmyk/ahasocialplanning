@@ -2,7 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helpers ─────────────────────────────────────────────────────────────
     function isAuth() {
       return request.auth != null;
     }
@@ -11,42 +10,53 @@ service cloud.firestore {
       return request.auth.uid == uid;
     }
 
-    // Bloqueia escrita de campos sensíveis pelo cliente
     function hasNoSensitiveFields() {
       let sensitive = ['_pageToken', '_accessToken', 'metaLongLivedToken', 'tokenExpiresAt'];
       return !request.resource.data.keys().hasAny(sensitive);
     }
 
-    // ── Usuários ─────────────────────────────────────────────────────────────
     match /users/{uid} {
       allow read, update: if isAuth() && isOwner(uid);
       allow create: if isAuth() && isOwner(uid);
 
-      // ── Contas Sociais ────────────────────────────────────────────────────
       match /socialAccounts/{accountId} {
-        // Leitura: campos sensíveis nunca chegam ao cliente (regra de projeto)
         allow read: if isAuth() && isOwner(uid);
-
-        // Escrita pelo cliente: nunca pode incluir tokens
         allow create, update: if isAuth() && isOwner(uid) && hasNoSensitiveFields();
-
-        // Delete: dono pode desconectar
         allow delete: if isAuth() && isOwner(uid);
-      }
-
-      // ── Posts ─────────────────────────────────────────────────────────────
-      match /posts/{postId} {
-        allow read, write: if isAuth() && isOwner(uid);
-      }
-
-      // ── Notificações ──────────────────────────────────────────────────────
-      match /notifications/{notifId} {
-        allow read: if isAuth() && isOwner(uid);
-        allow write: if false; // somente server-side
       }
     }
 
-    // Bloqueia tudo mais por padrão
+    match /posts/{postId} {
+      allow read, write: if isAuth() && isOwner(uid);
+    }
+
+    match /notifications/{notifId} {
+      allow read: if isAuth() && isOwner(uid);
+      allow write: if false;
+    }
+
+    // — Colab —
+    match /colab_invites/{docId} {
+      allow read: if true;
+      allow create: if isAuth();
+      allow update: if true;
+    }
+
+    match /colab_posts/{docId} {
+      allow read: if true;
+      allow write: if isAuth();
+    }
+
+    match /colab_planning/{docId} {
+      allow read: if true;
+      allow write: if isAuth();
+    }
+
+    match /colab_ratings/{docId} {
+      allow read: if isAuth();
+      allow create: if true;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

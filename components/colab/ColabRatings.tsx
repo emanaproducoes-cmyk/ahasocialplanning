@@ -1,7 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { ColabRating } from '@/lib/colab/types';
 import { saveColabRating } from '@/lib/colab/firestore';
+
+interface Props { adminUid: string; }
 
 const CRITERIA = [
   { key: 'themes', label: 'Temas' },
@@ -9,108 +10,70 @@ const CRITERIA = [
   { key: 'digitalArts', label: 'Artes Digitais' },
   { key: 'captions', label: 'Legendas' },
   { key: 'strategy', label: 'Estratégia' },
-  { key: 'overall', label: 'Avaliação Geral' },
-] as const;
+];
 
 function StarRow({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   const [hover, setHover] = useState(0);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(124,111,255,0.08)' }}>
-      <span style={{ fontSize: 13, color: '#f0eeff', minWidth: 130 }}>{label}</span>
-      <div style={{ display: 'flex', gap: 6 }}>
-        {[1,2,3,4,5].map(star => (
-          <span key={star}
-            onClick={() => onChange(star)}
-            onMouseEnter={() => setHover(star)}
-            onMouseLeave={() => setHover(0)}
-            style={{
-              fontSize: 22, cursor: 'pointer', transition: 'transform 0.1s',
-              color: star <= (hover || value) ? '#f5c842' : 'rgba(255,255,255,0.15)',
-              transform: star <= hover ? 'scale(1.2)' : 'scale(1)',
-            }}>★</span>
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 0', borderBottom:'1px solid rgba(124,111,255,0.08)' }}>
+      <span style={{ fontSize:14, color:'#c8c0f0' }}>{label}</span>
+      <div style={{ display:'flex', gap:4 }}>
+        {[1,2,3,4,5].map(s => (
+          <span key={s} onClick={() => onChange(s)}
+            onMouseEnter={() => setHover(s)} onMouseLeave={() => setHover(0)}
+            style={{ fontSize:24, cursor:'pointer', color: s <= (hover || value) ? '#f5c842' : 'rgba(255,255,255,0.15)', transition:'color 0.1s' }}>★</span>
         ))}
       </div>
-      <span style={{ fontSize: 12, color: '#9b93c8', minWidth: 20, textAlign: 'right' }}>{value > 0 ? `${value}/5` : '—'}</span>
     </div>
   );
 }
 
-interface Props { adminUid: string; ratings: ColabRating[]; onSave: () => void; }
-
-export default function ColabRatings({ adminUid, ratings, onSave }: Props) {
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [scores, setScores] = useState({ themes: 0, titles: 0, digitalArts: 0, captions: 0, strategy: 0, overall: 0 });
+export default function ColabRatings({ adminUid }: Props) {
+  const [ratings, setRatings] = useState({ themes:0, titles:0, digitalArts:0, captions:0, strategy:0 });
   const [comment, setComment] = useState('');
-  const month = new Date().toISOString().slice(0, 7);
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
 
-  function setScore(key: string, val: number) {
-    setScores(s => ({ ...s, [key]: val }));
-  }
-
-  const allFilled = Object.values(scores).every(v => v > 0);
-  const avg = allFilled ? (Object.values(scores).reduce((a, b) => a + b, 0) / 6).toFixed(1) : null;
+  const overall = Object.values(ratings).reduce((a,b) => a+b, 0) / CRITERIA.length;
 
   async function handleSubmit() {
-    if (!allFilled) return;
+    if (Object.values(ratings).some(v => v === 0)) return;
     setSaving(true);
-    await saveColabRating({ adminUid, month, ...scores, comment });
+    const month = new Date().toISOString().slice(0,7);
+    await saveColabRating({ adminUid, month, ...ratings, overall: Math.round(overall * 10) / 10, comment });
     setSaving(false);
-    setOpen(false);
-    setScores({ themes: 0, titles: 0, digitalArts: 0, captions: 0, strategy: 0, overall: 0 });
-    setComment('');
-    onSave();
+    setDone(true);
   }
 
+  if (done) return (
+    <div className="colab-card" style={{ marginTop:'1.5rem', textAlign:'center', padding:'2rem' }}>
+      <div style={{ fontSize:48, marginBottom:12 }}>⭐</div>
+      <h3 style={{ color:'#f0eeff', fontWeight:600, margin:'0 0 8px' }}>Obrigado pela avaliação!</h3>
+      <p style={{ color:'#9b93c8', fontSize:14, margin:0 }}>Sua nota <strong style={{ color:'#b39dff' }}>{overall.toFixed(1)}</strong> foi enviada ao social media.</p>
+    </div>
+  );
+
   return (
-    <div className="colab-card" style={{ marginTop: '1.5rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <h3 style={{ color: '#f0eeff', fontWeight: 600, fontSize: 16, margin: 0 }}>Avaliações</h3>
-        <button className="colab-btn" style={{ padding: '6px 16px', fontSize: 12 }} onClick={() => setOpen(o => !o)}>
-          {open ? 'Fechar' : '+ Nova Avaliação'}
-        </button>
-      </div>
-
-      {open && (
-        <div style={{ background: 'rgba(124,111,255,0.06)', borderRadius: 10, padding: '1.25rem', marginBottom: '1rem', border: '1px solid rgba(124,111,255,0.12)' }}>
-          <p style={{ color: '#9b93c8', fontSize: 12, marginBottom: '1rem', marginTop: 0 }}>
-            Avalie o trabalho deste mês — sua nota será enviada ao social media responsável.
-          </p>
-          {CRITERIA.map(c => (
-            <StarRow key={c.key} label={c.label} value={(scores as any)[c.key]} onChange={v => setScore(c.key, v)} />
-          ))}
-          {allFilled && (
-            <div style={{ textAlign: 'center', padding: '1rem 0 0.5rem', borderTop: '1px solid rgba(124,111,255,0.12)', marginTop: 8 }}>
-              <p style={{ color: '#9b93c8', fontSize: 12, margin: '0 0 4px' }}>Média geral</p>
-              <p style={{ fontSize: 32, fontWeight: 700, color: '#f5c842', margin: 0 }}>{avg} <span style={{ fontSize: 18 }}>★</span></p>
-            </div>
-          )}
-          <div style={{ marginTop: 12 }}>
-            <label style={{ fontSize: 11, color: '#9b93c8', display: 'block', marginBottom: 4 }}>Comentário (opcional)</label>
-            <textarea className="colab-input" value={comment} onChange={e => setComment(e.target.value)} rows={3} placeholder="Deixe um comentário para o social media..." style={{ resize: 'vertical' }} />
-          </div>
-          <button className="colab-btn" onClick={handleSubmit} disabled={!allFilled || saving} style={{ marginTop: 12, opacity: allFilled ? 1 : 0.4 }}>
-            {saving ? 'Enviando...' : 'Enviar Avaliação'}
-          </button>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {ratings.length === 0 && (
-          <p style={{ color: '#9b93c8', fontSize: 13, textAlign: 'center', padding: '1rem' }}>Nenhuma avaliação registrada ainda.</p>
-        )}
-        {ratings.map(r => (
-          <div key={r.id} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '12px 14px', border: '1px solid rgba(124,111,255,0.08)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: '#f0eeff', fontWeight: 600, fontSize: 14 }}>{r.month}</span>
-              <span style={{ color: '#f5c842', fontWeight: 700 }}>
-                {((r.themes + r.titles + r.digitalArts + r.captions + r.strategy + r.overall) / 6).toFixed(1)} ★
-              </span>
-            </div>
-            {r.comment && <p style={{ color: '#9b93c8', fontSize: 12, marginTop: 6, marginBottom: 0 }}>{r.comment}</p>}
-          </div>
+    <div className="colab-card" style={{ marginTop:'1.5rem' }}>
+      <h3 style={{ color:'#f0eeff', fontWeight:600, fontSize:16, margin:'0 0 1rem' }}>Avaliação do Trabalho</h3>
+      <div>
+        {CRITERIA.map(c => (
+          <StarRow key={c.key} label={c.label}
+            value={ratings[c.key as keyof typeof ratings]}
+            onChange={v => setRatings(r => ({ ...r, [c.key]: v }))} />
         ))}
       </div>
+      <div style={{ margin:'1rem 0', padding:'12px', background:'rgba(245,200,66,0.08)', borderRadius:8, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <span style={{ fontSize:13, color:'#9b93c8' }}>Média geral</span>
+        <span style={{ fontSize:20, fontWeight:700, color:'#f5c842' }}>{overall > 0 ? overall.toFixed(1) : '—'} ★</span>
+      </div>
+      <textarea className="colab-input" placeholder="Comentário opcional..." rows={3}
+        value={comment} onChange={e => setComment(e.target.value)}
+        style={{ resize:'vertical', marginBottom:'1rem' }} />
+      <button className="colab-btn" onClick={handleSubmit} disabled={saving || Object.values(ratings).some(v=>v===0)}
+        style={{ width:'100%', padding:'12px', fontSize:14 }}>
+        {saving ? 'Enviando...' : 'Enviar Avaliação'}
+      </button>
     </div>
   );
 }

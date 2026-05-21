@@ -3,102 +3,118 @@ import { useState } from 'react';
 import { ColabPlanning } from '@/lib/colab/types';
 import { saveColabPlanning } from '@/lib/colab/firestore';
 
-const PERIODS = [
-  { key: 'semana', label: 'Semana' },
-  { key: 'mes', label: 'Mês' },
-  { key: 'trimestre', label: 'Trimestre' },
-  { key: 'semestre', label: 'Semestre' },
-] as const;
+interface Props { adminUid: string; plannings: ColabPlanning[]; }
 
-interface Props {
-  adminUid: string;
-  plannings: ColabPlanning[];
-  onSaved: () => void;
-}
+const PERIODS = ['semana','mes','trimestre','semestre'] as const;
+const PERIOD_LABEL: Record<string, string> = {
+  semana:'Semana', mes:'Mês', trimestre:'Trimestre', semestre:'Semestre'
+};
 
-export default function ColabPlanning({ adminUid, plannings, onSaved }: Props) {
-  const [open, setOpen] = useState(false);
-  const [period, setPeriod] = useState<ColabPlanning['period']>('mes');
-  const [title, setTitle] = useState('');
-  const [themes, setThemes] = useState('');
-  const [emphasis, setEmphasis] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [notes, setNotes] = useState('');
+export default function ColabPlanning({ adminUid, plannings }: Props) {
+  const [active, setActive] = useState<string>('mes');
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ title:'', themes:'', emphasis:'', startDate:'', endDate:'', notes:'' });
+
+  const current = plannings.find(p => p.period === active);
 
   async function handleSave() {
-    if (!title || !startDate || !endDate) return;
     setSaving(true);
     await saveColabPlanning({
-      adminUid, period, title,
-      themes: themes.split(',').map(t => t.trim()).filter(Boolean),
-      emphasis, startDate, endDate, notes,
+      adminUid, period: active as any,
+      title: form.title,
+      themes: form.themes.split(',').map(t => t.trim()).filter(Boolean),
+      emphasis: form.emphasis,
+      startDate: form.startDate,
+      endDate: form.endDate,
+      notes: form.notes,
     });
     setSaving(false);
-    setOpen(false);
-    setTitle(''); setThemes(''); setEmphasis(''); setNotes('');
-    onSaved();
+    setEditing(false);
+  }
+
+  function startEdit() {
+    setForm({
+      title: current?.title ?? '',
+      themes: current?.themes.join(', ') ?? '',
+      emphasis: current?.emphasis ?? '',
+      startDate: current?.startDate ?? '',
+      endDate: current?.endDate ?? '',
+      notes: current?.notes ?? '',
+    });
+    setEditing(true);
   }
 
   return (
     <div className="colab-card" style={{ marginTop: '1.5rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-        <h3 style={{ color: '#f0eeff', fontWeight: 600, fontSize: 16, margin: 0 }}>Planejamento de Conteúdo</h3>
-        <button className="colab-btn" onClick={() => setOpen(o => !o)} style={{ padding: '7px 18px', fontSize: 13 }}>
-          {open ? 'Fechar' : '+ Novo'}
-        </button>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
+        <h3 style={{ color:'#f0eeff', fontWeight:600, fontSize:16, margin:0 }}>Planejamento de Conteúdo</h3>
+        <div style={{ display:'flex', gap:6 }}>
+          {PERIODS.map(p => (
+            <button key={p} onClick={() => { setActive(p); setEditing(false); }}
+              style={{
+                padding:'5px 14px', borderRadius:20, fontSize:12, fontWeight:500, cursor:'pointer', border:'none',
+                background: active===p ? 'linear-gradient(135deg,#7c6fff,#4f8fff)' : 'rgba(255,255,255,0.06)',
+                color: active===p ? '#fff' : '#9b93c8',
+              }}>{PERIOD_LABEL[p]}</button>
+          ))}
+        </div>
       </div>
 
-      {open && (
-        <div style={{ background: 'rgba(124,111,255,0.06)', borderRadius: 10, padding: '1.2rem', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {PERIODS.map(p => (
-              <button key={p.key} onClick={() => setPeriod(p.key)}
-                style={{
-                  padding: '6px 16px', borderRadius: 20, fontSize: 13, cursor: 'pointer', border: 'none',
-                  background: period === p.key ? 'linear-gradient(135deg,#7c6fff,#4f8fff)' : 'rgba(255,255,255,0.06)',
-                  color: period === p.key ? '#fff' : '#9b93c8', fontWeight: period === p.key ? 600 : 400,
-                }}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <input className="colab-input" placeholder="Título do planejamento" value={title} onChange={e => setTitle(e.target.value)} />
-          <input className="colab-input" placeholder="Temas (separados por vírgula)" value={themes} onChange={e => setThemes(e.target.value)} />
-          <input className="colab-input" placeholder="Ênfase principal" value={emphasis} onChange={e => setEmphasis(e.target.value)} />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input className="colab-input" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
-            <input className="colab-input" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
-          </div>
-          <textarea className="colab-input" placeholder="Observações" value={notes} onChange={e => setNotes(e.target.value)} rows={3} style={{ resize: 'vertical' }} />
-          <button className="colab-btn" onClick={handleSave} disabled={saving} style={{ alignSelf: 'flex-end' }}>
-            {saving ? 'Salvando...' : 'Salvar Planejamento'}
+      {!editing ? (
+        <div>
+          {current ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:8, padding:'12px' }}>
+                  <p style={{ fontSize:11, color:'#9b93c8', margin:'0 0 4px' }}>TÍTULO</p>
+                  <p style={{ fontSize:14, color:'#f0eeff', margin:0 }}>{current.title || '—'}</p>
+                </div>
+                <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:8, padding:'12px' }}>
+                  <p style={{ fontSize:11, color:'#9b93c8', margin:'0 0 4px' }}>ÊNFASE</p>
+                  <p style={{ fontSize:14, color:'#f0eeff', margin:0 }}>{current.emphasis || '—'}</p>
+                </div>
+              </div>
+              <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:8, padding:'12px' }}>
+                <p style={{ fontSize:11, color:'#9b93c8', margin:'0 0 6px' }}>TEMAS</p>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                  {current.themes.length > 0 ? current.themes.map((t,i) => (
+                    <span key={i} style={{ background:'rgba(124,111,255,0.2)', color:'#b39dff', borderRadius:20, padding:'3px 10px', fontSize:12 }}>{t}</span>
+                  )) : <span style={{ color:'#9b93c8', fontSize:13 }}>—</span>}
+                </div>
+              </div>
+              {current.notes && (
+                <div style={{ background:'rgba(255,255,255,0.04)', borderRadius:8, padding:'12px' }}>
+                  <p style={{ fontSize:11, color:'#9b93c8', margin:'0 0 4px' }}>NOTAS</p>
+                  <p style={{ fontSize:13, color:'#c8c0f0', margin:0 }}>{current.notes}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p style={{ color:'#9b93c8', fontSize:14 }}>Nenhum planejamento para este período.</p>
+          )}
+          <button className="colab-btn" onClick={startEdit} style={{ marginTop:'1rem', padding:'8px 20px', fontSize:13 }}>
+            {current ? 'Editar' : 'Criar Planejamento'}
           </button>
         </div>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {plannings.length === 0 && (
-          <p style={{ color: '#9b93c8', fontSize: 13, textAlign: 'center', padding: '1rem 0' }}>Nenhum planejamento criado ainda.</p>
-        )}
-        {plannings.map(p => (
-          <div key={p.id} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '0.8rem 1rem', border: '1px solid rgba(124,111,255,0.1)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <span style={{ fontSize: 11, padding: '2px 10px', borderRadius: 20, background: 'rgba(124,111,255,0.18)', color: '#b39dff', fontWeight: 600 }}>{p.period}</span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#f0eeff' }}>{p.title}</span>
-            </div>
-            {p.themes.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                {p.themes.map((t, i) => (
-                  <span key={i} style={{ fontSize: 11, padding: '1px 8px', borderRadius: 20, background: 'rgba(79,143,255,0.15)', color: '#6fcfff' }}>{t}</span>
-                ))}
-              </div>
-            )}
-            {p.emphasis && <p style={{ fontSize: 12, color: '#9b93c8', margin: '4px 0 0' }}>{p.emphasis}</p>}
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          <input className="colab-input" placeholder="Título do planejamento" value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))} />
+          <input className="colab-input" placeholder="Temas (separados por vírgula)" value={form.themes} onChange={e => setForm(f=>({...f,themes:e.target.value}))} />
+          <input className="colab-input" placeholder="Ênfase / foco principal" value={form.emphasis} onChange={e => setForm(f=>({...f,emphasis:e.target.value}))} />
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <input className="colab-input" type="date" value={form.startDate} onChange={e => setForm(f=>({...f,startDate:e.target.value}))} />
+            <input className="colab-input" type="date" value={form.endDate} onChange={e => setForm(f=>({...f,endDate:e.target.value}))} />
           </div>
-        ))}
-      </div>
+          <textarea className="colab-input" placeholder="Notas adicionais..." rows={3} value={form.notes} onChange={e => setForm(f=>({...f,notes:e.target.value}))} style={{ resize:'vertical' }} />
+          <div style={{ display:'flex', gap:8 }}>
+            <button className="colab-btn" onClick={handleSave} disabled={saving} style={{ padding:'8px 20px', fontSize:13 }}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </button>
+            <button className="colab-btn-ghost" onClick={() => setEditing(false)} style={{ padding:'8px 20px', fontSize:13 }}>Cancelar</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
