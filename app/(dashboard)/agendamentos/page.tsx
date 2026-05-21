@@ -10,6 +10,7 @@ import {
   Plus, RefreshCw,
   ChevronLeft, ChevronRight, Edit, ZoomIn,
 } from 'lucide-react';
+import { InviteColabButton } from '@/components/colab/InviteColabButton';
 import { cn }               from '@/lib/utils/cn';
 import PostCard             from '@/components/posts/PostCard';
 import PostPreviewModal     from '@/components/modals/PostPreviewModal';
@@ -84,6 +85,13 @@ function CalendarView({ posts, onPreview }: { posts: Post[]; onPreview: (p: Post
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50 bg-gradient-to-r from-indigo-50 to-purple-50">
+        <div>
+          <p className="text-[12px] font-semibold text-gray-700">AHA Social Colab</p>
+          <p className="text-[10px] text-gray-400">Convide seu cliente para acompanhar o calendário</p>
+        </div>
+        <InviteColabButton adminUid={posts[0]?.uid ?? ''} adminEmail="" agencyName="AHA Social" />
+      </div>
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <h3 className="font-semibold text-gray-900">{MONTHS[month]} {year}</h3>
         <div className="flex gap-1">
