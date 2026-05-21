@@ -18,16 +18,24 @@ service cloud.firestore {
     match /users/{uid} {
       allow read, update: if isAuth() && isOwner(uid);
       allow create: if isAuth() && isOwner(uid);
+    }
 
-      match /socialAccounts/{accountId} {
-        allow read: if isAuth() && isOwner(uid);
-        allow create, update: if isAuth() && isOwner(uid) && hasNoSensitiveFields();
-        allow delete: if isAuth() && isOwner(uid);
-      }
+    match /socialAccounts/{accountId} {
+      allow read: if isAuth() && isOwner(uid);
+      allow create, update: if isAuth() && isOwner(uid) && hasNoSensitiveFields();
+      allow delete: if isAuth() && isOwner(uid);
     }
 
     match /posts/{postId} {
       allow read, write: if isAuth() && isOwner(uid);
+    }
+
+    match /agendamentos/{docId} {
+      allow read, write: if isAuth();
+    }
+
+    match /agendamentos/{docId}/{subcollection=**} {
+      allow read, write: if isAuth();
     }
 
     match /notifications/{notifId} {
