@@ -10,6 +10,7 @@ export default function InviteColabButton({ adminUid, adminEmail, agencyName }: 
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [link, setLink] = useState('');
+  const [copied, setCopied] = useState(false);
 
   async function handleGenerate() {
     if (!email) return;
@@ -27,51 +28,89 @@ export default function InviteColabButton({ adminUid, adminEmail, agencyName }: 
     setLoading(false);
   }
 
-  function handleCopy() { navigator.clipboard.writeText(link); }
+  async function handleCopy() {
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  const btnPrimary: React.CSSProperties = {
+    width: '100%', padding: '11px', borderRadius: 10, border: 'none',
+    background: 'linear-gradient(135deg, #7c6fff, #4f8fff)',
+    color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+  };
+  const btnGhost: React.CSSProperties = {
+    width: '100%', padding: '11px', borderRadius: 10,
+    border: '1px solid rgba(124,111,255,0.3)',
+    background: 'transparent', color: '#9b93c8', fontSize: 14, cursor: 'pointer',
+  };
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '10px 14px', borderRadius: 8,
+    border: '1px solid rgba(124,111,255,0.25)',
+    background: 'rgba(255,255,255,0.06)', color: '#f0eeff',
+    fontSize: 14, outline: 'none', boxSizing: 'border-box',
+  };
 
   return (
     <>
-      <button className="colab-btn" onClick={() => setOpen(true)} style={{ fontSize: 13, padding: '8px 18px' }}>
+      <button onClick={() => setOpen(true)} style={{
+        padding: '8px 18px', borderRadius: 8, border: 'none',
+        background: 'linear-gradient(135deg, #7c6fff, #4f8fff)',
+        color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+      }}>
         + Convidar para Colab
       </button>
 
       {open && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 100,
-          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }} onClick={e => { if (e.target === e.currentTarget) { setOpen(false); setLink(''); }}}>
-          <div style={{
-            background: '#12122a', border: '1px solid rgba(124,111,255,0.2)',
-            borderRadius: 16, padding: '2rem', width: '100%', maxWidth: 420,
+        <div onClick={e => { if (e.target === e.currentTarget) { setOpen(false); setLink(''); }}}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
           }}>
-            <h3 style={{ color: '#f0eeff', fontWeight: 600, fontSize: 18, margin: '0 0 1.5rem' }}>
-              Convidar Cliente
-            </h3>
+          <div style={{
+            background: '#12122a', border: '1px solid rgba(124,111,255,0.25)',
+            borderRadius: 16, padding: '2rem', width: '100%', maxWidth: 400,
+            boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+              <h3 style={{ color: '#f0eeff', fontWeight: 700, fontSize: 18, margin: 0 }}>Convidar Cliente</h3>
+              <button onClick={() => { setOpen(false); setLink(''); }} style={{
+                background: 'none', border: 'none', color: '#9b93c8', fontSize: 20, cursor: 'pointer', lineHeight: 1,
+              }}>✕</button>
+            </div>
 
             {!link ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <input className="colab-input" placeholder="Nome do cliente" value={name} onChange={e => setName(e.target.value)} />
-                <input className="colab-input" placeholder="E-mail do cliente" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-                <button className="colab-btn" onClick={handleGenerate} disabled={loading || !email}
-                  style={{ padding: '10px', fontSize: 14, marginTop: 4 }}>
-                  {loading ? 'Gerando link...' : 'Gerar Link de Convite'}
-                </button>
-                <button className="colab-btn-ghost" onClick={() => setOpen(false)} style={{ padding: '10px', fontSize: 14 }}>
-                  Cancelar
-                </button>
+                <div>
+                  <label style={{ fontSize: 12, color: '#9b93c8', display: 'block', marginBottom: 6 }}>Nome do cliente</label>
+                  <input style={inputStyle} placeholder="Ex: Maria Silva" value={name} onChange={e => setName(e.target.value)} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: '#9b93c8', display: 'block', marginBottom: 6 }}>E-mail do cliente *</label>
+                  <input style={inputStyle} placeholder="cliente@email.com" type="email" value={email} onChange={e => setEmail(e.target.value)} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                  <button style={{ ...btnPrimary, opacity: loading || !email ? 0.6 : 1 }}
+                    onClick={handleGenerate} disabled={loading || !email}>
+                    {loading ? 'Gerando link...' : 'Gerar e Enviar Convite'}
+                  </button>
+                  <button style={btnGhost} onClick={() => setOpen(false)}>Cancelar</button>
+                </div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <p style={{ color: '#9b93c8', fontSize: 13, margin: 0 }}>Link gerado com sucesso! Copie e envie ao cliente:</p>
-                <div style={{ background: 'rgba(124,111,255,0.1)', border: '1px solid rgba(124,111,255,0.2)', borderRadius: 8, padding: '10px 14px' }}>
+                <div style={{ background: 'rgba(124,111,255,0.1)', border: '1px solid rgba(124,111,255,0.2)', borderRadius: 8, padding: '12px 14px' }}>
+                  <p style={{ fontSize: 11, color: '#9b93c8', margin: '0 0 6px' }}>LINK DE CONVITE</p>
                   <p style={{ color: '#b39dff', fontSize: 12, margin: 0, wordBreak: 'break-all' }}>{link}</p>
                 </div>
-                <button className="colab-btn" onClick={handleCopy} style={{ padding: '10px', fontSize: 14 }}>
-                  Copiar Link
+                <p style={{ color: '#9b93c8', fontSize: 12, margin: 0 }}>
+                  ✅ E-mail enviado para <strong style={{ color: '#f0eeff' }}>{email}</strong>
+                </p>
+                <button style={btnPrimary} onClick={handleCopy}>
+                  {copied ? '✓ Copiado!' : 'Copiar Link'}
                 </button>
-                <button className="colab-btn-ghost" onClick={() => { setOpen(false); setLink(''); setEmail(''); setName(''); }}
-                  style={{ padding: '10px', fontSize: 14 }}>
+                <button style={btnGhost} onClick={() => { setOpen(false); setLink(''); setEmail(''); setName(''); }}>
                   Fechar
                 </button>
               </div>
