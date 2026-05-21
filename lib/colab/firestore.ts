@@ -1,6 +1,6 @@
-import { db } from '@/lib/firebase/config';
+import { db } from '@/lib/firebase';
 import {
-  collection, doc, getDoc, getDocs, setDoc, updateDoc,
+  collection, doc, getDocs, setDoc, updateDoc,
   query, where, orderBy, addDoc, serverTimestamp, Timestamp
 } from 'firebase/firestore';
 import { ColabInvite, ColabPost, ColabPlanning, ColabRating } from './types';
@@ -38,12 +38,29 @@ export async function acceptInvite(token: string) {
 
 export async function getColabPosts(adminUid: string): Promise<ColabPost[]> {
   const q = query(
-    collection(db, 'colab_posts'),
-    where('adminUid', '==', adminUid),
-    orderBy('date', 'asc')
+    collection(db, 'posts'),
+    where('userId', '==', adminUid),
+    orderBy('scheduledAt', 'asc')
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as ColabPost));
+  return snap.docs.map(d => {
+    const data = d.data();
+    const scheduledAt = data.scheduledAt?.toDate?.() ?? new Date(data.scheduledAt);
+    const date = scheduledAt.toISOString().slice(0, 10);
+    return {
+      id: d.id,
+      adminUid: data.userId,
+      date,
+      title: data.title ?? 'Sem título',
+      caption: data.caption,
+      contentType: data.format ?? 'feed',
+      network: data.platforms?.[0] ?? 'instagram',
+      status: data.status ?? 'planejado',
+      theme: data.tags?.[0],
+      createdAt: data.createdAt?.toDate?.() ?? new Date(),
+      updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
+    } as ColabPost;
+  });
 }
 
 export async function saveColabPlanning(data: Omit<ColabPlanning, 'id' | 'updatedAt'>) {
