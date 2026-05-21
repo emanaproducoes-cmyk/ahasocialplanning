@@ -90,7 +90,7 @@ function CalendarView({ posts, onPreview }: { posts: Post[]; onPreview: (p: Post
           <p className="text-[12px] font-semibold text-gray-700">AHA Social Colab</p>
           <p className="text-[10px] text-gray-400">Convide seu cliente para acompanhar o calendário</p>
         </div>
-        <InviteColabButton adminUid={posts[0]?.uid ?? ''} adminEmail="" agencyName="AHA Social" />
+        <InviteColabButton adminUid={user?.uid ?? ''} adminEmail="" agencyName="AHA Social" />
       </div>
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <h3 className="font-semibold text-gray-900">{MONTHS[month]} {year}</h3>
