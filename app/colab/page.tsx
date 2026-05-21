@@ -7,10 +7,10 @@
 import { useState, useEffect }  from 'react';
 import { useRouter }            from 'next/navigation';
 import { useColabSession }      from '@/lib/colab/useColabSession';
-import { ColabShell }           from '@/components/colab/ColabShell';
-import { ColabCalendar }        from '@/components/colab/ColabCalendar';
-import { ColabPlanning }        from '@/components/colab/ColabPlanning';
-import { ColabRatings }         from '@/components/colab/ColabRatings';
+import ColabShell           from '@/components/colab/ColabShell';
+import ColabCalendar        from '@/components/colab/ColabCalendar';
+import ColabPlanning        from '@/components/colab/ColabPlanning';
+import ColabRatings         from '@/components/colab/ColabRatings';
 
 type NavSection = 'calendar' | 'planning' | 'ratings';
 
