@@ -70,3 +70,7 @@ service cloud.firestore {
     }
   }
 }
+
+    match /posts/{postId} {
+      allow read: if true;
+    }
