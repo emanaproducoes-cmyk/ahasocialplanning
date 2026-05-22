@@ -1,4 +1,4 @@
-import { db } from '@/lib/firebase/config';
+import { dbColab as db } from '@/lib/firebase/config-colab';
 import {
   collection, doc, getDocs, setDoc, updateDoc,
   query, where, orderBy, addDoc, serverTimestamp, Timestamp
