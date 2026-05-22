@@ -23,7 +23,7 @@ export default function ColabPage() {
 
   useEffect(() => {
     if (!session) return;
-    getColabPosts(session.adminUid).then(p => { console.log("[Colab] posts:", p.length, p); setPosts(p); }).catch(e => console.error("[Colab] ERRO:", e));
+    getColabPosts(session.adminUid).then(p => { console.log("[Colab] posts:", p.length, JSON.stringify(p[0])); setPosts(p); }).catch(e => console.error("[Colab] ERRO:", e));
     getColabPlanning(session.adminUid).then(setPlannings);
   }, [session]);
 
