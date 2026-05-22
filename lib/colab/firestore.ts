@@ -43,7 +43,7 @@ export async function getColabPosts(adminUid: string): Promise<ColabPost[]> {
   );
   const snap = await getDocs(q);
   return snap.docs.map(d => {
-    const data = d.data();
+    const data = d.data(); if (!data.mediaUrl && !data.fileUrl && !data.imageUrl) console.log("[Colab] campos do post:", Object.keys(data), data.videoName, data.fileType);
     const scheduledAt = data.scheduledAt?.toDate?.() ?? new Date(data.scheduledAt);
     const date = scheduledAt.toISOString().slice(0, 10);
     return {
