@@ -38,7 +38,7 @@ export async function acceptInvite(token: string) {
 
 export async function getColabPosts(adminUid: string): Promise<ColabPost[]> {
   const q = query(
-    collection(db, 'posts'),
+    collection(db, `users/${adminUid}/posts`),
     where('userId', '==', adminUid),
     orderBy('scheduledAt', 'asc')
   );
