@@ -57,6 +57,8 @@ export async function getColabPosts(adminUid: string): Promise<ColabPost[]> {
       network: data.platforms?.[0] ?? 'instagram',
       status: data.status ?? 'planejado',
       theme: data.tags?.[0],
+      mediaUrl: data.mediaUrl ?? data.videoUrl ?? data.imageUrl ?? data.fileUrl ?? undefined,
+      mediaType: data.fileType === 'video' ? 'video' : data.fileType === 'image' ? 'image' : undefined,
       createdAt: data.createdAt?.toDate?.() ?? new Date(),
       updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
     } as ColabPost;
