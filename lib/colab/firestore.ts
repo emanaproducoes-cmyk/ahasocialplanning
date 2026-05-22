@@ -57,7 +57,7 @@ export async function getColabPosts(adminUid: string): Promise<ColabPost[]> {
       status: data.status ?? 'planejado',
       theme: data.tags?.[0],
       mediaUrl: data.creatives?.[0]?.url ?? data.creatives?.[0]?.src ?? data.creatives?.[0]?.mediaUrl ?? data.mediaUrl ?? data.fileUrl ?? undefined,
-      mediaType: (data.creatives?.[0]?.type ?? data.creatives?.[0]?.fileType ?? data.fileType) === "video" ? "video" : "image",
+      mediaType: (data.creatives?.[0]?.type ?? "").includes("video") ? "video" : "image",
       createdAt: data.createdAt?.toDate?.() ?? new Date(),
       updatedAt: data.updatedAt?.toDate?.() ?? new Date(),
     } as ColabPost;
