@@ -97,7 +97,7 @@ export default function ColabCalendar({ session }: Props) {
   }, [posts]);
 
   return (
-    <div style={{ padding: '24px 28px', minHeight: 160 }}>
+    <div style={{ padding: '8px', minHeight: 120, aspectRatio: '1 / 1' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
@@ -545,7 +545,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted }: {
   const [tab, setTab]           = useState<'preview' | 'info' | 'comments' | 'actions'>('preview');
   const [editStatus, setEditStatus] = useState(post.status);
   const [editPlatform, setEditPlatform] = useState(post.platforms?.[0] ?? 'instagram');
-  const [editDate, setEditDate] = useState(post.scheduledAt ? format(new Date(post.scheduledAt), 'yyyy-MM-dd') : '');
+  const [editDate, setEditDate] = useState<string>(() => { try { return post.scheduledAt ? format(new Date(post.scheduledAt), 'yyyy-MM-dd') : ''; } catch { return ''; } });
   const [editCaption, setEditCaption] = useState(post.caption ?? '');
   const [editCampaign, setEditCampaign] = useState(post.campaignId ?? '');
   const cfg = STATUS[post.status] ?? STATUS.rascunho;
@@ -620,7 +620,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted }: {
               {/* Thumbnail pequena no header */}
               {mediaUrl && (
                 <div style={{ width: 32, height: 32, borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}>
-                  <img src={mediaUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={mediaUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onClick={() => mediaUrl && setZoomedImg(mediaUrl)} />
                 </div>
               )}
               <span style={{ padding: '2px 8px', borderRadius: 999, background: cfg.pill, color: cfg.text, fontSize: 10, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{cfg.label}</span>
@@ -670,7 +670,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted }: {
                   )}
                 </div>
               ) : (
-                <div style={{ width: '100%', maxWidth: 380, borderRadius: 14, background: '#F1F5F9', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 220, cursor: 'zoom-in' }} onClick={() => mediaUrl && setZoomedImg(mediaUrl)}>
+                <div style={{ width: '100%', maxWidth: 380, borderRadius: 14, background: '#F1F5F9', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180, cursor: 'zoom-in' }} onClick={() => mediaUrl && setZoomedImg(mediaUrl)}>
                   <span style={{ fontSize: 40 }}>🖼️</span>
                 </div>
               )}
