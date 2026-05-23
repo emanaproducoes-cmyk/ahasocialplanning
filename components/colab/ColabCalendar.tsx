@@ -97,7 +97,7 @@ export default function ColabCalendar({ session }: Props) {
   }, [posts]);
 
   return (
-    <div style={{ padding: '8px', minHeight: 120, aspectRatio: '1 / 1' }}>
+    <div style={{ padding: '8px', minHeight: 0, aspectRatio: '4 / 3' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
@@ -536,7 +536,10 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
 /* ── POST VIEW MODAL — Preview + Info + Comentários + Ações ─── */
 function PostModal({ post, session, onClose, onUpdated, onDeleted }: {
   post: ColabPost; session: ColabSession;
-  onClose: () => void; onUpdated: () => void; onDeleted: () => void;
+  onClose: () => void; onUpdated: () => void; onDeleted: () => void; onZoom: (url: string) => void;
+  onZoom }: {
+  post: ColabPost; session: ColabSession;
+  onClose: () => void; onUpdated: () => void; onDeleted: () => void; onZoom: (url: string) => void;
 }) {
   const [comments, setComments] = useState<PostComment[]>([]);
   const [text, setText]         = useState('');
@@ -584,7 +587,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted }: {
       await updateDoc(doc(db, 'users', session.adminUid, 'posts', post.id), {
         status: editStatus,
         platforms: [editPlatform],
-        scheduledAt: editDate ? new Date(editDate).toISOString() : (post.scheduledAt ?? null),
+        scheduledAt: editDate ? new Date(editDate + 'T12:00:00').toISOString() : (post.scheduledAt ?? null),
         caption: editCaption,
         ...(editCampaign ? { campaignId: editCampaign } : {}),
       });
@@ -620,7 +623,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted }: {
               {/* Thumbnail pequena no header */}
               {mediaUrl && (
                 <div style={{ width: 32, height: 32, borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}>
-                  <img src={mediaUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onClick={() => mediaUrl && setZoomedImg(mediaUrl)} />
+                  <img src={mediaUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onClick={() => mediaUrl && onZoom(mediaUrl)} />
                 </div>
               )}
               <span style={{ padding: '2px 8px', borderRadius: 999, background: cfg.pill, color: cfg.text, fontSize: 10, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{cfg.label}</span>
@@ -666,11 +669,11 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted }: {
                   {isVideo ? (
                     <video src={mediaUrl} controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
-                    <img src={mediaUrl} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    <img src={mediaUrl} alt={post.title} onClick={() => onZoom(mediaUrl)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }} />
                   )}
                 </div>
               ) : (
-                <div style={{ width: '100%', maxWidth: 380, borderRadius: 14, background: '#F1F5F9', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180, cursor: 'zoom-in' }} onClick={() => mediaUrl && setZoomedImg(mediaUrl)}>
+                <div style={{ width: '100%', maxWidth: 380, borderRadius: 14, background: '#F1F5F9', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180, cursor: 'zoom-in' }} onClick={() => mediaUrl && onZoom(mediaUrl)}>
                   <span style={{ fontSize: 40 }}>🖼️</span>
                 </div>
               )}
