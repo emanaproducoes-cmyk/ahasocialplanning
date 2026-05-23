@@ -97,7 +97,7 @@ export default function ColabCalendar({ session }: Props) {
   }, [posts]);
 
   return (
-    <div style={{ padding: '24px 28px', minHeight: '100%' }}>
+    <div style={{ padding: '24px 28px', minHeight: 160 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
@@ -184,7 +184,7 @@ export default function ColabCalendar({ session }: Props) {
                 <div key={key}
                   onClick={() => inMonth && setNewDay(day)}
                   style={{
-                    minHeight: 90, padding: '7px 6px 5px',
+                    minHeight: 90, padding: '8px 6px 6px',
                     borderBottom: idx < days.length - 7 ? '1px solid #E2E8F0' : 'none',
                     borderRight: (idx + 1) % 7 !== 0 ? '1px solid #E2E8F0' : 'none',
                     background: isT ? 'rgba(79,70,229,0.05)' : '#FFFFFF',
@@ -584,7 +584,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted }: {
       await updateDoc(doc(db, 'users', session.adminUid, 'posts', post.id), {
         status: editStatus,
         platforms: [editPlatform],
-        scheduledAt: editDate ? new Date(editDate).toISOString() : null,
+        scheduledAt: editDate ? new Date(editDate).toISOString() : (post.scheduledAt ?? null),
         caption: editCaption,
         ...(editCampaign ? { campaignId: editCampaign } : {}),
       });
@@ -670,7 +670,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted }: {
                   )}
                 </div>
               ) : (
-                <div style={{ width: '100%', maxWidth: 380, borderRadius: 14, background: '#F1F5F9', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 220 }}>
+                <div style={{ width: '100%', maxWidth: 380, borderRadius: 14, background: '#F1F5F9', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 220, cursor: 'zoom-in' }} onClick={() => mediaUrl && setZoomedImg(mediaUrl)}>
                   <span style={{ fontSize: 40 }}>🖼️</span>
                 </div>
               )}

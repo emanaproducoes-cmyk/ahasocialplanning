@@ -52,7 +52,8 @@ export default function ColabPlanning({ session }: Props) {
         emphasis: e.emphasis, notes: e.notes, updatedAt: new Date().toISOString(),
       });
     } else {
-      await addDoc(collection(db, 'users', session.adminUid, 'planning'), {
+      if (!session?.adminUid) { console.error('adminUid missing'); return; }
+    await addDoc(collection(db, 'users', session.adminUid, 'planning'), {
         adminUid: session.adminUid, period: e.period, periodLabel: e.periodLabel,
         theme: e.theme, emphasis: e.emphasis, notes: e.notes,
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),

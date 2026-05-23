@@ -5,35 +5,38 @@ service cloud.firestore {
     function isAuth() {
       return request.auth != null;
     }
-
     function isOwner(uid) {
       return request.auth.uid == uid;
     }
-
     function hasNoSensitiveFields() {
-      let sensitive = ['_pageToken', '_accessToken', 'metaLongLivedToken', 'tokenExpiresAt'];
+      let sensitive = ['_accessToken', '_metaLongLivedToken', 'tokenExpiresAt'];
       return !request.resource.data.keys().hasAny(sensitive);
     }
 
     match /users/{uid} {
       allow read, update: if isAuth() && isOwner(uid);
       allow create: if isAuth() && isOwner(uid);
+
+      match /posts/{postId} {
+        allow read: if true;
+        allow write: if isAuth() && isOwner(uid);
+      }
+
+      match /planning/{planId} {
+        allow read: if true;
+        allow write: if isAuth() && isOwner(uid);
+      }
     }
 
     match /socialAccounts/{accountId} {
-      allow read: if isAuth() && isOwner(uid);
+      allow read, update: if isAuth() && isOwner(uid);
       allow create, update: if isAuth() && isOwner(uid) && hasNoSensitiveFields();
       allow delete: if isAuth() && isOwner(uid);
     }
 
     match /posts/{postId} {
-      allow read, write: if isAuth() && isOwner(uid);
+      allow read, write: if isAuth();
     }
-    match /planning/{planId} {
-      allow read: if true;
-      allow write: if isAuth() && isOwner(uid);
-    }
-
 
     match /agendamentos/{docId} {
       allow read, write: if isAuth();
@@ -48,7 +51,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // — Colab —
+    // Colab
     match /colab_invites/{docId} {
       allow read: if true;
       allow create: if isAuth();
@@ -70,12 +73,12 @@ service cloud.firestore {
       allow create: if true;
     }
 
+    match /posts/{postId} {
+      allow read: if true;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
   }
 }
-
-    match /posts/{postId} {
-      allow read: if true;
-    }
