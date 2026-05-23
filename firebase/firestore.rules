@@ -29,6 +29,11 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read, write: if isAuth() && isOwner(uid);
     }
+    match /planning/{planId} {
+      allow read: if true;
+      allow write: if isAuth() && isOwner(uid);
+    }
+
 
     match /agendamentos/{docId} {
       allow read, write: if isAuth();

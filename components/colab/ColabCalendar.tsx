@@ -33,6 +33,8 @@ const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 interface Props { session: ColabSession }
 
 export default function ColabCalendar({ session }: Props) {
+  
+  const [zoomedImg, setZoomedImg] = useState<string | null>(null);
   const [month, setMonth]       = useState(new Date());
   const [posts, setPosts]       = useState<ColabPost[]>([]);
   const [selected, setSelected] = useState<ColabPost | null>(null);
@@ -294,6 +296,27 @@ export default function ColabCalendar({ session }: Props) {
           onSaved={() => { reload(); setNewDay(null); }}
           onViewPost={p => { setNewDay(null); setSelected(p); }}
         />
+      )}
+
+      {/* Lightbox */}
+      {zoomedImg && (
+        <div onClick={() => setZoomedImg(null)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, cursor: 'zoom-out'
+        }}>
+          <img src={zoomedImg} alt="" style={{
+            maxWidth: '90vw', maxHeight: '90vh',
+            borderRadius: 12, objectFit: 'contain',
+            boxShadow: '0 8px 40px rgba(0,0,0,0.5)'
+          }} onClick={e => e.stopPropagation()} />
+          <button onClick={() => setZoomedImg(null)} style={{
+            position: 'absolute', top: 20, right: 24,
+            background: 'rgba(255,255,255,0.15)', border: 'none',
+            borderRadius: '50%', width: 36, height: 36,
+            color: '#fff', fontSize: 20, cursor: 'pointer'
+          }}>×</button>
+        </div>
       )}
     </div>
   );
