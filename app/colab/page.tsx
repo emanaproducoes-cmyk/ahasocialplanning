@@ -23,82 +23,94 @@ export default function ColabPage() {
 
   useEffect(() => {
     if (!session) return;
-    getColabPosts(session.adminUid).then(p => { console.log("[Colab] posts:", p.length, JSON.stringify(p[0])); setPosts(p); }).catch(e => console.error("[Colab] ERRO:", e));
+    getColabPosts(session.adminUid).then(p => { console.log('[Colab] posts carregados:', p.length); setPosts(p); }).catch(e => console.error('[Colab] ERRO:', e));
     getColabPlanning(session.adminUid).then(setPlannings);
   }, [session]);
 
   if (loading || !session) return (
-    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#0a0a1a' }}>
-      <p style={{ color:'#9b93c8' }}>Carregando...</p>
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F1F5F9' }}>
+      <div style={{ textAlign:'center' }}>
+        <div style={{ width:36, height:36, border:'3px solid #E2E8F0', borderTopColor:'#4F46E5', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 12px' }} />
+        <p style={{ color:'#64748B', fontSize:13, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Carregando…</p>
+      </div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 
-  const selectedPosts = selectedDate ? posts.filter(p => p.date === selectedDate) : [];
+  const now = new Date();
+  const monthPosts = posts.filter(p => {
+    const d = new Date(p.date);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  });
+  const published = monthPosts.filter(p => p.status === 'publicado').length;
+  const inProd    = monthPosts.filter(p => p.status === 'em_producao').length;
+  const planned   = monthPosts.filter(p => p.status === 'planejado').length;
+
+  const TABS = [
+    { id: 'calendario',   label: '📅 Calendário'   },
+    { id: 'planejamento', label: '📋 Planejamento'  },
+    { id: 'avaliacao',    label: '⭐ Avaliações'     },
+  ] as const;
 
   return (
     <ColabShell>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <div style={{ marginBottom: '1.5rem' }}>
-          <h1 style={{ color: '#f0eeff', fontWeight: 700, fontSize: 24, margin: '0 0 4px' }}>
-            Olá, {session.clientName || session.clientEmail} 👋
-          </h1>
-          <p style={{ color: '#9b93c8', fontSize: 14, margin: 0 }}>
-            Bem-vindo ao seu calendário de conteúdo — {session.agencyName}
-          </p>
-        </div>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap');
+        @keyframes spin{to{transform:rotate(360deg)}}
+      `}</style>
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: '1.5rem' }}>
-          {(['calendario','planejamento','avaliacao'] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              style={{
-                padding: '8px 20px', borderRadius: 20, fontSize: 13, fontWeight: 500,
-                cursor: 'pointer', border: 'none', transition: 'all 0.2s',
-                background: tab === t ? 'linear-gradient(135deg,#7c6fff,#4f8fff)' : 'rgba(255,255,255,0.06)',
-                color: tab === t ? '#fff' : '#9b93c8',
-              }}>
-              {t === 'calendario' ? 'Calendário' : t === 'planejamento' ? 'Planejamento' : 'Avaliação'}
-            </button>
-          ))}
-        </div>
-
-        {tab === 'calendario' && (
-          <>
-            <ColabCalendar posts={posts} onDayClick={(date: string) => setSelectedDate(date)} />
-            {selectedDate && (
-              <div style={{ marginTop:'1rem', background:'rgba(124,111,255,0.08)', border:'1px solid rgba(124,111,255,0.15)', borderRadius:14, padding:'1.5rem' }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'1rem' }}>
-                  <h3 style={{ color:'#f0eeff', fontWeight:600, fontSize:15, margin:0 }}>
-                    Conteúdos — {selectedDate}
-                  </h3>
-                  <button onClick={() => setSelectedDate(null)}
-                    style={{ background:'none', border:'none', color:'#9b93c8', fontSize:18, cursor:'pointer' }}>✕</button>
-                </div>
-                {selectedPosts.length === 0 ? (
-                  <p style={{ color:'#9b93c8', fontSize:14 }}>Nenhum conteúdo agendado para este dia.</p>
-                ) : (
-                  <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                    {selectedPosts.map(p => (
-                      <div key={p.id} style={{ background:'rgba(255,255,255,0.04)', borderRadius:8, padding:'12px 16px' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                          <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, background:'rgba(124,111,255,0.2)', color:'#b39dff' }}>{p.contentType}</span>
-                          <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, background:'rgba(79,143,255,0.2)', color:'#6fcfff' }}>{p.network}</span>
-                          <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, background:'rgba(255,255,255,0.08)', color:'#9b93c8' }}>{p.status}</span>
-                        </div>
-                        <p style={{ color:'#f0eeff', fontWeight:500, fontSize:14, margin:'0 0 4px' }}>{p.title}</p>
-                        {p.caption && <p style={{ color:'#9b93c8', fontSize:13, margin:0 }}>{p.caption}</p>}
-                      </div>
-                    ))}
-                  </div>
-                )}
+      {/* ── HERO ── */}
+      <div style={{ background:'#fff', borderBottom:'1px solid #E2E8F0' }}>
+        <div style={{ maxWidth:1100, margin:'0 auto', padding:'20px 28px 0' }}>
+          <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', marginBottom:16 }}>
+            <div>
+              <div style={{ fontSize:11, fontWeight:600, color:'#94A3B8', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:4, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+                Olá, {session.clientName?.split(' ')[0]} 👋
               </div>
-            )}
-          </>
-        )}
+              <h1 style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:800, fontSize:22, color:'#0F172A', letterSpacing:'-0.02em', margin:'0 0 3px' }}>
+                Calendário de Conteúdo
+              </h1>
+              <p style={{ color:'#64748B', fontSize:13, margin:0 }}>
+                Acompanhe e visualize todo o planejamento — {session.agencyName}
+              </p>
+            </div>
+          </div>
 
+          {/* Stats bar */}
+          <div style={{ display:'flex', gap:0, borderTop:'1px solid #F1F5F9', paddingTop:12, marginBottom:0 }}>
+            {[
+              { label:'Posts no mês', value: monthPosts.length, color:'#0F172A' },
+              { label:'Publicados',   value: published,          color:'#059669' },
+              { label:'Em produção',  value: inProd,             color:'#D97706' },
+              { label:'Planejados',   value: planned,            color:'#4F46E5' },
+            ].map((s, i) => (
+              <div key={s.label} style={{ paddingRight:24, marginRight:24, borderRight: i < 3 ? '1px solid #F1F5F9' : 'none', paddingBottom:14 }}>
+                <div style={{ fontSize:10, fontWeight:600, color:'#94A3B8', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:3, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{s.label}</div>
+                <div style={{ fontSize:22, fontWeight:800, color:s.color, fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{s.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tabs */}
+          <div style={{ display:'flex', gap:0, marginTop:4 }}>
+            {TABS.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                style={{ padding:'10px 20px', background:'none', border:'none', borderBottom: tab === t.id ? '2px solid #4F46E5' : '2px solid transparent', cursor:'pointer', fontSize:13, fontWeight: tab === t.id ? 700 : 500, color: tab === t.id ? '#4F46E5' : '#64748B', fontFamily:"'Plus Jakarta Sans',sans-serif", transition:'all 0.15s', marginBottom:-1 }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── CONTENT ── */}
+      <div style={{ maxWidth:1100, margin:'24px auto', padding:'0 28px' }}>
+        {tab === 'calendario' && (
+          <ColabCalendar posts={posts} onDayClick={(date: string) => setSelectedDate(date)} />
+        )}
         {tab === 'planejamento' && (
           <ColabPlanning adminUid={session.adminUid} plannings={plannings} />
         )}
-
         {tab === 'avaliacao' && (
           <ColabRatings adminUid={session.adminUid} />
         )}
