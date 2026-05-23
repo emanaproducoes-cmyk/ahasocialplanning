@@ -98,3 +98,10 @@ export async function getColabRatings(adminUid: string): Promise<ColabRating[]> 
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as ColabRating));
 }
+
+// ── Planning entries ──────────────────────────────────────────
+import { deleteDoc, doc as fsDoc } from 'firebase/firestore';
+
+export async function deletePlanningEntry(adminUid: string, entryId: string): Promise<void> {
+  await deleteDoc(fsDoc(db, 'users', adminUid, 'planning', entryId));
+}

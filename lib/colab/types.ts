@@ -1,64 +1,59 @@
-export interface ColabInvite {
-  id: string;
-  token: string;
-  adminUid: string;
-  adminEmail: string;
-  agencyName: string;
-  clientEmail: string;
-  clientName?: string;
-  status: 'pending' | 'accepted' | 'expired';
-  createdAt: Date;
-  expiresAt: Date;
-  acceptedAt?: Date;
+export type PlanningPeriod = 'day' | 'week' | 'month' | 'quarter' | 'semester';
+
+export interface PlanningEntry {
+  id:          string;
+  adminUid:    string;
+  period:      PlanningPeriod;
+  periodLabel: string;
+  theme:       string;
+  emphasis:    string;
+  notes:       string;
+  createdAt:   string;
+  updatedAt:   string;
+}
+
+export type PostStatus =
+  | 'rascunho' | 'conteudo' | 'revisao'
+  | 'aprovacao_cliente' | 'em_analise'
+  | 'aprovado' | 'rejeitado' | 'publicado';
+
+export type Platform =
+  | 'instagram' | 'facebook' | 'tiktok'
+  | 'youtube' | 'linkedin' | 'threads'
+  | 'pinterest' | 'google_business';
+
+export interface ColabPost {
+  id:           string;
+  adminUid:     string;
+  title:        string;
+  caption?:     string;
+  hashtags?:    string[];
+  status:       PostStatus;
+  platforms?:   Platform[];
+  scheduledAt?: string;
+  creatives?:   { url: string; type?: string; name?: string }[];
+  mediaUrl?:    string;
+  fileUrl?:     string;
+  fileType?:    string;
+  campaignId?:  string;
+}
+
+export interface PostComment {
+  id:        string;
+  postId:    string;
+  adminUid:  string;
+  author:    string;
+  text:      string;
+  createdAt: string;
 }
 
 export interface ColabSession {
-  token: string;
-  adminUid: string;
-  agencyName: string;
+  inviteId:    string;
+  adminUid:    string;
+  adminEmail:  string;
+  agencyName:  string;
   clientEmail: string;
-  clientName?: string;
-  isActive: boolean;
-}
-
-export interface ColabPost {
-  id: string;
-  adminUid: string;
-  date: string;
-  title: string;
-  caption?: string;
-  contentType: 'reels' | 'carrossel' | 'story' | 'feed' | 'tiktok' | 'youtube';
-  network: 'instagram' | 'facebook' | 'tiktok' | 'youtube' | 'linkedin';
-  status: 'planejado' | 'em_producao' | 'aprovado' | 'publicado';
-  theme?: string;
-  notes?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface ColabPlanning {
-  id: string;
-  adminUid: string;
-  period: 'semana' | 'mes' | 'trimestre' | 'semestre';
-  title: string;
-  themes: string[];
-  emphasis: string;
-  startDate: string;
-  endDate: string;
-  notes?: string;
-  updatedAt: Date;
-}
-
-export interface ColabRating {
-  id: string;
-  adminUid: string;
-  month: string;
-  themes: number;
-  titles: number;
-  digitalArts: number;
-  captions: number;
-  strategy: number;
-  overall: number;
-  comment?: string;
-  createdAt: Date;
+  clientName:  string;
+  acceptedAt:  string;
+  canCreate?:  boolean;
 }
