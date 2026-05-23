@@ -1,35 +1,33 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { ColabSession } from './types';
+import type { ColabSession } from './types';
 
-const SESSION_KEY = 'colab_session';
+const SESSION_KEY = 'aha_colab_session';
 
-export function useColabSession() {
+export function useColabSession(): { session: ColabSession | null; loading: boolean } {
   const [session, setSession] = useState<ColabSession | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(SESSION_KEY);
-      if (raw) setSession(JSON.parse(raw));
+      if (raw) {
+        const parsed = JSON.parse(raw) as ColabSession;
+        if (parsed?.adminUid && parsed?.clientName) {
+          setSession(parsed);
+        }
+      }
     } catch {}
-    setLoading(false);
+    finally { setLoading(false); }
   }, []);
 
-  function saveSession(data: ColabSession) {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data));
-    setSession(data);
-  }
+  return { session, loading };
+}
 
-  function clearSession() {
-    sessionStorage.removeItem(SESSION_KEY);
-    setSession(null);
-  }
+export function saveColabSession(s: ColabSession) {
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch {}
+}
 
-  function isExpired(): boolean {
-    if (!session) return true;
-    return !session.isActive;
-  }
-
-  return { session, loading, saveSession, clearSession, isExpired };
+export function clearColabSession() {
+  try { sessionStorage.removeItem(SESSION_KEY); } catch {}
 }
