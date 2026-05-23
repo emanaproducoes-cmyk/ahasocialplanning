@@ -40,9 +40,9 @@ export default function ColabPlanning({ session }: Props) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { reload(); }, [session.adminUid]);
+  useEffect(() => { if (session?.adminUid && tab) reload(); }, [session.adminUid, tab]);
 
-  const filtered = entries.filter(e => e.period === tab);
+  const filtered = tab ? entries.filter(e => e.period === tab) : [];
   const col = PERIOD_COLORS[tab];
 
   const handleSave = async (e: PlanningEntry) => {

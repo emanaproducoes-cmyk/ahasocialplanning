@@ -212,7 +212,7 @@ export default function ColabCalendar({ session }: Props) {
                           onClick={e => { e.stopPropagation(); setSelected(p); }}
                           style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 5px', borderRadius: 4, background: cfg.pill, cursor: 'pointer' }}>
                           {p.mediaUrl ? (
-                            <img src={p.mediaUrl} alt="" style={{ width: 16, height: 16, borderRadius: 3, objectFit: 'cover', flexShrink: 0 }} />
+                            <img src={p.mediaUrl} alt="" style={{ width: "100%", height: 56, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
                           ) : (
                             <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
                           )}
