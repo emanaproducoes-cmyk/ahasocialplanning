@@ -534,10 +534,7 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
 }
 
 /* ── POST VIEW MODAL — Preview + Info + Comentários + Ações ─── */
-function PostModal({ post, session, onClose, onUpdated, onDeleted }: {
-  post: ColabPost; session: ColabSession;
-  onClose: () => void; onUpdated: () => void; onDeleted: () => void; onZoom: (url: string) => void;
-  onZoom }: {
+function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
   post: ColabPost; session: ColabSession;
   onClose: () => void; onUpdated: () => void; onDeleted: () => void; onZoom: (url: string) => void;
 }) {
