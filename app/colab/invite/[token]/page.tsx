@@ -35,7 +35,7 @@ export default function InvitePage() {
       const exp = inv.expiresAt?.toDate?.() ?? new Date(inv.expiresAt);
       if (exp < new Date()) { router.push('/colab/expired'); return; }
       if (inv.status === 'accepted') { 
-        sessionStorage.setItem('colab_session', JSON.stringify({ token, adminUid: inv.adminUid, agencyName: inv.agencyName, clientEmail: inv.clientEmail, clientName: inv.clientName, isActive: true }));
+        sessionStorage.setItem('aha_colab_session', JSON.stringify({ token, adminUid: inv.adminUid, agencyName: inv.agencyName, clientEmail: inv.clientEmail, clientName: inv.clientName, isActive: true }));
         router.push('/colab'); return; 
       }
       setAgencyName(inv.agencyName ?? '');
@@ -51,7 +51,7 @@ export default function InvitePage() {
     try {
       await acceptInvite(token);
       const inv = await getInviteByToken(token);
-      sessionStorage.setItem('colab_session', JSON.stringify({ token, adminUid: inv?.adminUid, agencyName: inv?.agencyName ?? agencyName, clientEmail: email.trim(), clientName: name.trim(), isActive: true }));
+      sessionStorage.setItem('aha_colab_session', JSON.stringify({ token, adminUid: inv?.adminUid, agencyName: inv?.agencyName ?? agencyName, clientEmail: email.trim(), clientName: name.trim(), isActive: true }));
       setStep('success');
       setTimeout(() => router.push('/colab'), 2000);
     } catch { setErrorMsg('Erro ao aceitar convite.'); setStep('error'); }
