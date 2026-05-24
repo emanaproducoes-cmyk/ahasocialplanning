@@ -284,7 +284,7 @@ export default function ColabCalendar({ session }: Props) {
         <PostModal post={selected} session={session}
           onClose={() => setSelected(null)}
           onUpdated={() => { setSelected(null); reload(); }}
-          onDeleted={() => { setSelected(null); reload(); }}
+          onDeleted={() => { setSelected(null); reload(); }} onZoom={setZoomedImg}
         />
       )}
       {newDay && (
