@@ -70,7 +70,8 @@ export default function ColabRatings({ adminUid }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
-    getColabRatings(adminUid).then(data => {
+    if (!adminUid && !session?.adminUid) return;
+getColabRatings(session?.adminUid ?? adminUid).then(data => {
       setHistory(data);
       const existing = data.find((r: any) => r.month === monthKey);
       if (existing) { setRatings(existing.ratings); setComment(existing.comment ?? ''); setSubmitted(true); }
@@ -84,7 +85,7 @@ export default function ColabRatings({ adminUid }: Props) {
     if (!allFilled || saving) return;
     setSaving(true);
     try {
-      await saveColabRating({ adminUid, clientEmail: '', clientName: '', month: monthKey, ratings, average: parseFloat(avg.toFixed(2)), comment: comment.trim(), submittedAt: new Date().toISOString() });
+      await saveColabRating({ adminUid, clientEmail: session?.clientEmail ?? '', clientName: session?.clientName ?? '', month: monthKey, ratings, average: parseFloat(avg.toFixed(2)), comment: comment.trim(), submittedAt: new Date().toISOString() });
       setSubmitted(true);
       const data = await getColabRatings(adminUid);
       setHistory(data);
