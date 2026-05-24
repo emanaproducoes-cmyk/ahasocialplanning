@@ -49,7 +49,7 @@ export default function ColabPage() {
     <ColabShell session={session} section={section} onNavigate={setSection}>
       {section === 'calendar' && <ColabCalendar session={session} />}
       {section === 'planning' && <ColabPlanning session={session} />}
-      {section === 'ratings'  && <ColabRatings  session={session} />}
+      {section === 'ratings'  && <ColabRatings adminUid={session.adminUid} session={session} />}
     </ColabShell>
   );
 }
