@@ -166,7 +166,7 @@ export default function ColabCalendar({ session }: Props) {
               style={{ background: 'none', border: '1px solid #E2E8F0', cursor: 'pointer', color: '#64748B', fontSize: 16, padding: '3px 9px', borderRadius: 7 }}>›</button>
           </div>
           {/* Day headers */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
             {DAYS.map(d => (
               <div key={d} style={{ padding: '8px 6px', textAlign: 'center', fontSize: 10, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, color: '#94A3B8', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
                 {d}
