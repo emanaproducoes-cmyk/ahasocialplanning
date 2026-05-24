@@ -662,7 +662,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
           {tab === 'preview' && (
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
               {mediaUrl ? (
-                <div style={{ width: '100%', maxWidth: 380, borderRadius: 14, overflow: 'hidden', background: '#F1F5F9', border: '1px solid #E2E8F0', aspectRatio: '1/1' }}>
+                <div style={{ width: '100%', maxWidth: 380, borderRadius: 14, overflow: 'hidden', background: '#F1F5F9', border: '1px solid #E2E8F0', aspectRatio: '1/1', cursor: 'zoom-in' }} onClick={() => mediaUrl && onZoom(mediaUrl)}>
                   {isVideo ? (
                     <video src={mediaUrl} controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
