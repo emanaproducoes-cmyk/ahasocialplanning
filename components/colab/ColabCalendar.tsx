@@ -184,10 +184,10 @@ export default function ColabCalendar({ session }: Props) {
                 <div key={key}
                   onClick={() => inMonth && setNewDay(day)}
                   style={{
-                    minHeight: 150, padding: '8px 6px 6px',
+                    padding: '8px 6px 6px', aspectRatio: '1/1',
                     borderBottom: idx < days.length - 7 ? '1px solid #E2E8F0' : 'none',
                     borderRight: (idx + 1) % 7 !== 0 ? '1px solid #E2E8F0' : 'none',
-                    background: isT ? 'rgba(79,70,229,0.08)' : '#F5F5FF',
+                    background: isT ? 'rgba(109,40,217,0.12)' : (dayPosts.length > 0 ? '#F5F3FF' : '#FFFFFF'),
                     opacity: inMonth ? 1 : 0.4,
                     cursor: inMonth ? 'pointer' : 'default',
                     transition: 'background 0.12s',
