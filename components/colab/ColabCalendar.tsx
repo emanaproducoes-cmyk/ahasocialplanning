@@ -174,7 +174,7 @@ export default function ColabCalendar({ session }: Props) {
             ))}
           </div>
           {/* Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gridAutoRows: '140px' }}>
             {days.map((day, idx) => {
               const key      = format(day, 'yyyy-MM-dd');
               const dayPosts = (postsByDay[key] ?? []).filter(p => filterStatus === 'all' || p.status === filterStatus);
