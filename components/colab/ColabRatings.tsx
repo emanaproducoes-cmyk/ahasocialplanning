@@ -57,7 +57,7 @@ function ScoreDonut({ avg }: { avg: number }) {
   );
 }
 
-interface Props { adminUid: string }
+interface Props { adminUid: string; session?: import('@/lib/colab/types').ColabSession }
 
 export default function ColabRatings({ adminUid }: Props) {
   const monthKey = currentMonthKey();
@@ -85,7 +85,7 @@ getColabRatings(session?.adminUid ?? adminUid).then(data => {
     if (!allFilled || saving) return;
     setSaving(true);
     try {
-      await saveColabRating({ adminUid, clientEmail: session?.clientEmail ?? '', clientName: session?.clientName ?? '', month: monthKey, ratings, average: parseFloat(avg.toFixed(2)), comment: comment.trim(), submittedAt: new Date().toISOString() });
+      await saveColabRating({ adminUid: session?.adminUid ?? adminUid, clientEmail: session?.clientEmail ?? '', clientName: session?.clientName ?? '', month: monthKey, ratings, average: parseFloat(avg.toFixed(2)), comment: comment.trim(), submittedAt: new Date().toISOString() });
       setSubmitted(true);
       const data = await getColabRatings(adminUid);
       setHistory(data);
