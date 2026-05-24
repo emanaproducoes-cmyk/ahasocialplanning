@@ -97,7 +97,7 @@ export default function ColabCalendar({ session }: Props) {
   }, [posts]);
 
   return (
-    <div style={{ padding: '6px', minHeight: 120 }}>
+    <div style={{ padding: '8px 6px 6px', minHeight: 130, borderRight: '1px solid #F1F5F9', borderBottom: '1px solid #F1F5F9', background: '#FFFFFF' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
@@ -174,7 +174,7 @@ export default function ColabCalendar({ session }: Props) {
             ))}
           </div>
           {/* Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden' }}>
             {days.map((day, idx) => {
               const key      = format(day, 'yyyy-MM-dd');
               const dayPosts = (postsByDay[key] ?? []).filter(p => filterStatus === 'all' || p.status === filterStatus);
