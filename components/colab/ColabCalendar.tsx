@@ -184,7 +184,7 @@ export default function ColabCalendar({ session }: Props) {
                 <div key={key}
                   onClick={() => inMonth && setNewDay(day)}
                   style={{
-                    minHeight: 90, padding: '8px 6px 6px',
+                    minHeight: 110, padding: '8px 6px 6px',
                     borderBottom: idx < days.length - 7 ? '1px solid #E2E8F0' : 'none',
                     borderRight: (idx + 1) % 7 !== 0 ? '1px solid #E2E8F0' : 'none',
                     background: isT ? 'rgba(79,70,229,0.05)' : '#FFFFFF',
@@ -212,15 +212,18 @@ export default function ColabCalendar({ session }: Props) {
                       return (
                         <div key={p.id}
                           onClick={e => { e.stopPropagation(); setSelected(p); }}
-                          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 5px', borderRadius: 4, background: cfg.pill, cursor: 'pointer' }}>
+                          style={{ borderRadius: 6, overflow: 'hidden', cursor: 'pointer', border: `1px solid ${cfg.dot}40`, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                          <div style={{ height: 3, background: cfg.dot, width: '100%' }} />
                           {p.mediaUrl ? (
-                            <img src={p.mediaUrl} alt="" style={{ width: "100%", height: 56, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+                            <img src={p.mediaUrl} alt="" style={{ width: '100%', height: 52, objectFit: 'cover', display: 'block' }} />
                           ) : (
-                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
+                            <div style={{ padding: '3px 6px', background: cfg.pill, display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
+                              <span style={{ fontSize: 10, fontWeight: 600, color: cfg.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                {p.title}
+                              </span>
+                            </div>
                           )}
-                          <span style={{ fontSize: 10, fontWeight: 600, color: cfg.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                            {p.title}
-                          </span>
                         </div>
                       );
                     })}
