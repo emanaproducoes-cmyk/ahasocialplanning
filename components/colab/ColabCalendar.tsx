@@ -97,7 +97,7 @@ export default function ColabCalendar({ session }: Props) {
   }, [posts]);
 
   return (
-    <div style={{ padding: '8px 6px 6px', minHeight: 130, borderRight: '1px solid #F1F5F9', borderBottom: '1px solid #F1F5F9', background: '#FFFFFF' }}>
+    <div style={{ padding: '8px 6px 6px', minHeight: 130, borderRight: '1px solid #E0E7FF', borderBottom: '1px solid #E0E7FF', background: '#FFFFFF' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
@@ -387,7 +387,7 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
             </h3>
             <div style={{ fontSize: 12, color: '#64748B', textTransform: 'capitalize' }}>📅 {dateLabel}</div>
           </div>
-          <button onClick={onClose} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#64748B', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+          <button onClick={onClose} style={{ background: '#EEF2FF', border: '1px solid #E2E8F0', color: '#64748B', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
         </div>
 
         <div style={{ flex: 1, overflow: 'auto', padding: '18px 22px' }}>
@@ -398,7 +398,7 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
                 const cfg = STATUS[p.status] ?? STATUS.rascunho;
                 return (
                   <div key={p.id} onClick={() => onViewPost(p)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 10, background: '#F8FAFC', border: '1px solid #E2E8F0', cursor: 'pointer', transition: 'all 0.12s' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 10, background: '#EEF2FF', border: '1px solid #E2E8F0', cursor: 'pointer', transition: 'all 0.12s' }}
                     onMouseEnter={e => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.borderColor = '#CBD5E1'; }}
                     onMouseLeave={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#E2E8F0'; }}>
                     {p.mediaUrl ? (
@@ -425,7 +425,7 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
                   <button onClick={() => setMode('request')} style={{
                     flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid #E2E8F0', cursor: 'pointer', fontSize: 13,
                     fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
-                    background: '#F8FAFC', color: '#4F46E5',
+                    background: '#EEF2FF', color: '#4F46E5',
                   }}>📩 Solicitar post neste dia</button>
                 )}
               </div>
@@ -443,17 +443,17 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Título *</label>
                 <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex: Post de engajamento" autoFocus
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#F8FAFC', fontFamily: 'Inter, sans-serif', boxSizing: 'border-box', outline: 'none' }} />
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#EEF2FF', fontFamily: 'Inter, sans-serif', boxSizing: 'border-box', outline: 'none' }} />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Legenda / Descrição</label>
                 <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Escreva a legenda do post…" rows={3}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#F8FAFC', fontFamily: 'Inter, sans-serif', resize: 'vertical', boxSizing: 'border-box', outline: 'none' }} />
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#EEF2FF', fontFamily: 'Inter, sans-serif', resize: 'vertical', boxSizing: 'border-box', outline: 'none' }} />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Status</label>
                 <select value={status} onChange={e => setStatus(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#F8FAFC', fontFamily: 'Inter, sans-serif', cursor: 'pointer', outline: 'none', appearance: 'none', boxSizing: 'border-box' }}>
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#EEF2FF', fontFamily: 'Inter, sans-serif', cursor: 'pointer', outline: 'none', appearance: 'none', boxSizing: 'border-box' }}>
                   {STATUS_OPTIONS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </select>
               </div>
@@ -475,7 +475,7 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
-                <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 10, border: '1px solid #E2E8F0', background: '#F8FAFC', color: '#64748B', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>Cancelar</button>
+                <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 10, border: '1px solid #E2E8F0', background: '#EEF2FF', color: '#64748B', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>Cancelar</button>
                 <button onClick={handleCreate} disabled={saving || !title.trim()} style={{
                   padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13,
                   fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
@@ -503,10 +503,10 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>O que você gostaria?</label>
                 <textarea value={requestNote} onChange={e => setRequestNote(e.target.value)} placeholder="Descreva o tipo de conteúdo que você quer para esta data…" rows={4}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#F8FAFC', fontFamily: 'Inter, sans-serif', resize: 'vertical', boxSizing: 'border-box', outline: 'none' }} />
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#EEF2FF', fontFamily: 'Inter, sans-serif', resize: 'vertical', boxSizing: 'border-box', outline: 'none' }} />
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 10, border: '1px solid #E2E8F0', background: '#F8FAFC', color: '#64748B', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>Cancelar</button>
+                <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 10, border: '1px solid #E2E8F0', background: '#EEF2FF', color: '#64748B', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>Cancelar</button>
                 <button onClick={handleRequest} disabled={saving} style={{
                   padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13,
                   fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
@@ -634,13 +634,13 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
             )}
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-            <button onClick={() => { setTab('actions'); }} title="Editar" style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#4F46E5', padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <button onClick={() => { setTab('actions'); }} title="Editar" style={{ background: '#EEF2FF', border: '1px solid #E2E8F0', color: '#4F46E5', padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', display: 'flex', alignItems: 'center', gap: 4 }}>
               ✏️ Editar Post
             </button>
             <button onClick={handleDelete} disabled={deleting} title="Deletar" style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', display: 'flex', alignItems: 'center', gap: 4 }}>
               🗑️ Deletar
             </button>
-            <button onClick={onClose} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#64748B', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            <button onClick={onClose} style={{ background: '#EEF2FF', border: '1px solid #E2E8F0', color: '#64748B', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
           </div>
         </div>
 
@@ -707,7 +707,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>PLATAFORMAS</div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {post.platforms.map(pl => (
-                      <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, background: '#F8FAFC', border: '1px solid #E2E8F0', fontSize: 13, color: '#0F172A', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                      <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, background: '#EEF2FF', border: '1px solid #E2E8F0', fontSize: 13, color: '#0F172A', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                         <span>{PLATFORM_ICON[pl] ?? '📱'}</span>{pl.replace('_', ' ')}
                       </div>
                     ))}
@@ -724,7 +724,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
                 <div style={{ textAlign: 'center', color: '#64748B', padding: 24, fontSize: 13 }}>Nenhum comentário ainda. Seja o primeiro!</div>
               )}
               {comments.map(c => (
-                <div key={c.id} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 12px' }}>
+                <div key={c.id} style={{ background: '#EEF2FF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '10px 12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#4F46E5', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{c.author}</span>
                     <span style={{ fontSize: 10, color: '#94A3B8' }}>{format(new Date(c.createdAt), "dd/MM HH:mm")}</span>
@@ -734,7 +734,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
               ))}
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Escreva um comentário…" rows={2}
-                  style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#F8FAFC', fontFamily: 'Inter, sans-serif', resize: 'none', outline: 'none' }}
+                  style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#EEF2FF', fontFamily: 'Inter, sans-serif', resize: 'none', outline: 'none' }}
                   onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitComment(); }} />
                 <button onClick={submitComment} disabled={saving || !text.trim()} style={{
                   padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
@@ -754,35 +754,35 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
                 <div>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Plataforma</label>
                   <select value={editPlatform} onChange={e => setEditPlatform(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#F8FAFC', appearance: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }}>
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#EEF2FF', appearance: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }}>
                     {ALL_PLATFORMS.map(p => <option key={p} value={p}>{PLATFORM_ICON[p]} {p.replace('_',' ')}</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Data</label>
                   <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#F8FAFC', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#EEF2FF', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Status</label>
                 <select value={editStatus} onChange={e => setEditStatus(e.target.value)}
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#F8FAFC', appearance: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }}>
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#EEF2FF', appearance: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }}>
                   {STATUS_OPTIONS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </select>
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Campanha</label>
                 <input value={editCampaign} onChange={e => setEditCampaign(e.target.value)} placeholder="ID ou nome da campanha"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#F8FAFC', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#EEF2FF', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' }} />
               </div>
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748B', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Legenda</label>
                 <textarea value={editCaption} onChange={e => setEditCaption(e.target.value)} rows={3} placeholder="Legenda do post…"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#F8FAFC', fontFamily: 'Inter, sans-serif', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 14, color: '#0F172A', background: '#EEF2FF', fontFamily: 'Inter, sans-serif', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
-                <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 10, border: '1px solid #E2E8F0', background: '#F8FAFC', color: '#64748B', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>Cancelar</button>
+                <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 10, border: '1px solid #E2E8F0', background: '#EEF2FF', color: '#64748B', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>Cancelar</button>
                 <button onClick={handleSave} disabled={saving} style={{
                   padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13,
                   fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
