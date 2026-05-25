@@ -8,11 +8,11 @@ import type { ColabSession, PlanningEntry, PlanningPeriod } from '@/lib/colab/ty
 interface Props { session: ColabSession }
 
 const TABS: { id: PlanningPeriod; label: string; icon: string }[] = [
-  { id: 'day',      label: 'Dia',       icon: '📌' },
+  { id: 'day',      label: 'Dia',       icon: 'Map_Pin' },
   { id: 'week',     label: 'Semana',    icon: '📆' },
   { id: 'month',    label: 'Mês',       icon: '🗓' },
-  { id: 'quarter',  label: 'Trimestre', icon: '📊' },
-  { id: 'semester', label: 'Semestre',  icon: '🗺️' },
+  { id: 'quarter',  label: 'Trimestre', icon: 'Chart_Bar_Vertical_01' },
+  { id: 'semester', label: 'Semestre',  icon: 'Map' },
 ];
 
 const PERIOD_COLORS: Record<PlanningPeriod, { bg: string; text: string; border: string; dot: string }> = {

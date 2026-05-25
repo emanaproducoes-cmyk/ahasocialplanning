@@ -245,7 +245,7 @@ export default function ColabCalendar({ session }: { session: ColabSession }) {
       {zoomedImg && (
         <div onClick={() => setZoomedImg(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,0,40,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, cursor: 'zoom-out' }}>
           <img src={zoomedImg} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 16, objectFit: 'contain', boxShadow: '0 8px 40px rgba(124,58,237,0.4)' }} onClick={e => e.stopPropagation()} />
-          <button onClick={() => setZoomedImg(null)} style={{ position: 'absolute', top: 20, right: 24, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '50%', width: 36, height: 36, color: '#fff', fontSize: 20, cursor: 'pointer' }}>×</button>
+          <button onClick={() => setZoomedImg(null)} style={{ position: 'absolute', top: 20, right: 24, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '50%', width: 36, height: 36, color: '#fff', fontSize: 20, cursor: 'pointer' }}><Icon name="Close_MD" size={14} /></button>
         </div>
       )}
     </div>
@@ -307,7 +307,7 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
             </h3>
             <div style={{ fontSize: 12, color: '#7C3AED', fontWeight: 500 }}>📅 {dateLabel}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)', color: '#7C3AED', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+          <button onClick={onClose} style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)', color: '#7C3AED', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="Close_MD" size={14} /></button>
         </div>
         <div style={{ flex: 1, overflow: 'auto', padding: '18px 22px' }}>
           {mode === 'list' && (
@@ -467,9 +467,9 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
             {post.scheduledAt && <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 3, fontWeight: 500 }}>📅 {format(new Date(post.scheduledAt),"dd 'de' MMMM 'de' yyyy",{locale:ptBR})}</div>}
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-            <button onClick={() => setTab('actions')} style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)', color: '#7C3AED', padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>✏️ Editar</button>
+            <button onClick={() => setTab('actions')} style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)', color: '#7C3AED', padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif' }}><Icon name="Note_Edit" size={13} style={{marginRight:4}} />Editar</button>
             <button onClick={handleDelete} disabled={deleting} style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>🗑️</button>
-            <button onClick={onClose} style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)', color: '#7C3AED', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+            <button onClick={onClose} style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)', color: '#7C3AED', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="Close_MD" size={14} /></button>
           </div>
         </div>
         <div style={{ display: 'flex', borderBottom: '1px solid rgba(139,92,246,0.15)', padding: '0 20px', background: 'rgba(245,243,255,0.40)', overflowX: 'auto' }}>
