@@ -27,7 +27,7 @@ const STATUS: Record<string, { label: string; dot: string; pill: string; text: s
   publicado:         { label: 'Publicado',   dot: '#059669', pill: '#D1FAE5', text: '#065F46' },
 };
 const STATUS_OPTIONS = Object.entries(STATUS).map(([id, v]) => ({ id, label: v.label }));
-const PLATFORM_ICON: Record<string, string> = { instagram: '📸', facebook: '👤', tiktok: '🎵', youtube: '▶️', linkedin: '💼', twitter: '🐦', pinterest: '📌' };
+const PLATFORM_ICON: Record<string, string> = { instagram: '📸', facebook: '<Icon name="User_Circle" size={13} />', tiktok: '🎵', youtube: '▶️', linkedin: '💼', twitter: '🐦', pinterest: '📌' };
 const ALL_PLATFORMS = ['instagram','facebook','tiktok','youtube','linkedin','twitter','pinterest'];
 
 const PLATFORM_COLORS: Record<string, string> = {
@@ -119,7 +119,7 @@ export default function ColabCalendar({ session }: { session: ColabSession }) {
                 background: view === v ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'transparent',
                 color: view === v ? '#fff' : '#7C3AED', transition: 'all 0.15s',
               }}>
-                {v === 'month' ? '📅 Mês' : '☰ Lista'}
+                {v === 'month' ? '<Icon name="Calendar" size={13} style={{marginRight:4}} />Mês' : '☰ Lista'}
               </button>
             ))}
           </div>
@@ -130,11 +130,11 @@ export default function ColabCalendar({ session }: { session: ColabSession }) {
         <div style={{ background: 'rgba(255,255,255,0.70)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.8)', overflow: 'hidden', backdropFilter: 'blur(16px)', boxShadow: '0 8px 32px rgba(109,40,217,0.12)' }}>
           {/* Nav */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 18px', borderBottom: '1px solid rgba(139,92,246,0.15)', background: 'linear-gradient(135deg,rgba(139,92,246,0.12),rgba(99,102,241,0.08))' }}>
-            <button onClick={() => setMonth(m => subMonths(m,1))} style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)', cursor: 'pointer', color: '#7C3AED', fontSize: 16, padding: '4px 10px', borderRadius: 8, fontWeight: 700 }}>‹</button>
+            <button onClick={() => setMonth(m => subMonths(m,1))} style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)', cursor: 'pointer', color: '#7C3AED', fontSize: 16, padding: '4px 10px', borderRadius: 8, fontWeight: 700 }}><Icon name="Chevron_Left" size={16} /><//button>
             <h3 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: 15, color: '#3B0764', textTransform: 'capitalize', margin: 0 }}>
               {format(month, 'MMMM yyyy', { locale: ptBR })}
             </h3>
-            <button onClick={() => setMonth(m => addMonths(m,1))} style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)', cursor: 'pointer', color: '#7C3AED', fontSize: 16, padding: '4px 10px', borderRadius: 8, fontWeight: 700 }}>›</button>
+            <button onClick={() => setMonth(m => addMonths(m,1))} style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)', cursor: 'pointer', color: '#7C3AED', fontSize: 16, padding: '4px 10px', borderRadius: 8, fontWeight: 700 }}><Icon name="Chevron_Right" size={16} /><//button>
           </div>
           {/* Day headers */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', borderBottom: '1px solid rgba(139,92,246,0.12)', background: 'rgba(245,243,255,0.60)' }}>
@@ -220,7 +220,7 @@ export default function ColabCalendar({ session }: { session: ColabSession }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: 13, color: '#3B0764', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.title}</div>
-                  {p.scheduledAt && <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 1, fontWeight: 600 }}>📅 {format(new Date(p.scheduledAt), "dd 'de' MMM", { locale: ptBR })}</div>}
+                  {p.scheduledAt && <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 1, fontWeight: 600 }}><Icon name="Calendar" size={13} style={{marginRight:4}} />{format(new Date(p.scheduledAt), "dd 'de' MMM", { locale: ptBR })}</div>}
                 </div>
                 <span style={{ padding: '3px 10px', borderRadius: 999, background: cfg.pill, color: cfg.text, fontSize: 11, fontWeight: 700, border: `1px solid ${cfg.dot}30` }}>{cfg.label}</span>
               </div>
@@ -306,7 +306,7 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
             <h3 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 16, color: '#3B0764', margin: 0, marginBottom: 2 }}>
               {mode === 'list' ? `Posts em ${format(day,"dd/MM",{locale:ptBR})}` : mode === 'create' ? '+ Novo Post' : '📩 Solicitar Post'}
             </h3>
-            <div style={{ fontSize: 12, color: '#7C3AED', fontWeight: 500 }}>📅 {dateLabel}</div>
+            <div style={{ fontSize: 12, color: '#7C3AED', fontWeight: 500 }}><Icon name="Calendar" size={13} style={{marginRight:4}} />{dateLabel}</div>
           </div>
           <button onClick={onClose} style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)', color: '#7C3AED', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="Close_MD" size={14} /></button>
         </div>
@@ -324,7 +324,7 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
                       <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: 13, color: '#3B0764', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.title}</div>
                       <div style={{ fontSize: 11, color: cfg.text, marginTop: 1, fontWeight: 600 }}>{cfg.label}</div>
                     </div>
-                    <span style={{ color: '#7C3AED', fontSize: 14 }}>›</span>
+                    <span style={{ color: '#7C3AED', fontSize: 14 }}><Icon name="Chevron_Right" size={16} /><//span>
                   </div>
                 );
               })}
@@ -465,7 +465,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
               {post.platforms?.map(pl => <span key={pl} style={{ fontSize: 14 }}>{PLATFORM_ICON[pl] ?? '📱'}</span>)}
             </div>
             <h3 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 16, color: '#3B0764', margin: 0 }}>{post.title}</h3>
-            {post.scheduledAt && <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 3, fontWeight: 500 }}>📅 {format(new Date(post.scheduledAt),"dd 'de' MMMM 'de' yyyy",{locale:ptBR})}</div>}
+            {post.scheduledAt && <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 3, fontWeight: 500 }}><Icon name="Calendar" size={13} style={{marginRight:4}} />{format(new Date(post.scheduledAt),"dd 'de' MMMM 'de' yyyy",{locale:ptBR})}</div>}
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
             <button onClick={() => setTab('actions')} style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)', color: '#7C3AED', padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif' }}><Icon name="Note_Edit" size={13} style={{marginRight:4}} />Editar</button>
