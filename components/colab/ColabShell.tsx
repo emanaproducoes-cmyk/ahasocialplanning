@@ -1,6 +1,7 @@
 'use client';
 import { useRouter } from 'next/navigation';
 import { clearColabSession } from '@/lib/colab/useColabSession';
+import Icon from '@/components/colab/ui/Icon';
 import type { ColabSession } from '@/lib/colab/types';
 import type { NavSection } from '@/app/colab/page';
 
@@ -12,9 +13,9 @@ interface Props {
 }
 
 const NAV: { id: NavSection; icon: string; label: string }[] = [
-  { id: 'calendar', icon: '📅', label: 'Calendário'   },
-  { id: 'planning', icon: '📋', label: 'Planejamento' },
-  { id: 'ratings',  icon: '⭐', label: 'Avaliações'   },
+  { id: 'calendar', icon: 'Calendar',      label: 'Calendário'   },
+  { id: 'planning', icon: 'List_Checklist', label: 'Planejamento' },
+  { id: 'ratings',  icon: 'Star',          label: 'Avaliações'   },
 ];
 
 function initials(name: string) {
@@ -44,8 +45,10 @@ export default function ColabShell({ session, children, section, onNavigate }: P
             width: 32, height: 32, borderRadius: 10,
             background: 'linear-gradient(135deg,#4F46E5,#7C3AED)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 15, boxShadow: '0 4px 12px rgba(124,58,237,0.4)',
-          }}>⚡</div>
+            boxShadow: '0 4px 12px rgba(124,58,237,0.4)',
+          }}>
+            <Icon name="Bulb" size={17} color="#fff" />
+          </div>
           <div>
             <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 14, color: '#F8FAFC', letterSpacing: '-0.01em', lineHeight: 1.1 }}>Social Colab</div>
             <div style={{ fontSize: 10, color: 'rgba(248,250,252,0.5)', marginTop: 1 }}>{session.agencyName}</div>
@@ -69,7 +72,7 @@ export default function ColabShell({ session, children, section, onNavigate }: P
                 onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(248,250,252,0.85)'; } }}
                 onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(248,250,252,0.58)'; } }}
               >
-                <span style={{ fontSize: 15 }}>{item.icon}</span>
+                <Icon name={item.icon} size={15} color={active ? '#FFFFFF' : 'rgba(248,250,252,0.58)'} />
                 {item.label}
                 {active && <span style={{ position: 'absolute', bottom: -2, left: '50%', transform: 'translateX(-50%)', width: 24, height: 2, borderRadius: 2, background: 'linear-gradient(90deg,#8B5CF6,#6366F1)' }} />}
               </button>
@@ -79,26 +82,36 @@ export default function ColabShell({ session, children, section, onNavigate }: P
 
         {/* Right */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 32, flexShrink: 0 }}>
+          {/* Online badge */}
           <div style={{ padding: '4px 10px', borderRadius: 999, background: 'rgba(52,211,153,0.14)', border: '1px solid rgba(52,211,153,0.30)', display: 'flex', alignItems: 'center', gap: 5 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34D399', display: 'inline-block' }} />
             <span style={{ fontSize: 11, fontWeight: 600, color: '#34D399', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Online</span>
           </div>
           <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.12)' }} />
+          {/* Avatar */}
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#4F46E5,#9333EA)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: '#fff', fontFamily: 'Plus Jakarta Sans, sans-serif', flexShrink: 0 }}>
             {initials(session.clientName)}
           </div>
+          {/* Name */}
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#F8FAFC', fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis' }}>{session.clientName}</div>
             <div style={{ fontSize: 10, color: 'rgba(248,250,252,0.48)', whiteSpace: 'nowrap', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis' }}>{session.clientEmail}</div>
           </div>
+          {/* Logout */}
           <button onClick={handleLogout} title="Sair" style={{
             background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: 8, cursor: 'pointer', color: 'rgba(248,250,252,0.55)',
-            fontSize: 13, padding: '5px 9px', transition: 'all 0.15s', flexShrink: 0,
+            borderRadius: 8, cursor: 'pointer', padding: '6px 10px',
+            transition: 'all 0.15s', flexShrink: 0,
+            display: 'flex', alignItems: 'center', gap: 5,
+            color: 'rgba(248,250,252,0.55)',
+            fontSize: 12, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600,
           }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.18)'; e.currentTarget.style.color = '#FCA5A5'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = 'rgba(248,250,252,0.55)'; }}
-          >Sair</button>
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.18)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.35)'; (e.currentTarget.style as any).color = '#FCA5A5'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; (e.currentTarget.style as any).color = 'rgba(248,250,252,0.55)'; }}
+          >
+            <Icon name="Log_Out" size={14} />
+            Sair
+          </button>
         </div>
       </header>
 

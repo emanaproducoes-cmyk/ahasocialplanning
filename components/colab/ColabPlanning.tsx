@@ -1,4 +1,5 @@
 'use client';
+import Icon from '@/components/colab/ui/Icon';
 import { useState, useEffect } from 'react';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';

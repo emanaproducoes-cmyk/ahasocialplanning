@@ -1,0 +1,9 @@
+@font-face {
+  font-family: 'coolicons';
+  src: url('/fonts/coolicons/coolicons.woff2') format('woff2'),
+       url('/fonts/coolicons/coolicons.woff')  format('woff'),
+       url('/fonts/coolicons/coolicons.ttf')   format('truetype');
+  font-weight: normal;
+  font-style:  normal;
+  font-display: block;
+}
