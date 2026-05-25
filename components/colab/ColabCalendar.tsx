@@ -162,8 +162,7 @@ export default function ColabCalendar({ session }: { session: ColabSession }) {
               const inMonth    = isSameMonth(day, month);
               const isT        = isToday(day);
               return (
-                <div key={key}
-                  onClick={() => inMonth && setNewDay(day)}
+                <div key={key} onClick={() => inMonth && setNewDay(day)}
                   style={{
                     padding: '8px 6px 6px', aspectRatio: '1/1',
                     borderBottom: idx < days.length - 7 ? '1px solid rgba(255,255,255,0.5)' : 'none',
@@ -188,11 +187,12 @@ export default function ColabCalendar({ session }: { session: ColabSession }) {
                       <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', color: '#fff', fontSize: 11, boxShadow: '0 2px 8px rgba(124,58,237,0.4)' }}>
                         {format(day, 'd')}
                       </span>
-                    ) : format(day, 'd')}
+                    ) : format(day,'d')}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {dayPosts.slice(0, 2).map(p => {
+                    {dayPosts.slice(0,2).map(p => {
                       const cfg = STATUS[p.status] ?? STATUS.rascunho;
+                      const platColor = PLATFORM_COLORS[p.platforms?.[0] ?? ''] ?? cfg.dot;
                       return (
                         <div key={p.id}
                           onClick={e => { e.stopPropagation(); setSelected(p); }}
@@ -201,11 +201,9 @@ export default function ColabCalendar({ session }: { session: ColabSession }) {
                           {p.mediaUrl ? (
                             <img src={p.mediaUrl} alt="" style={{ width: '100%', height: 52, objectFit: 'cover', display: 'block' }} />
                           ) : (
-                            <div style={{ padding: '3px 6px', background: cfg.pill, display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
-                              <span style={{ fontSize: 10, fontWeight: 600, color: cfg.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                                {p.title}
-                              </span>
+                            <div style={{ padding: '3px 6px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ width: 5, height: 5, borderRadius: '50%', background: platColor, flexShrink: 0 }} />
+                              <span style={{ fontSize: 10, fontWeight: 600, color: '#3B0764', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{p.title}</span>
                             </div>
                           )}
                         </div>
@@ -223,7 +221,6 @@ export default function ColabCalendar({ session }: { session: ColabSession }) {
           </div>
         </div>
       ) : (
-        /* LIST VIEW */
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.length === 0 && !loading && (
             <div style={{ textAlign: 'center', color: '#7C3AED', padding: 48, fontSize: 14 }}>Nenhum post encontrado.</div>
@@ -260,8 +257,14 @@ export default function ColabCalendar({ session }: { session: ColabSession }) {
                   </div>
                   <span style={{ padding: '3px 10px', borderRadius: 999, background: cfg.pill, color: cfg.text, fontSize: 11, fontWeight: 700, border: `1px solid ${cfg.dot}30` }}>{cfg.label}</span>
                 </div>
-              );
-            })}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: 13, color: '#3B0764', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.title}</div>
+                  {p.scheduledAt && <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 1, fontWeight: 600 }}>📅 {format(new Date(p.scheduledAt), "dd 'de' MMM", { locale: ptBR })}</div>}
+                </div>
+                <span style={{ padding: '3px 10px', borderRadius: 999, background: cfg.pill, color: cfg.text, fontSize: 11, fontWeight: 700, border: `1px solid ${cfg.dot}30` }}>{cfg.label}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -281,7 +284,6 @@ export default function ColabCalendar({ session }: { session: ColabSession }) {
         />
       )}
 
-      {/* Lightbox */}
       {zoomedImg && (
         <div onClick={() => setZoomedImg(null)} style={{
           position: 'fixed', inset: 0, background: 'rgba(15,0,40,0.85)',
@@ -319,6 +321,7 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
   const [requested, setRequested] = useState(false);
   const [requestNote, setRequestNote] = useState('');
   const dateLabel = format(day, "EEEE, dd 'de' MMMM", { locale: ptBR });
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(139,92,246,0.25)', fontSize: 14, color: '#3B0764', background: 'rgba(245,243,255,0.6)', fontFamily: 'Inter, sans-serif', boxSizing: 'border-box', outline: 'none' };
 
   const handleCreate = async () => {
     if (!title.trim() || saving) return;
@@ -348,8 +351,8 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
     } catch(e) { console.error(e); setSaving(false); }
   };
 
-  const togglePlatform = (p: string) =>
-    setPlatforms(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
+  const overlayStyle: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(59,7,100,0.55)', backdropFilter: 'blur(8px)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 };
+  const modalStyle: React.CSSProperties  = { borderRadius: 24, width: '100%', maxWidth: 480, maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(20px)', boxShadow: '0 20px 60px rgba(109,40,217,0.25)' };
 
   const inputStyle = { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(139,92,246,0.25)', fontSize: 14, color: '#3B0764', background: 'rgba(245,243,255,0.6)', fontFamily: 'Inter, sans-serif', boxSizing: 'border-box' as const, outline: 'none', backdropFilter: 'blur(4px)' };
 
@@ -389,7 +392,7 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
                   </div>
                 );
               })}
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <div style={{ marginTop: 8 }}>
                 {session.canCreate ? (
                   <button onClick={() => setMode('create')} style={{ flex: 1, padding: '10px 0', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', color: '#fff' }}>+ Criar novo post</button>
                 ) : (
@@ -463,15 +466,15 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
   const cfg = STATUS[post.status] ?? STATUS.rascunho;
   const mediaUrl = post.mediaUrl ?? post.creatives?.[0]?.url;
   const isVideo  = (post.fileType === 'video') || (post.creatives?.[0]?.type ?? '').includes('video');
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(139,92,246,0.25)', fontSize: 14, color: '#3B0764', background: 'rgba(245,243,255,0.6)', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' };
 
   useEffect(() => {
-    const fetchComments = async () => {
+    (async () => {
       try {
         const snap = await getDocs(collection(db, 'users', session.adminUid, 'posts', post.id, 'comments'));
         setComments(snap.docs.map(d => ({ id: d.id, ...d.data() } as PostComment)));
       } catch {}
-    };
-    fetchComments();
+    })();
   }, [post.id]);
 
   const submitComment = async () => {
@@ -479,9 +482,8 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
     setSaving(true);
     try {
       const ref = await addDoc(collection(db, 'users', session.adminUid, 'posts', post.id, 'comments'), {
-        postId: post.id, adminUid: session.adminUid,
-        author: session.clientName, text: text.trim(),
-        createdAt: new Date().toISOString(),
+        postId: post.id, adminUid: session.adminUid, author: session.clientName,
+        text: text.trim(), createdAt: new Date().toISOString(),
       });
       setComments(prev => [...prev, { id: ref.id, postId: post.id, adminUid: session.adminUid, author: session.clientName, text: text.trim(), createdAt: new Date().toISOString() }]);
       setText('');
@@ -505,10 +507,8 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
   const handleDelete = async () => {
     if (!confirm('Tem certeza que deseja excluir este post?')) return;
     setDeleting(true);
-    try {
-      await deleteDoc(doc(db, 'users', session.adminUid, 'posts', post.id));
-      onDeleted();
-    } catch(e) { console.error(e); setDeleting(false); }
+    try { await deleteDoc(doc(db, 'users', session.adminUid, 'posts', post.id)); onDeleted(); }
+    catch(e) { console.error(e); setDeleting(false); }
   };
 
   const TABS = [
@@ -563,7 +563,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
         </div>
         <div style={{ flex: 1, overflow: 'auto', background: 'rgba(255,255,255,0.80)' }}>
           {tab === 'preview' && (
-            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
               {mediaUrl ? (
                 <div onClick={() => onZoom(mediaUrl)} style={{ width: '100%', maxWidth: 380, borderRadius: 16, overflow: 'hidden', background: 'rgba(245,243,255,0.8)', border: '1px solid rgba(139,92,246,0.20)', aspectRatio: '1/1', cursor: 'zoom-in', boxShadow: '0 4px 20px rgba(109,40,217,0.12)' }}>
                   {isVideo ? (
@@ -624,7 +624,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
             </div>
           )}
           {tab === 'actions' && (
-            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#7C3AED', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Plataforma</label>
                   <select value={editPlatform} onChange={e => setEditPlatform(e.target.value)} style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}>
