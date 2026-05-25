@@ -1,15 +1,12 @@
 import type { Metadata } from 'next';
 import '@/styles/colab-globals.css';
+import '@/styles/coolicons-font.css';
 
 export const metadata: Metadata = {
   title: 'AHA Social Colab',
-  description: 'Calendário colaborativo de conteúdo',
+  description: 'Portal do cliente AHA Social',
 };
 
 export default function ColabLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="colab-root">
-      {children}
-    </div>
-  );
+  return children;
 }
