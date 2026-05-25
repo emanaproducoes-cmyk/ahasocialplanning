@@ -9,8 +9,8 @@ interface Props { session: ColabSession }
 
 const TABS: { id: PlanningPeriod; label: string; icon: string }[] = [
   { id: 'day',      label: 'Dia',       icon: 'Map_Pin' },
-  { id: 'week',     label: 'Semana',    icon: 'Calendar', '📆' },
-  { id: 'month',    label: 'Mês',    icon: 'List_Checklist',       icon: '🗓' },
+  { id: 'week',     label: 'Semana',    icon: 'Calendar' },
+  { id: 'month',    label: 'Mês',       icon: 'List_Checklist' },
   { id: 'quarter',  label: 'Trimestre', icon: 'Chart_Bar_Vertical_01' },
   { id: 'semester', label: 'Semestre',  icon: 'Map' },
 ];
