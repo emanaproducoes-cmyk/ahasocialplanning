@@ -8,11 +8,11 @@ import type { ColabSession, PlanningEntry, PlanningPeriod } from '@/lib/colab/ty
 interface Props { session: ColabSession }
 
 const TABS: { id: PlanningPeriod; label: string; icon: string }[] = [
-  { id: 'day',      label: 'Dia',       icon: '📌' },
+  { id: 'day',      label: 'Dia',       icon: 'Map_Pin' },
   { id: 'week',     label: 'Semana',    icon: '📆' },
   { id: 'month',    label: 'Mês',       icon: '🗓' },
-  { id: 'quarter',  label: 'Trimestre', icon: '📊' },
-  { id: 'semester', label: 'Semestre',  icon: '🗺️' },
+  { id: 'quarter',  label: 'Trimestre', icon: 'Chart_Bar_Vertical_01' },
+  { id: 'semester', label: 'Semestre',  icon: 'Map' },
 ];
 
 const PERIOD_COLORS: Record<PlanningPeriod, { bg: string; text: string; border: string; dot: string }> = {
@@ -105,7 +105,7 @@ export default function ColabPlanning({ session }: Props) {
               outline: `1px solid ${active ? c.border : '#E2E8F0'}`,
               boxShadow: active ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
             }}>
-              <span>{t.icon}</span>
+              <Icon name={t.icon} size={14} />
               {t.label}
               <span style={{
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -256,7 +256,7 @@ function EntryModal({ entry, adminUid, currentPeriod, onSave, onClose }: {
           <h3 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 16, color: '#0F172A', margin: 0 }}>
             {entry ? 'Editar Planejamento' : 'Novo Planejamento'}
           </h3>
-          <button onClick={onClose} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#64748B', width: 28, height: 28, borderRadius: '50%', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+          <button onClick={onClose} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#64748B', width: 28, height: 28, borderRadius: '50%', cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="Close_MD" size={14} /></button>
         </div>
         <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
