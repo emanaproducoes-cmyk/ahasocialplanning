@@ -119,7 +119,7 @@ export default function ColabCalendar({ session }: { session: ColabSession }) {
                 background: view === v ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'transparent',
                 color: view === v ? '#fff' : '#7C3AED', transition: 'all 0.15s',
               }}>
-                {v === 'month' ? '📅 Mês' : '☰ Lista'}
+                {v === 'month' ? 'Mês' : '☰ Lista'}
               </button>
             ))}
           </div>
