@@ -1,196 +1,414 @@
 'use client';
-import Icon from '@/components/colab/ui/Icon';
-import { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase/config';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, isToday, subMonths, addMonths } from 'date-fns';
+import { useState, useEffect, useMemo } from 'react';
+import {
+  format, startOfMonth, endOfMonth, eachDayOfInterval,
+  startOfWeek, endOfWeek, isSameMonth, isToday,
+  addMonths, subMonths,
+} from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { ColabSession } from '@/lib/colab/types';
+import { collection, query, getDocs, addDoc, serverTimestamp, doc, updateDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import type { ColabSession, ColabPost, PostComment } from '@/lib/colab/types';
+import Icon from '@/components/colab/ui/Icon';
 
-interface ColabPost {
-  id: string; adminUid: string; title: string; caption?: string;
-  hashtags?: string[]; status: string; platforms?: string[];
-  scheduledAt?: string;
-  creatives?: { url: string; type?: string; name?: string }[];
-  mediaUrl?: string; fileUrl?: string; fileType?: string; campaignId?: string;
-}
-interface PostComment { id: string; postId: string; adminUid: string; author: string; text: string; createdAt: string; }
-
+/* ── Status config ──────────────────────────────────────────── */
 const STATUS: Record<string, { label: string; dot: string; pill: string; text: string }> = {
-  rascunho:          { label: 'Rascunho',    dot: '#94A3B8', pill: '#F1F5F9', text: '#64748B' },
-  conteudo:          { label: 'Conteúdo',    dot: '#3B82F6', pill: '#EFF6FF', text: '#1D4ED8' },
-  revisao:           { label: 'Revisão',     dot: '#F59E0B', pill: '#FFFBEB', text: '#B45309' },
-  aprovacao_cliente: { label: 'Ap. Cliente', dot: '#8B5CF6', pill: '#F5F3FF', text: '#6D28D9' },
-  em_analise:        { label: 'Em Análise',  dot: '#6366F1', pill: '#EEF2FF', text: '#4338CA' },
-  aprovado:          { label: 'Aprovado',    dot: '#10B981', pill: '#ECFDF5', text: '#065F46' },
-  rejeitado:         { label: 'Rejeitado',   dot: '#EF4444', pill: '#FEF2F2', text: '#991B1B' },
-  publicado:         { label: 'Publicado',   dot: '#059669', pill: '#D1FAE5', text: '#065F46' },
+  rascunho:          { label: 'Rascunho',    dot: '#64748B', pill: 'rgba(100,116,139,0.12)', text: '#334155' },
+  conteudo:          { label: 'Conteúdo',    dot: '#3B82F6', pill: 'rgba(59,130,246,0.13)',  text: '#1D4ED8' },
+  revisao:           { label: 'Revisão',     dot: '#D97706', pill: 'rgba(217,119,6,0.13)',   text: '#92400E' },
+  aprovacao_cliente: { label: 'Ap. Cliente', dot: '#8B5CF6', pill: 'rgba(139,92,246,0.13)', text: '#5B21B6' },
+  em_analise:        { label: 'Em Análise',  dot: '#6366F1', pill: 'rgba(99,102,241,0.13)', text: '#3730A3' },
+  aprovado:          { label: 'Aprovado',    dot: '#10B981', pill: 'rgba(16,185,129,0.13)', text: '#047857' },
+  rejeitado:         { label: 'Rejeitado',   dot: '#EF4444', pill: 'rgba(239,68,68,0.13)',  text: '#B91C1C' },
+  publicado:         { label: 'Publicado',   dot: '#0EA5E9', pill: 'rgba(14,165,233,0.13)', text: '#0369A1' },
 };
-const STATUS_OPTIONS = Object.entries(STATUS).map(([id, v]) => ({ id, label: v.label }));
-const PLATFORM_ICON: Record<string, string> = { instagram: '📸', facebook: '👤', tiktok: '🎵', youtube: '▶️', linkedin: '💼', twitter: '🐦', pinterest: '📌' };
-const ALL_PLATFORMS = ['instagram','facebook','tiktok','youtube','linkedin','twitter','pinterest'];
+const STATUS_OPTIONS = Object.entries(STATUS).map(([id, cfg]) => ({ id, ...cfg }));
 
-const PLATFORM_COLORS: Record<string, string> = {
-  instagram: '#E1306C', facebook: '#1877F2', tiktok: '#000000',
-  youtube: '#FF0000', linkedin: '#0A66C2', twitter: '#1DA1F2', pinterest: '#E60023',
+const PLATFORM_ICON: Record<string, string> = {
+  instagram: 'Image_01', facebook: 'Thumbs_Up', youtube: 'Play', tiktok: 'Music',
+  linkedin: 'Briefcase', threads: 'Chat', pinterest: 'Map_Pin', google_business: 'Building_01',
+};
+const PlatformIcon = ({ platform, size = 13 }: { platform: string; size?: number }) => (
+  <Icon name={PLATFORM_ICON[platform] ?? 'Monitor_Play'} size={size} />
+);
+const ALL_PLATFORMS = ['instagram','facebook','youtube','tiktok','linkedin','threads','pinterest','google_business'];
+const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+interface Props { session: ColabSession }
+
+/* ── Liquid Glass tokens ────────────────────────────────────── */
+const LG = {
+  /* card base */
+  cardBg:      'rgba(255,255,255,0.70)',
+  cardBorder:  '1px solid rgba(255,255,255,0.40)',
+  cardShadow:  '0 8px 32px rgba(79,70,229,0.10), 0 1.5px 8px rgba(79,70,229,0.06)',
+  cardBlur:    'blur(16px)',
+  /* cell with posts */
+  cellBg:      'linear-gradient(135deg,rgba(109,40,217,0.12),rgba(79,70,229,0.10))',
+  cellBorder:  '1px solid rgba(255,255,255,0.40)',
+  cellShadow:  '0 2px 8px rgba(79,70,229,0.10)',
+  /* cell today */
+  todayBg:     'linear-gradient(135deg,rgba(109,40,217,0.28),rgba(79,70,229,0.22))',
+  todayBorder: '2px solid rgba(109,40,217,0.55)',
+  /* shine overlay */
+  shine:       'linear-gradient(135deg,rgba(255,255,255,0.45) 0%,transparent 60%)',
+  /* nav button */
+  navBg:       'linear-gradient(135deg,rgba(109,40,217,0.15),rgba(79,70,229,0.12))',
+  navBorder:   '1px solid rgba(255,255,255,0.35)',
+  /* modal */
+  modalBg:     'rgba(255,255,255,0.82)',
+  modalBlur:   'blur(20px)',
 };
 
-export default function ColabCalendar({ session }: { session: ColabSession }) {
-  const [posts, setPosts]               = useState<ColabPost[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [month, setMonth]               = useState(new Date());
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [selected, setSelected]         = useState<ColabPost | null>(null);
-  const [newDay, setNewDay]             = useState<Date | null>(null);
-  const [view, setView]                 = useState<'month'|'list'>('month');
-  const [zoomedImg, setZoomedImg]       = useState<string | null>(null);
+export default function ColabCalendar({ session }: Props) {
 
-  const reload = useCallback(async () => {
-    if (!session?.adminUid) return;
+  const [zoomedImg, setZoomedImg]   = useState<string | null>(null);
+  const [month, setMonth]           = useState(new Date());
+  const [posts, setPosts]           = useState<ColabPost[]>([]);
+  const [selected, setSelected]     = useState<ColabPost | null>(null);
+  const [newDay, setNewDay]         = useState<Date | null>(null);
+  const [view, setView]             = useState<'month' | 'list'>('month');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [loading, setLoading]       = useState(true);
+
+  const reload = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'users', session.adminUid, 'posts'));
-      setPosts(snap.docs.map(d => {
-        const r = d.data();
+      const q = query(collection(db, 'users', session.adminUid, 'posts'));
+      const snap = await getDocs(q);
+      const items: ColabPost[] = snap.docs.map(d => {
+        const data = d.data();
         return {
-          id: d.id, adminUid: session.adminUid,
-          title: r.title ?? '', caption: r.caption, hashtags: r.hashtags,
-          status: r.status ?? 'rascunho', platforms: r.platforms,
-          scheduledAt: r.scheduledAt?.toDate?.().toISOString?.() ?? r.scheduledAt,
-          creatives: r.creatives,
-          mediaUrl: r.creatives?.[0]?.url ?? r.mediaUrl ?? r.fileUrl,
-          fileType: (r.creatives?.[0]?.type ?? '').includes('video') ? 'video' : 'image',
-          campaignId: r.campaignId,
+          id: d.id,
+          adminUid: session.adminUid,
+          title: data.title ?? '',
+          caption: data.caption,
+          hashtags: data.hashtags,
+          status: data.status ?? 'rascunho',
+          platforms: data.platforms,
+          scheduledAt: data.scheduledAt?.toDate?.()?.toISOString?.() ?? data.scheduledAt,
+          creatives: data.creatives,
+          mediaUrl: data.creatives?.[0]?.url ?? data.mediaUrl ?? data.fileUrl,
+          fileType: (data.creatives?.[0]?.type ?? '').includes('video') ? 'video' : 'image',
+          campaignId: data.campaignId,
         } as ColabPost;
-      }));
-    } catch(e) { console.error(e); }
-    setLoading(false);
-  }, [session?.adminUid]);
+      });
+      setPosts(items);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => { reload(); }, [session.adminUid]);
 
-  const days = eachDayOfInterval({
-    start: startOfWeek(startOfMonth(month), { weekStartsOn: 0 }),
-    end: endOfWeek(endOfMonth(month), { weekStartsOn: 0 }),
-  });
+  const days = useMemo(() => {
+    const start = startOfWeek(startOfMonth(month), { weekStartsOn: 0 });
+    const end   = endOfWeek(endOfMonth(month),     { weekStartsOn: 0 });
+    return eachDayOfInterval({ start, end });
+  }, [month]);
 
-  const postsByDay = days.reduce((acc, day) => {
-    const key = format(day, 'yyyy-MM-dd');
-    acc[key] = posts.filter(p => { try { return p.scheduledAt && isSameDay(new Date(p.scheduledAt), day); } catch { return false; } });
-    return acc;
-  }, {} as Record<string, ColabPost[]>);
+  const postsByDay = useMemo(() => {
+    const map: Record<string, ColabPost[]> = {};
+    posts.forEach(p => {
+      if (!p.scheduledAt) return;
+      const k = format(new Date(p.scheduledAt), 'yyyy-MM-dd');
+      if (!map[k]) map[k] = [];
+      map[k].push(p);
+    });
+    return map;
+  }, [posts]);
 
-  const filtered = posts.filter(p => filterStatus === 'all' || p.status === filterStatus);
+  const filtered = filterStatus === 'all' ? posts : posts.filter(p => p.status === filterStatus);
+  const statusCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    posts.forEach(p => { c[p.status] = (c[p.status] ?? 0) + 1; });
+    return c;
+  }, [posts]);
 
   return (
-    <div style={{ padding: '24px 28px', background: 'linear-gradient(135deg, #EDE9FE 0%, #EEF2FF 50%, #F0F9FF 100%)', minHeight: '100vh' }}>
+    <div style={{
+      padding: '8px 6px 6px',
+      minHeight: 130,
+      borderRight: '1px solid #E0E7FF',
+      borderBottom: '1px solid #E0E7FF',
+      background: 'linear-gradient(135deg,#EEF2FF 0%,#F5F3FF 50%,#EDE9FE 100%)',
+    }}>
+
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h2 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 21, color: '#3B0764', letterSpacing: '-0.02em', marginBottom: 2 }}>
+          <h2 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 21, color: '#0F172A', letterSpacing: '-0.02em', marginBottom: 2 }}>
             Calendário de Conteúdo
           </h2>
-          <p style={{ fontSize: 13, color: '#7C3AED', fontWeight: 500, margin: 0 }}>
-            {format(month, 'MMMM yyyy', { locale: ptBR })} · {posts.length} posts agendados
+          <p style={{ color: '#64748B', fontSize: 13, margin: 0 }}>
+            {format(month, "MMMM 'de' yyyy", { locale: ptBR })} · {loading ? '…' : posts.length} posts agendados
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 6, padding: '4px 6px', background: 'rgba(255,255,255,0.6)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)' }}>
-            {['all','conteudo','revisao','aprovado','publicado','rascunho'].map(s => {
-              const active = filterStatus === s;
-              const cfg = STATUS[s];
-              return (
-                <button key={s} onClick={() => setFilterStatus(s)} style={{
-                  padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                  fontSize: 11, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif',
-                  background: active ? (s === 'all' ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : cfg.pill) : 'transparent',
-                  color: active ? (s === 'all' ? '#fff' : cfg.text) : '#94A3B8', transition: 'all 0.15s',
-                }}>
-                  {s === 'all' ? `Todos (${posts.length})` : cfg.label}
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ display: 'flex', gap: 4, padding: 4, background: 'rgba(255,255,255,0.6)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.8)', backdropFilter: 'blur(8px)' }}>
-            {(['month','list'] as const).map(v => (
-              <button key={v} onClick={() => setView(v)} style={{
-                padding: '5px 12px', borderRadius: 7, border: 'none', cursor: 'pointer',
-                fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif',
-                background: view === v ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : 'transparent',
-                color: view === v ? '#fff' : '#7C3AED', transition: 'all 0.15s',
-              }}>
-                {v === 'month' ? 'Mês' : '☰ Lista'}
-              </button>
-            ))}
-          </div>
+
+        {/* View toggle — liquid glass pill */}
+        <div style={{
+          display: 'flex', gap: 4, padding: 4,
+          background: 'rgba(255,255,255,0.60)',
+          backdropFilter: LG.cardBlur,
+          WebkitBackdropFilter: LG.cardBlur,
+          borderRadius: 12,
+          border: LG.cardBorder,
+          boxShadow: LG.cardShadow,
+        }}>
+          {(['month', 'list'] as const).map(v => (
+            <button key={v} onClick={() => setView(v)} style={{
+              padding: '5px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif',
+              background: view === v
+                ? 'linear-gradient(135deg,#4F46E5,#7C3AED)'
+                : 'transparent',
+              color: view === v ? '#FFFFFF' : '#64748B',
+              boxShadow: view === v ? '0 2px 8px rgba(79,70,229,0.30)' : 'none',
+              transition: 'all 0.15s',
+            }}>
+              {v === 'month' ? <><Icon name="Calendar" size={13} /> Mês</> : <><Icon name="List_Checklist" size={13} /> Lista</>}
+            </button>
+          ))}
         </div>
       </div>
 
+      {/* Status pills */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+        <button onClick={() => setFilterStatus('all')} style={{
+          padding: '4px 12px', borderRadius: 999, border: 'none', cursor: 'pointer',
+          fontSize: 11, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif',
+          background: filterStatus === 'all'
+            ? 'linear-gradient(135deg,#4F46E5,#7C3AED)'
+            : 'rgba(255,255,255,0.60)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          color: filterStatus === 'all' ? '#FFFFFF' : '#64748B',
+          boxShadow: filterStatus === 'all'
+            ? '0 2px 8px rgba(79,70,229,0.30)'
+            : '0 1px 4px rgba(0,0,0,0.06)',
+          border: filterStatus === 'all' ? 'none' : '1px solid rgba(255,255,255,0.50)',
+        }}>
+          Todos ({posts.length})
+        </button>
+        {Object.entries(statusCounts).map(([s, count]) => {
+          const cfg = STATUS[s]; if (!cfg) return null;
+          const active = filterStatus === s;
+          return (
+            <button key={s} onClick={() => setFilterStatus(s === filterStatus ? 'all' : s)} style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px', borderRadius: 999, border: 'none', cursor: 'pointer',
+              fontSize: 11, fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif',
+              background: active ? cfg.pill : 'rgba(255,255,255,0.60)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              color: active ? cfg.text : '#64748B',
+              boxShadow: active
+                ? `0 2px 8px ${cfg.dot}40`
+                : '0 1px 4px rgba(0,0,0,0.06)',
+              border: active
+                ? `1px solid ${cfg.dot}50`
+                : '1px solid rgba(255,255,255,0.50)',
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot, display: 'inline-block' }} />
+              {cfg.label} ({count})
+            </button>
+          );
+        })}
+      </div>
+
       {view === 'month' ? (
-        <div style={{ background: 'rgba(255,255,255,0.70)', borderRadius: 20, border: '1px solid rgba(255,255,255,0.8)', overflow: 'hidden', backdropFilter: 'blur(16px)', boxShadow: '0 8px 32px rgba(109,40,217,0.12)' }}>
+        /* ── MONTH VIEW ── */
+        <div style={{
+          background: LG.cardBg,
+          backdropFilter: LG.cardBlur,
+          WebkitBackdropFilter: LG.cardBlur,
+          borderRadius: 16,
+          border: LG.cardBorder,
+          boxShadow: LG.cardShadow,
+          overflow: 'hidden',
+          position: 'relative',
+        }}>
+          {/* Card shine */}
+          <div style={{ position: 'absolute', inset: 0, background: LG.shine, pointerEvents: 'none', borderRadius: 16, zIndex: 0 }} />
+
           {/* Nav */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 18px', borderBottom: '1px solid rgba(139,92,246,0.15)', background: 'linear-gradient(135deg,rgba(139,92,246,0.12),rgba(99,102,241,0.08))' }}>
-            <button onClick={() => setMonth(m => subMonths(m,1))} style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)', cursor: 'pointer', color: '#7C3AED', fontSize: 16, padding: '4px 10px', borderRadius: 8, fontWeight: 700 }}><Icon name="Chevron_Left" size={16} /><//button>
-            <h3 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: 15, color: '#3B0764', textTransform: 'capitalize', margin: 0 }}>
-              {format(month, 'MMMM yyyy', { locale: ptBR })}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '13px 18px',
+            borderBottom: '1px solid rgba(255,255,255,0.40)',
+            background: 'rgba(255,255,255,0.30)',
+            position: 'relative', zIndex: 1,
+          }}>
+            <button onClick={() => setMonth(m => subMonths(m, 1))} style={{
+              background: LG.navBg,
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              border: LG.navBorder,
+              cursor: 'pointer', color: '#4F46E5', fontSize: 16,
+              padding: '3px 10px', borderRadius: 8,
+              boxShadow: '0 1px 4px rgba(79,70,229,0.12)',
+            }}>‹</button>
+            <h3 style={{
+              fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
+              fontSize: 14, color: '#0F172A', textTransform: 'capitalize', margin: 0,
+            }}>
+              {format(month, "MMMM yyyy", { locale: ptBR })}
             </h3>
-            <button onClick={() => setMonth(m => addMonths(m,1))} style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)', cursor: 'pointer', color: '#7C3AED', fontSize: 16, padding: '4px 10px', borderRadius: 8, fontWeight: 700 }}><Icon name="Chevron_Right" size={16} /><//button>
+            <button onClick={() => setMonth(m => addMonths(m, 1))} style={{
+              background: LG.navBg,
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              border: LG.navBorder,
+              cursor: 'pointer', color: '#4F46E5', fontSize: 16,
+              padding: '3px 10px', borderRadius: 8,
+              boxShadow: '0 1px 4px rgba(79,70,229,0.12)',
+            }}>›</button>
           </div>
+
           {/* Day headers */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', borderBottom: '1px solid rgba(139,92,246,0.12)', background: 'rgba(245,243,255,0.60)' }}>
-            {['DOM','SEG','TER','QUA','QUI','SEX','SÁB'].map(d => (
-              <div key={d} style={{ padding: '8px 6px', textAlign: 'center', fontSize: 10, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, color: '#7C3AED', letterSpacing: '0.08em' }}>{d}</div>
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(7,1fr)',
+            background: 'rgba(255,255,255,0.20)',
+            borderBottom: '1px solid rgba(255,255,255,0.35)',
+            position: 'relative', zIndex: 1,
+          }}>
+            {DAYS.map(d => (
+              <div key={d} style={{
+                padding: '8px 6px', textAlign: 'center',
+                fontSize: 10, fontFamily: 'Plus Jakarta Sans, sans-serif',
+                fontWeight: 700, color: '#7C3AED',
+                letterSpacing: '0.08em', textTransform: 'uppercase',
+              }}>
+                {d}
+              </div>
             ))}
           </div>
+
           {/* Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
+          <div style={{
+            display: 'grid', gridTemplateColumns: 'repeat(7,1fr)',
+            position: 'relative', zIndex: 1,
+          }}>
             {days.map((day, idx) => {
               const key      = format(day, 'yyyy-MM-dd');
               const dayPosts = (postsByDay[key] ?? []).filter(p => filterStatus === 'all' || p.status === filterStatus);
               const inMonth  = isSameMonth(day, month);
               const isT      = isToday(day);
+              const hasPosts = dayPosts.length > 0;
+
               return (
-                <div key={key} onClick={() => inMonth && setNewDay(day)}
+                <div key={key}
+                  onClick={() => inMonth && setNewDay(day)}
                   style={{
-                    padding: '8px 6px 6px', aspectRatio: '1/1',
-                    borderBottom: idx < days.length - 7 ? '1px solid rgba(139,92,246,0.10)' : 'none',
-                    borderRight: (idx+1) % 7 !== 0 ? '1px solid rgba(139,92,246,0.10)' : 'none',
-                    outline: isT ? '2px solid #7C3AED' : 'none', outlineOffset: '-2px',
-                    boxShadow: isT ? 'inset 0 0 12px rgba(124,58,237,0.10)' : 'none',
-                    background: isT ? 'rgba(124,58,237,0.12)' : dayPosts.length > 0 ? 'linear-gradient(135deg,rgba(139,92,246,0.10),rgba(99,102,241,0.06))' : 'rgba(255,255,255,0.50)',
-                    opacity: inMonth ? 1 : 0.3, cursor: inMonth ? 'pointer' : 'default', transition: 'background 0.15s',
+                    padding: '8px 6px 6px',
+                    aspectRatio: '1/1',
+                    borderBottom: idx < days.length - 7 ? '1px solid rgba(255,255,255,0.30)' : 'none',
+                    borderRight: (idx + 1) % 7 !== 0 ? '1px solid rgba(255,255,255,0.30)' : 'none',
+                    background: isT
+                      ? LG.todayBg
+                      : hasPosts
+                        ? LG.cellBg
+                        : 'transparent',
+                    border: isT ? LG.todayBorder : undefined,
+                    boxShadow: hasPosts && !isT ? LG.cellShadow : 'none',
+                    backdropFilter: hasPosts || isT ? 'blur(8px)' : 'none',
+                    WebkitBackdropFilter: hasPosts || isT ? 'blur(8px)' : 'none',
+                    opacity: inMonth ? 1 : 0.35,
+                    cursor: inMonth ? 'pointer' : 'default',
+                    position: 'relative',
+                    transition: 'background 0.15s, box-shadow 0.15s',
                   }}
-                  onMouseEnter={e => inMonth && (e.currentTarget.style.background = 'rgba(139,92,246,0.12)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = isT ? 'rgba(124,58,237,0.12)' : dayPosts.length > 0 ? 'linear-gradient(135deg,rgba(139,92,246,0.10),rgba(99,102,241,0.06))' : 'rgba(255,255,255,0.50)')}
+                  onMouseEnter={e => {
+                    if (!inMonth) return;
+                    e.currentTarget.style.background = isT
+                      ? 'linear-gradient(135deg,rgba(109,40,217,0.35),rgba(79,70,229,0.28))'
+                      : hasPosts
+                        ? 'linear-gradient(135deg,rgba(109,40,217,0.20),rgba(79,70,229,0.16))'
+                        : 'rgba(255,255,255,0.45)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = isT
+                      ? LG.todayBg
+                      : hasPosts
+                        ? LG.cellBg
+                        : 'transparent';
+                  }}
                 >
-                  <div style={{ fontSize: 12, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, color: isT ? '#7C3AED' : inMonth ? '#3B0764' : '#CBD5E1', marginBottom: 4, textAlign: 'right' }}>
+                  {/* Cell shine for cells with posts */}
+                  {(hasPosts || isT) && (
+                    <div style={{
+                      position: 'absolute', inset: 0,
+                      background: 'linear-gradient(135deg,rgba(255,255,255,0.40) 0%,transparent 55%)',
+                      pointerEvents: 'none', borderRadius: 0,
+                    }} />
+                  )}
+
+                  <div style={{
+                    fontSize: 12, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
+                    color: isT ? '#4F46E5' : inMonth ? '#0F172A' : '#CBD5E1',
+                    marginBottom: 4, textAlign: 'right', paddingRight: 2,
+                    position: 'relative', zIndex: 1,
+                  }}>
                     {isT ? (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', color: '#fff', fontSize: 11, boxShadow: '0 2px 8px rgba(124,58,237,0.4)' }}>
-                        {format(day,'d')}
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        width: 22, height: 22, borderRadius: '50%',
+                        background: 'linear-gradient(135deg,#4F46E5,#7C3AED)',
+                        color: '#fff', fontSize: 11,
+                        boxShadow: '0 2px 8px rgba(79,70,229,0.40)',
+                      }}>
+                        {format(day, 'd')}
                       </span>
-                    ) : format(day,'d')}
+                    ) : format(day, 'd')}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {dayPosts.slice(0,2).map(p => {
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative', zIndex: 1 }}>
+                    {dayPosts.slice(0, 2).map(p => {
                       const cfg = STATUS[p.status] ?? STATUS.rascunho;
-                      const platColor = PLATFORM_COLORS[p.platforms?.[0] ?? ''] ?? cfg.dot;
                       return (
-                        <div key={p.id} onClick={e => { e.stopPropagation(); setSelected(p); }}
-                          style={{ borderRadius: 6, overflow: 'hidden', cursor: 'pointer', border: `1px solid rgba(139,92,246,0.20)`, boxShadow: '0 1px 4px rgba(109,40,217,0.08)', background: 'rgba(255,255,255,0.85)' }}>
-                          <div style={{ height: 3, background: platColor, width: '100%' }} />
+                        <div key={p.id}
+                          onClick={e => { e.stopPropagation(); setSelected(p); }}
+                          style={{
+                            borderRadius: 6, overflow: 'hidden', cursor: 'pointer',
+                            border: `1px solid rgba(255,255,255,0.45)`,
+                            boxShadow: `0 1px 4px ${cfg.dot}30`,
+                            backdropFilter: 'blur(4px)',
+                            WebkitBackdropFilter: 'blur(4px)',
+                          }}>
+                          <div style={{ height: 3, background: cfg.dot, width: '100%' }} />
                           {p.mediaUrl ? (
                             <img src={p.mediaUrl} alt="" style={{ width: '100%', height: 52, objectFit: 'cover', display: 'block' }} />
                           ) : (
-                            <div style={{ padding: '3px 6px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                              <span style={{ width: 5, height: 5, borderRadius: '50%', background: platColor, flexShrink: 0 }} />
-                              <span style={{ fontSize: 10, fontWeight: 600, color: '#3B0764', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{p.title}</span>
+                            <div style={{
+                              padding: '3px 6px',
+                              background: `rgba(255,255,255,0.55)`,
+                              backdropFilter: 'blur(4px)',
+                              display: 'flex', alignItems: 'center', gap: 4,
+                            }}>
+                              <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
+                              <span style={{
+                                fontSize: 10, fontWeight: 600, color: cfg.text,
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                fontFamily: 'Plus Jakarta Sans, sans-serif',
+                              }}>
+                                {p.title}
+                              </span>
                             </div>
                           )}
                         </div>
                       );
                     })}
                     {dayPosts.length > 2 && (
-                      <div style={{ fontSize: 9, color: '#7C3AED', fontWeight: 700, textAlign: 'center', background: 'rgba(139,92,246,0.10)', borderRadius: 4, padding: '1px 4px' }}>+{dayPosts.length - 2}</div>
+                      <div style={{
+                        fontSize: 9, color: '#5B21B6', fontWeight: 700,
+                        textAlign: 'right', paddingRight: 2,
+                        background: 'rgba(255,255,255,0.70)',
+                        borderRadius: 4, padding: '1px 4px',
+                        backdropFilter: 'blur(4px)',
+                        border: '1px solid rgba(255,255,255,0.50)',
+                        alignSelf: 'flex-end',
+                      }}>
+                        +{dayPosts.length - 2}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -198,84 +416,181 @@ export default function ColabCalendar({ session }: { session: ColabSession }) {
             })}
           </div>
         </div>
+
       ) : (
+        /* ── LIST VIEW ── */
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filtered.length === 0 && !loading && (
-            <div style={{ textAlign: 'center', color: '#7C3AED', padding: 48, fontSize: 14 }}>Nenhum post encontrado.</div>
+            <div style={{ textAlign: 'center', color: '#64748B', padding: 48, fontSize: 14 }}>Nenhum post encontrado.</div>
           )}
-          {filtered.slice().sort((a,b) => (a.scheduledAt??'').localeCompare(b.scheduledAt??'')).map(p => {
-            const cfg = STATUS[p.status] ?? STATUS.rascunho;
-            return (
-              <div key={p.id} onClick={() => setSelected(p)} style={{
-                borderRadius: 14, padding: '13px 18px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 14,
-                background: 'rgba(255,255,255,0.75)', border: '1px solid rgba(255,255,255,0.8)',
-                backdropFilter: 'blur(8px)', boxShadow: '0 2px 12px rgba(109,40,217,0.08)', transition: 'box-shadow 0.15s',
-              }}
-                onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 20px rgba(109,40,217,0.15)'}
-                onMouseLeave={e => e.currentTarget.style.boxShadow = '0 2px 12px rgba(109,40,217,0.08)'}
-              >
-                <div style={{ width: 44, height: 44, borderRadius: 9, overflow: 'hidden', flexShrink: 0, background: cfg.pill, border: `1px solid ${cfg.dot}30`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {p.mediaUrl ? <img src={p.mediaUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.dot }} />}
+          {filtered
+            .slice().sort((a, b) => (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? ''))
+            .map(p => {
+              const cfg = STATUS[p.status] ?? STATUS.rascunho;
+              return (
+                <div key={p.id} onClick={() => setSelected(p)} style={{
+                  borderRadius: 12, padding: '13px 18px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  background: LG.cardBg,
+                  backdropFilter: LG.cardBlur,
+                  WebkitBackdropFilter: LG.cardBlur,
+                  border: LG.cardBorder,
+                  boxShadow: LG.cardShadow,
+                  position: 'relative', overflow: 'hidden',
+                  transition: 'box-shadow 0.15s, transform 0.12s',
+                }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.boxShadow = '0 8px 32px rgba(79,70,229,0.18)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.boxShadow = LG.cardShadow;
+                    e.currentTarget.style.transform = 'none';
+                  }}
+                >
+                  <div style={{ position: 'absolute', inset: 0, background: LG.shine, pointerEvents: 'none' }} />
+                  <div style={{
+                    width: 44, height: 44, borderRadius: 9, overflow: 'hidden', flexShrink: 0,
+                    background: cfg.pill, border: `1px solid rgba(255,255,255,0.50)`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    backdropFilter: 'blur(4px)',
+                  }}>
+                    {p.mediaUrl ? (
+                      <img src={p.mediaUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: cfg.dot, display: 'inline-block' }} />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0, position: 'relative', zIndex: 1 }}>
+                    <div style={{
+                      fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
+                      fontSize: 14, color: '#0F172A', marginBottom: 3,
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>{p.title}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                      <span style={{
+                        padding: '2px 8px', borderRadius: 999,
+                        background: cfg.pill, color: cfg.text,
+                        fontSize: 10, fontWeight: 700,
+                        border: `1px solid ${cfg.dot}30`,
+                      }}>{cfg.label}</span>
+                      {p.platforms?.slice(0, 3).map(pl => <span key={pl} style={{ fontSize: 13 }}><PlatformIcon platform={pl} /></span>)}
+                    </div>
+                  </div>
+                  {p.scheduledAt && (
+                    <div style={{
+                      fontSize: 11, color: '#5B21B6', fontFamily: 'Plus Jakarta Sans, sans-serif',
+                      flexShrink: 0, textAlign: 'right', fontWeight: 700,
+                      position: 'relative', zIndex: 1,
+                    }}>
+                      {format(new Date(p.scheduledAt), "dd MMM", { locale: ptBR })}
+                    </div>
+                  )}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: 13, color: '#3B0764', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.title}</div>
-                  {p.scheduledAt && <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 1, fontWeight: 600 }}><Icon name="Calendar" size={12} style={{marginRight:4}} />{format(new Date(p.scheduledAt), "dd 'de' MMM", { locale: ptBR })}</div>}
-                </div>
-                <span style={{ padding: '3px 10px', borderRadius: 999, background: cfg.pill, color: cfg.text, fontSize: 11, fontWeight: 700, border: `1px solid ${cfg.dot}30` }}>{cfg.label}</span>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
-      )}
-
-      {newDay && (
-        <DayModal day={newDay} existingPosts={postsByDay[format(newDay,'yyyy-MM-dd')] ?? []} session={session}
-          onClose={() => setNewDay(null)} onSaved={() => { setNewDay(null); reload(); }}
-          onViewPost={p => { setNewDay(null); setSelected(p); }} />
       )}
 
       {selected && (
         <PostModal post={selected} session={session}
           onClose={() => setSelected(null)}
           onUpdated={() => { setSelected(null); reload(); }}
-          onDeleted={() => { setSelected(null); reload(); }}
-          onZoom={setZoomedImg} />
+          onDeleted={() => { setSelected(null); reload(); }} onZoom={setZoomedImg}
+        />
+      )}
+      {newDay && (
+        <DayModal
+          day={newDay}
+          existingPosts={postsByDay[format(newDay, 'yyyy-MM-dd')] ?? []}
+          session={session}
+          onClose={() => setNewDay(null)}
+          onSaved={() => { reload(); setNewDay(null); }}
+          onViewPost={p => { setNewDay(null); setSelected(p); }}
+        />
       )}
 
+      {/* Lightbox */}
       {zoomedImg && (
-        <div onClick={() => setZoomedImg(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,0,40,0.85)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, cursor: 'zoom-out' }}>
-          <img src={zoomedImg} alt="" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 16, objectFit: 'contain', boxShadow: '0 8px 40px rgba(124,58,237,0.4)' }} onClick={e => e.stopPropagation()} />
-          <button onClick={() => setZoomedImg(null)} style={{ position: 'absolute', top: 20, right: 24, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '50%', width: 36, height: 36, color: '#fff', fontSize: 20, cursor: 'pointer' }}><Icon name="Close_MD" size={14} /></button>
+        <div onClick={() => setZoomedImg(null)} style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(15,23,42,0.75)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, cursor: 'zoom-out',
+        }}>
+          <img src={zoomedImg} alt="" style={{
+            maxWidth: '90vw', maxHeight: '90vh',
+            borderRadius: 16, objectFit: 'contain',
+            boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
+            border: '1px solid rgba(255,255,255,0.20)',
+          }} onClick={e => e.stopPropagation()} />
+          <button onClick={() => setZoomedImg(null)} style={{
+            position: 'absolute', top: 20, right: 24,
+            background: 'rgba(255,255,255,0.15)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.25)',
+            borderRadius: '50%', width: 36, height: 36,
+            color: '#fff', fontSize: 20, cursor: 'pointer',
+          }}>×</button>
         </div>
       )}
     </div>
   );
 }
 
+/* ── Shared modal backdrop ──────────────────────────────────── */
+const modalBackdrop: React.CSSProperties = {
+  position: 'fixed', inset: 0,
+  background: 'rgba(15,23,42,0.45)',
+  backdropFilter: 'blur(10px)',
+  WebkitBackdropFilter: 'blur(10px)',
+  zIndex: 200,
+  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+};
+const modalCard: React.CSSProperties = {
+  borderRadius: 20, width: '100%', maxHeight: '88vh',
+  overflow: 'hidden', display: 'flex', flexDirection: 'column',
+  background: 'rgba(255,255,255,0.82)',
+  backdropFilter: 'blur(20px)',
+  WebkitBackdropFilter: 'blur(20px)',
+  border: '1px solid rgba(255,255,255,0.50)',
+  boxShadow: '0 24px 64px rgba(79,70,229,0.18), 0 4px 16px rgba(0,0,0,0.08)',
+  position: 'relative',
+};
+const modalShine: React.CSSProperties = {
+  position: 'absolute', inset: 0,
+  background: 'linear-gradient(135deg,rgba(255,255,255,0.55) 0%,transparent 55%)',
+  pointerEvents: 'none', borderRadius: 20, zIndex: 0,
+};
+
+/* ── DAY MODAL ──────────────────────────────────────────────── */
 function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }: {
   day: Date; existingPosts: ColabPost[]; session: ColabSession;
   onClose: () => void; onSaved: () => void; onViewPost: (p: ColabPost) => void;
 }) {
-  const [mode, setMode]           = useState<'list'|'create'|'request'>(existingPosts.length === 0 ? (session.canCreate ? 'create' : 'request') : 'list');
+  const [mode, setMode]           = useState<'list' | 'create' | 'request'>(existingPosts.length > 0 ? 'list' : (session.canCreate ? 'create' : 'request'));
   const [title, setTitle]         = useState('');
   const [caption, setCaption]     = useState('');
-  const [status, setStatus]       = useState('conteudo');
-  const [platforms, setPlatforms] = useState(['instagram']);
+  const [status, setStatus]       = useState('rascunho');
+  const [platforms, setPlatforms] = useState<string[]>(['instagram']);
   const [saving, setSaving]       = useState(false);
-  const [requested, setRequested] = useState(false);
   const [requestNote, setRequestNote] = useState('');
+  const [requested, setRequested] = useState(false);
+
   const dateLabel = format(day, "EEEE, dd 'de' MMMM", { locale: ptBR });
-  const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(139,92,246,0.25)', fontSize: 14, color: '#3B0764', background: 'rgba(245,243,255,0.6)', fontFamily: 'Inter, sans-serif', boxSizing: 'border-box', outline: 'none' };
 
   const handleCreate = async () => {
-    if (!title.trim() || saving) return;
+    if (!title.trim()) return;
     setSaving(true);
     try {
       await addDoc(collection(db, 'users', session.adminUid, 'posts'), {
         title: title.trim(), caption: caption.trim(), status, platforms,
-        scheduledAt: day.toISOString(), hashtags: [], createdByClient: true,
-        clientName: session.clientName, createdAt: new Date().toISOString(),
+        scheduledAt: day.toISOString(), hashtags: [],
+        createdByClient: true, clientName: session.clientName,
+        createdAt: new Date().toISOString(),
       });
       onSaved();
     } catch(e) { console.error(e); setSaving(false); }
@@ -286,97 +601,226 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
     try {
       await addDoc(collection(db, 'users', session.adminUid, 'posts'), {
         title: `[Solicitação] ${requestNote.trim() || format(day, "dd/MM")}`,
-        caption: requestNote.trim(), status: 'rascunho', platforms: ['instagram'],
-        scheduledAt: day.toISOString(), requestedByClient: true,
-        clientName: session.clientName, clientEmail: session.clientEmail,
-        createdAt: new Date().toISOString(),
+        caption: requestNote.trim(), status: 'rascunho',
+        platforms: ['instagram'], scheduledAt: day.toISOString(),
+        requestedByClient: true, clientName: session.clientName,
+        clientEmail: session.clientEmail, createdAt: new Date().toISOString(),
       });
       setRequested(true); setSaving(false);
     } catch(e) { console.error(e); setSaving(false); }
   };
 
-  const overlayStyle: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(59,7,100,0.55)', backdropFilter: 'blur(8px)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 };
-  const modalStyle: React.CSSProperties  = { borderRadius: 24, width: '100%', maxWidth: 480, maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(20px)', boxShadow: '0 20px 60px rgba(109,40,217,0.25)' };
+  const togglePlatform = (p: string) =>
+    setPlatforms(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]);
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '10px 12px', borderRadius: 10,
+    border: '1px solid rgba(255,255,255,0.50)',
+    fontSize: 14, color: '#0F172A',
+    background: 'rgba(255,255,255,0.60)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+    fontFamily: 'Inter, sans-serif',
+    boxSizing: 'border-box' as const,
+    outline: 'none',
+    boxShadow: '0 1px 4px rgba(79,70,229,0.08) inset',
+  };
 
   return (
-    <div style={overlayStyle} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={modalStyle}>
-        <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid rgba(139,92,246,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'linear-gradient(135deg,rgba(139,92,246,0.10),rgba(99,102,241,0.06))' }}>
+    <div style={modalBackdrop} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ ...modalCard, maxWidth: 480 }}>
+        <div style={modalShine} />
+
+        {/* Header */}
+        <div style={{
+          padding: '18px 22px 14px',
+          borderBottom: '1px solid rgba(255,255,255,0.40)',
+          background: 'rgba(255,255,255,0.30)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+          position: 'relative', zIndex: 1,
+        }}>
           <div>
-            <h3 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 16, color: '#3B0764', margin: 0, marginBottom: 2 }}>
-              {mode === 'list' ? `Posts em ${format(day,"dd/MM",{locale:ptBR})}` : mode === 'create' ? '+ Novo Post' : '📩 Solicitar Post'}
+            <h3 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 16, color: '#0F172A', margin: 0, marginBottom: 2 }}>
+              {mode === 'list' ? `Posts em ${format(day, "dd/MM", { locale: ptBR })}` : mode === 'create' ? '+ Novo Post' : <><Icon name="Mail" size={14} /> Solicitar Post</>}
             </h3>
-            <div style={{ fontSize: 12, color: '#7C3AED', fontWeight: 500 }}><Icon name="Calendar" size={12} style={{marginRight:4}} />{dateLabel}</div>
+            <div style={{ fontSize: 12, color: '#64748B', textTransform: 'capitalize' }}><Icon name="Calendar" size={12} /> {dateLabel}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)', color: '#7C3AED', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="Close_MD" size={14} /></button>
+          <button onClick={onClose} style={{
+            background: 'rgba(255,255,255,0.60)', backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.50)', color: '#64748B',
+            width: 30, height: 30, borderRadius: '50%', cursor: 'pointer',
+            fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>×</button>
         </div>
-        <div style={{ flex: 1, overflow: 'auto', padding: '18px 22px' }}>
+
+        <div style={{ flex: 1, overflow: 'auto', padding: '18px 22px', position: 'relative', zIndex: 1 }}>
+
+          {/* LIST mode */}
           {mode === 'list' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {existingPosts.map(p => {
                 const cfg = STATUS[p.status] ?? STATUS.rascunho;
                 return (
-                  <div key={p.id} onClick={() => onViewPost(p)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderRadius: 12, background: 'rgba(245,243,255,0.8)', border: '1px solid rgba(139,92,246,0.20)', cursor: 'pointer' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(139,92,246,0.12)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(245,243,255,0.8)'; }}>
-                    {p.mediaUrl ? <img src={p.mediaUrl} alt="" style={{ width: 36, height: 36, borderRadius: 7, objectFit: 'cover', flexShrink: 0 }} /> : <span style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />}
+                  <div key={p.id} onClick={() => onViewPost(p)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '11px 14px', borderRadius: 10,
+                      background: 'rgba(255,255,255,0.55)',
+                      backdropFilter: 'blur(8px)',
+                      WebkitBackdropFilter: 'blur(8px)',
+                      border: '1px solid rgba(255,255,255,0.45)',
+                      cursor: 'pointer', transition: 'all 0.12s',
+                      boxShadow: '0 1px 4px rgba(79,70,229,0.06)',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.75)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(79,70,229,0.12)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.55)'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(79,70,229,0.06)'; }}>
+                    {p.mediaUrl ? (
+                      <img src={p.mediaUrl} alt="" style={{ width: 36, height: 36, borderRadius: 7, objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(255,255,255,0.50)' }} />
+                    ) : (
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
+                    )}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: 13, color: '#3B0764', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.title}</div>
+                      <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: 13, color: '#0F172A', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.title}</div>
                       <div style={{ fontSize: 11, color: cfg.text, marginTop: 1, fontWeight: 600 }}>{cfg.label}</div>
                     </div>
                     <span style={{ color: '#7C3AED', fontSize: 14 }}>›</span>
                   </div>
                 );
               })}
-              <div style={{ marginTop: 8 }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 {session.canCreate ? (
-                  <button onClick={() => setMode('create')} style={{ width: '100%', padding: '10px 0', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', color: '#fff' }}>+ Criar novo post</button>
+                  <button onClick={() => setMode('create')} style={{
+                    flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13,
+                    fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
+                    background: 'linear-gradient(135deg,#4F46E5,#7C3AED)', color: '#fff',
+                    boxShadow: '0 4px 12px rgba(79,70,229,0.30)',
+                  }}>+ Criar novo post</button>
                 ) : (
-                  <button onClick={() => setMode('request')} style={{ width: '100%', padding: '10px 0', borderRadius: 12, border: '1px solid rgba(139,92,246,0.30)', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, background: 'rgba(245,243,255,0.8)', color: '#7C3AED' }}>📩 Solicitar post neste dia</button>
+                  <button onClick={() => setMode('request')} style={{
+                    flex: 1, padding: '10px 0', borderRadius: 10, cursor: 'pointer', fontSize: 13,
+                    fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
+                    background: 'rgba(255,255,255,0.60)', backdropFilter: 'blur(8px)',
+                    WebkitBackdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(109,40,217,0.30)', color: '#4F46E5',
+                  }}}><Icon name="Mail" size={13} /> Solicitar post neste dia</button>
                 )}
               </div>
             </div>
           )}
+
+          {/* CREATE mode */}
           {mode === 'create' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {existingPosts.length > 0 && <button onClick={() => setMode('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7C3AED', fontSize: 12, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, padding: 0, textAlign: 'left' }}>← Ver posts existentes</button>}
-              <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#7C3AED', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Título *</label>
-                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex: Post de engajamento" autoFocus style={inputStyle} /></div>
-              <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#7C3AED', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Legenda</label>
-                <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Escreva a legenda…" rows={3} style={{ ...inputStyle, resize: 'vertical' }} /></div>
-              <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#7C3AED', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Status</label>
+              {existingPosts.length > 0 && (
+                <button onClick={() => setMode('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4F46E5', fontSize: 12, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, padding: 0, textAlign: 'left', marginBottom: -4 }}>
+                  <Icon name="Chevron_Left" size={13} /> Ver posts existentes
+                </button>
+              )}
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#5B21B6', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Título *</label>
+                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex: Post de engajamento" autoFocus style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#5B21B6', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Legenda / Descrição</label>
+                <textarea value={caption} onChange={e => setCaption(e.target.value)} placeholder="Escreva a legenda do post…" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#5B21B6', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Status</label>
                 <select value={status} onChange={e => setStatus(e.target.value)} style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}>
                   {STATUS_OPTIONS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                </select></div>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#5B21B6', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Plataformas</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {ALL_PLATFORMS.map(p => (
+                    <button key={p} type="button" onClick={() => togglePlatform(p)} style={{
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      padding: '4px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                      fontSize: 12, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600,
+                      background: platforms.includes(p) ? 'rgba(79,70,229,0.15)' : 'rgba(255,255,255,0.55)',
+                      backdropFilter: 'blur(8px)',
+                      WebkitBackdropFilter: 'blur(8px)',
+                      color: platforms.includes(p) ? '#4F46E5' : '#64748B',
+                      outline: `1px solid ${platforms.includes(p) ? 'rgba(79,70,229,0.35)' : 'rgba(255,255,255,0.50)'}`,
+                      boxShadow: platforms.includes(p) ? '0 2px 6px rgba(79,70,229,0.15)' : 'none',
+                    }}>
+                      <PlatformIcon platform={p} size={13} />{p.replace('_', ' ')}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
-                <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 10, border: '1px solid rgba(139,92,246,0.25)', background: 'rgba(245,243,255,0.8)', color: '#7C3AED', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>Cancelar</button>
-                <button onClick={handleCreate} disabled={saving || !title.trim()} style={{ padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, background: saving || !title.trim() ? '#CBD5E1' : 'linear-gradient(135deg,#7C3AED,#4F46E5)', color: '#fff' }}>
-                  {saving ? '…' : '✅ Criar post'}
+                <button onClick={onClose} style={{
+                  padding: '9px 18px', borderRadius: 10, cursor: 'pointer', fontSize: 13,
+                  fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600,
+                  background: 'rgba(255,255,255,0.60)', backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255,255,255,0.50)', color: '#64748B',
+                }}>Cancelar</button>
+                <button onClick={handleCreate} disabled={saving || !title.trim()} style={{
+                  padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13,
+                  fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
+                  background: saving || !title.trim() ? '#CBD5E1' : 'linear-gradient(135deg,#4F46E5,#7C3AED)',
+                  color: '#fff',
+                  boxShadow: saving || !title.trim() ? 'none' : '0 4px 12px rgba(79,70,229,0.30)',
+                }}>
+                  {saving ? '…' : <><Icon name="Check_Big" size={13} /> Criar post</>}
                 </button>
               </div>
             </div>
           )}
+
+          {/* REQUEST mode */}
           {mode === 'request' && !requested && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ background: 'rgba(139,92,246,0.08)', borderRadius: 12, padding: '14px 16px', border: '1px solid rgba(139,92,246,0.20)' }}>
-                <p style={{ fontSize: 13, color: '#7C3AED', margin: 0, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>📩 Envie uma solicitação de conteúdo para sua agência nesta data.</p>
+              {existingPosts.length > 0 && (
+                <button onClick={() => setMode('list')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4F46E5', fontSize: 12, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600, padding: 0, textAlign: 'left' }}>
+                  <Icon name="Chevron_Left" size={13} /> Ver posts existentes
+                </button>
+              )}
+              <div style={{ background: 'rgba(79,70,229,0.08)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', borderRadius: 12, padding: '14px 16px', border: '1px solid rgba(79,70,229,0.20)' }}>
+                <p style={{ fontSize: 13, color: '#4F46E5', margin: 0, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>
+                  <Icon name="Mail" size={13} /> Envie uma solicitação de conteúdo para sua agência nesta data.
+                </p>
               </div>
-              <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#7C3AED', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>O que você gostaria?</label>
-                <textarea value={requestNote} onChange={e => setRequestNote(e.target.value)} placeholder="Descreva o tipo de conteúdo…" rows={4} style={{ ...inputStyle, resize: 'vertical' }} /></div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#5B21B6', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>O que você gostaria?</label>
+                <textarea value={requestNote} onChange={e => setRequestNote(e.target.value)} placeholder="Descreva o tipo de conteúdo que você quer para esta data…" rows={4} style={{ ...inputStyle, resize: 'vertical' }} />
+              </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 10, border: '1px solid rgba(139,92,246,0.25)', background: 'rgba(245,243,255,0.8)', color: '#7C3AED', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>Cancelar</button>
-                <button onClick={handleRequest} disabled={saving} style={{ padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', color: '#fff' }}>
-                  {saving ? '…' : '📨 Enviar solicitação'}
+                <button onClick={onClose} style={{
+                  padding: '9px 18px', borderRadius: 10, cursor: 'pointer', fontSize: 13,
+                  fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600,
+                  background: 'rgba(255,255,255,0.60)', backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255,255,255,0.50)', color: '#64748B',
+                }}>Cancelar</button>
+                <button onClick={handleRequest} disabled={saving} style={{
+                  padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13,
+                  fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
+                  background: 'linear-gradient(135deg,#4F46E5,#7C3AED)', color: '#fff',
+                  boxShadow: '0 4px 12px rgba(79,70,229,0.30)',
+                }}>
+                  {saving ? '…' : <><Icon name="Send" size={13} /> Enviar solicitação</>}
                 </button>
               </div>
             </div>
           )}
+
+          {/* REQUEST success */}
           {mode === 'request' && requested && (
             <div style={{ textAlign: 'center', padding: '32px 20px' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
-              <h3 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 17, color: '#3B0764', marginBottom: 8 }}>Solicitação enviada!</h3>
-              <p style={{ color: '#7C3AED', fontSize: 13, marginBottom: 20 }}>Sua agência foi notificada para {format(day,"dd/MM",{locale:ptBR})}.</p>
-              <button onClick={onClose} style={{ padding: '10px 24px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', color: '#fff', cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700 }}>Fechar</button>
+              <div style={{ fontSize: 48, marginBottom: 12 }}><Icon name="Check_Big" size={48} color="#10B981" /></div>
+              <h3 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 17, color: '#0F172A', marginBottom: 8 }}>Solicitação enviada!</h3>
+              <p style={{ color: '#64748B', fontSize: 13, marginBottom: 20 }}>Sua agência foi notificada e criará o conteúdo para {format(day, "dd/MM", { locale: ptBR })}.</p>
+              <button onClick={onClose} style={{
+                padding: '10px 24px', borderRadius: 10, border: 'none',
+                background: 'linear-gradient(135deg,#4F46E5,#7C3AED)', color: '#fff',
+                cursor: 'pointer', fontSize: 14, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
+                boxShadow: '0 4px 12px rgba(79,70,229,0.30)',
+              }}>Fechar</button>
             </div>
           )}
         </div>
@@ -385,32 +829,34 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
   );
 }
 
+/* ── POST MODAL ─────────────────────────────────────────────── */
 function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
   post: ColabPost; session: ColabSession;
   onClose: () => void; onUpdated: () => void; onDeleted: () => void; onZoom: (url: string) => void;
 }) {
-  const [comments, setComments]         = useState<PostComment[]>([]);
-  const [text, setText]                 = useState('');
-  const [saving, setSaving]             = useState(false);
-  const [deleting, setDeleting]         = useState(false);
-  const [tab, setTab]                   = useState<'preview'|'info'|'comments'|'actions'>('preview');
-  const [editStatus, setEditStatus]     = useState(post.status);
+  const [comments, setComments]     = useState<PostComment[]>([]);
+  const [text, setText]             = useState('');
+  const [saving, setSaving]         = useState(false);
+  const [deleting, setDeleting]     = useState(false);
+  const [tab, setTab]               = useState<'preview' | 'info' | 'comments' | 'actions'>('preview');
+  const [editStatus, setEditStatus] = useState(post.status);
   const [editPlatform, setEditPlatform] = useState(post.platforms?.[0] ?? 'instagram');
-  const [editDate, setEditDate]         = useState<string>(() => { try { return post.scheduledAt ? format(new Date(post.scheduledAt),'yyyy-MM-dd') : ''; } catch { return ''; } });
-  const [editCaption, setEditCaption]   = useState(post.caption ?? '');
+  const [editDate, setEditDate]     = useState<string>(() => { try { return post.scheduledAt ? format(new Date(post.scheduledAt), 'yyyy-MM-dd') : ''; } catch { return ''; } });
+  const [editCaption, setEditCaption] = useState(post.caption ?? '');
   const [editCampaign, setEditCampaign] = useState(post.campaignId ?? '');
-  const cfg      = STATUS[post.status] ?? STATUS.rascunho;
+  const cfg = STATUS[post.status] ?? STATUS.rascunho;
+
   const mediaUrl = post.mediaUrl ?? post.creatives?.[0]?.url;
   const isVideo  = (post.fileType === 'video') || (post.creatives?.[0]?.type ?? '').includes('video');
-  const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(139,92,246,0.25)', fontSize: 14, color: '#3B0764', background: 'rgba(245,243,255,0.6)', fontFamily: 'Inter, sans-serif', outline: 'none', boxSizing: 'border-box' };
 
   useEffect(() => {
-    (async () => {
+    const fetchComments = async () => {
       try {
         const snap = await getDocs(collection(db, 'users', session.adminUid, 'posts', post.id, 'comments'));
         setComments(snap.docs.map(d => ({ id: d.id, ...d.data() } as PostComment)));
       } catch {}
-    })();
+    };
+    fetchComments();
   }, [post.id]);
 
   const submitComment = async () => {
@@ -418,8 +864,9 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
     setSaving(true);
     try {
       const ref = await addDoc(collection(db, 'users', session.adminUid, 'posts', post.id, 'comments'), {
-        postId: post.id, adminUid: session.adminUid, author: session.clientName,
-        text: text.trim(), createdAt: new Date().toISOString(),
+        postId: post.id, adminUid: session.adminUid,
+        author: session.clientName, text: text.trim(),
+        createdAt: new Date().toISOString(),
       });
       setComments(prev => [...prev, { id: ref.id, postId: post.id, adminUid: session.adminUid, author: session.clientName, text: text.trim(), createdAt: new Date().toISOString() }]);
       setText('');
@@ -432,8 +879,9 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
     try {
       await updateDoc(doc(db, 'users', session.adminUid, 'posts', post.id), {
         status: editStatus, platforms: [editPlatform],
-        scheduledAt: editDate ? new Date(editDate+'T12:00:00').toISOString() : (post.scheduledAt ?? null),
-        caption: editCaption, ...(editCampaign ? { campaignId: editCampaign } : {}),
+        scheduledAt: editDate ? new Date(editDate + 'T12:00:00').toISOString() : (post.scheduledAt ?? null),
+        caption: editCaption,
+        ...(editCampaign ? { campaignId: editCampaign } : {}),
       });
       onUpdated();
     } catch(e) { console.error(e); setSaving(false); }
@@ -442,108 +890,287 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
   const handleDelete = async () => {
     if (!confirm('Tem certeza que deseja excluir este post?')) return;
     setDeleting(true);
-    try { await deleteDoc(doc(db, 'users', session.adminUid, 'posts', post.id)); onDeleted(); }
-    catch(e) { console.error(e); setDeleting(false); }
+    try {
+      await deleteDoc(doc(db, 'users', session.adminUid, 'posts', post.id));
+      onDeleted();
+    } catch(e) { console.error(e); setDeleting(false); }
   };
 
   const TABS = [
-    { id: 'preview'  as const, label: 'Preview' },
+    { id: 'preview'  as const, label: 'Preview'    },
     { id: 'info'     as const, label: 'Informações' },
     { id: 'comments' as const, label: `Comentários (${comments.length})` },
-    { id: 'actions'  as const, label: 'Ações' },
+    { id: 'actions'  as const, label: 'Ações'       },
   ];
 
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '10px 12px', borderRadius: 10,
+    border: '1px solid rgba(255,255,255,0.50)',
+    fontSize: 14, color: '#0F172A',
+    background: 'rgba(255,255,255,0.60)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
+    fontFamily: 'Inter, sans-serif',
+    boxSizing: 'border-box' as const,
+    outline: 'none',
+    boxShadow: '0 1px 4px rgba(79,70,229,0.08) inset',
+  };
+
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(59,7,100,0.55)', backdropFilter: 'blur(8px)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-      onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ borderRadius: 24, width: '100%', maxWidth: 560, maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(20px)', boxShadow: '0 20px 60px rgba(109,40,217,0.25)' }}>
-        <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid rgba(139,92,246,0.15)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'linear-gradient(135deg,rgba(139,92,246,0.10),rgba(99,102,241,0.06))' }}>
+    <div style={modalBackdrop} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ ...modalCard, maxWidth: 560, maxHeight: '92vh' }}>
+        <div style={modalShine} />
+
+        {/* Header */}
+        <div style={{
+          padding: '16px 20px 12px',
+          borderBottom: '1px solid rgba(255,255,255,0.40)',
+          background: 'rgba(255,255,255,0.30)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+          position: 'relative', zIndex: 1,
+        }}>
           <div style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-              {mediaUrl && <div style={{ width: 32, height: 32, borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}><img src={mediaUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }} onClick={() => onZoom(mediaUrl)} /></div>}
-              <span style={{ padding: '2px 8px', borderRadius: 999, background: cfg.pill, color: cfg.text, fontSize: 10, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{cfg.label}</span>
-              {post.platforms?.map(pl => <span key={pl} style={{ fontSize: 14 }}>{PLATFORM_ICON[pl] ?? '📱'}</span>)}
+              {mediaUrl && (
+                <div style={{ width: 32, height: 32, borderRadius: 6, overflow: 'hidden', flexShrink: 0, border: '1px solid rgba(255,255,255,0.50)' }}>
+                  <img src={mediaUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onClick={() => mediaUrl && onZoom(mediaUrl)} />
+                </div>
+              )}
+              <span style={{
+                padding: '2px 8px', borderRadius: 999,
+                background: cfg.pill, color: cfg.text,
+                fontSize: 10, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif',
+                border: `1px solid ${cfg.dot}30`,
+              }}>{cfg.label}</span>
+              {post.platforms?.map(pl => <span key={pl} style={{ fontSize: 14 }}><PlatformIcon platform={pl} size={14} /></span>)}
             </div>
-            <h3 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 16, color: '#3B0764', margin: 0 }}>{post.title}</h3>
-            {post.scheduledAt && <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 3, fontWeight: 500 }}><Icon name="Calendar" size={12} style={{marginRight:4}} />{format(new Date(post.scheduledAt),"dd 'de' MMMM 'de' yyyy",{locale:ptBR})}</div>}
+            <h3 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 16, color: '#0F172A', margin: 0 }}>{post.title}</h3>
+            {post.scheduledAt && (
+              <div style={{ fontSize: 11, color: '#64748B', marginTop: 3, fontWeight: 500 }}>
+                <Icon name="Calendar" size={11} /> {format(new Date(post.scheduledAt), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-            <button onClick={() => setTab('actions')} style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)', color: '#7C3AED', padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif' }}><Icon name="Note_Edit" size={13} style={{marginRight:4}} />Editar</button>
-            <button onClick={handleDelete} disabled={deleting} style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>🗑️</button>
-            <button onClick={onClose} style={{ background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)', color: '#7C3AED', width: 30, height: 30, borderRadius: '50%', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="Close_MD" size={14} /></button>
+            <button onClick={() => setTab('actions')} style={{
+              background: 'rgba(79,70,229,0.10)', backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              border: '1px solid rgba(79,70,229,0.25)', color: '#4F46E5',
+              padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
+              fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}>✏️ Editar Post</button>
+            <button onClick={handleDelete} disabled={deleting} style={{
+              background: 'rgba(239,68,68,0.10)', backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              border: '1px solid rgba(239,68,68,0.25)', color: '#B91C1C',
+              padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
+              fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif',
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}>🗑️ Deletar</button>
+            <button onClick={onClose} style={{
+              background: 'rgba(255,255,255,0.60)', backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              border: '1px solid rgba(255,255,255,0.50)', color: '#64748B',
+              width: 30, height: 30, borderRadius: '50%', cursor: 'pointer',
+              fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>×</button>
           </div>
         </div>
-        <div style={{ display: 'flex', borderBottom: '1px solid rgba(139,92,246,0.15)', padding: '0 20px', background: 'rgba(245,243,255,0.40)', overflowX: 'auto' }}>
+
+        {/* Tabs */}
+        <div style={{
+          display: 'flex',
+          borderBottom: '1px solid rgba(255,255,255,0.40)',
+          padding: '0 20px',
+          background: 'rgba(255,255,255,0.25)',
+          overflowX: 'auto',
+          position: 'relative', zIndex: 1,
+        }}>
           {TABS.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', color: tab === t.id ? '#7C3AED' : '#94A3B8', borderBottom: tab === t.id ? '2px solid #7C3AED' : '2px solid transparent', marginBottom: -1, transition: 'all 0.15s' }}>{t.label}</button>
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
+              fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap',
+              color: tab === t.id ? '#4F46E5' : '#64748B',
+              borderBottom: tab === t.id ? '2px solid #4F46E5' : '2px solid transparent',
+              marginBottom: -1, transition: 'all 0.15s',
+            }}>{t.label}</button>
           ))}
         </div>
-        <div style={{ flex: 1, overflow: 'auto', background: 'rgba(255,255,255,0.80)' }}>
+
+        <div style={{ flex: 1, overflow: 'auto', background: 'transparent', position: 'relative', zIndex: 1 }}>
+
+          {/* PREVIEW TAB */}
           {tab === 'preview' && (
-            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
               {mediaUrl ? (
-                <div onClick={() => onZoom(mediaUrl)} style={{ width: '100%', maxWidth: 380, borderRadius: 16, overflow: 'hidden', background: 'rgba(245,243,255,0.8)', border: '1px solid rgba(139,92,246,0.20)', aspectRatio: '1/1', cursor: 'zoom-in', boxShadow: '0 4px 20px rgba(109,40,217,0.12)' }}>
-                  {isVideo ? <video src={mediaUrl} controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <img src={mediaUrl} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+                <div style={{
+                  width: '100%', maxWidth: 380, borderRadius: 14, overflow: 'hidden',
+                  background: 'rgba(255,255,255,0.50)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255,255,255,0.50)',
+                  aspectRatio: '1/1', cursor: 'zoom-in',
+                  boxShadow: '0 4px 16px rgba(79,70,229,0.12)',
+                }} onClick={() => mediaUrl && onZoom(mediaUrl)}>
+                  {isVideo ? (
+                    <video src={mediaUrl} controls style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <img src={mediaUrl} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }} />
+                  )}
                 </div>
               ) : (
-                <div style={{ width: '100%', maxWidth: 380, borderRadius: 16, background: 'rgba(245,243,255,0.8)', border: '1px solid rgba(139,92,246,0.20)', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180 }}>
-                  <span style={{ fontSize: 40 }}>🖼️</span>
+                <div style={{
+                  width: '100%', maxWidth: 380, borderRadius: 14,
+                  background: 'rgba(255,255,255,0.45)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255,255,255,0.50)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 180,
+                }}>
+                  <Icon name="Image_01" size={40} />
                 </div>
               )}
-              {post.caption && <div style={{ width: '100%', maxWidth: 380 }}><div style={{ fontSize: 11, fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>LEGENDA</div><p style={{ color: '#3B0764', fontSize: 14, lineHeight: 1.65, margin: 0 }}>{post.caption}</p></div>}
+              {post.caption && (
+                <div style={{ width: '100%', maxWidth: 380 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#5B21B6', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>LEGENDA</div>
+                  <p style={{ color: '#334155', fontSize: 14, lineHeight: 1.65, margin: 0 }}>{post.caption}</p>
+                </div>
+              )}
             </div>
           )}
+
+          {/* INFO TAB */}
           {tab === 'info' && (
-            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {post.caption && <div><div style={{ fontSize: 11, fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>LEGENDA</div><p style={{ color: '#3B0764', fontSize: 14, lineHeight: 1.65, margin: 0 }}>{post.caption}</p></div>}
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {post.caption && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#5B21B6', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>LEGENDA</div>
+                  <p style={{ color: '#334155', fontSize: 14, lineHeight: 1.65, margin: 0 }}>{post.caption}</p>
+                </div>
+              )}
+              {post.hashtags && post.hashtags.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#5B21B6', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>HASHTAGS</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {post.hashtags.map(h => (
+                      <span key={h} style={{
+                        padding: '3px 10px', borderRadius: 999,
+                        background: 'rgba(79,70,229,0.10)',
+                        backdropFilter: 'blur(4px)',
+                        color: '#4F46E5', fontSize: 12, fontWeight: 600,
+                        border: '1px solid rgba(79,70,229,0.25)',
+                      }}>{h}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {post.platforms && post.platforms.length > 0 && (
-                <div><div style={{ fontSize: 11, fontWeight: 700, color: '#7C3AED', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>PLATAFORMAS</div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#5B21B6', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>PLATAFORMAS</div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {post.platforms.map(pl => <div key={pl} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, background: 'rgba(245,243,255,0.8)', border: '1px solid rgba(139,92,246,0.20)', fontSize: 13, color: '#3B0764', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif' }}><span>{PLATFORM_ICON[pl]??'📱'}</span>{pl.replace('_',' ')}</div>)}
+                    {post.platforms.map(pl => (
+                      <div key={pl} style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '5px 10px', borderRadius: 8,
+                        background: 'rgba(255,255,255,0.60)',
+                        backdropFilter: 'blur(8px)',
+                        WebkitBackdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(255,255,255,0.50)',
+                        fontSize: 13, color: '#0F172A', fontWeight: 600, fontFamily: 'Plus Jakarta Sans, sans-serif',
+                        boxShadow: '0 1px 4px rgba(79,70,229,0.08)',
+                      }}>
+                        <PlatformIcon platform={pl} size={13} />{pl.replace('_', ' ')}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
             </div>
           )}
+
+          {/* COMMENTS TAB */}
           {tab === 'comments' && (
-            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {comments.length === 0 && <div style={{ textAlign: 'center', color: '#7C3AED', padding: 24, fontSize: 13 }}>Nenhum comentário ainda. Seja o primeiro!</div>}
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {comments.length === 0 && (
+                <div style={{ textAlign: 'center', color: '#64748B', padding: 24, fontSize: 13 }}>Nenhum comentário ainda. Seja o primeiro!</div>
+              )}
               {comments.map(c => (
-                <div key={c.id} style={{ background: 'rgba(245,243,255,0.8)', border: '1px solid rgba(139,92,246,0.20)', borderRadius: 10, padding: '10px 12px' }}>
+                <div key={c.id} style={{
+                  background: 'rgba(255,255,255,0.55)',
+                  backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255,255,255,0.50)',
+                  borderRadius: 10, padding: '10px 12px',
+                  boxShadow: '0 1px 4px rgba(79,70,229,0.06)',
+                }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#7C3AED', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{c.author}</span>
-                    <span style={{ fontSize: 10, color: '#94A3B8' }}>{format(new Date(c.createdAt),"dd/MM HH:mm")}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#4F46E5', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{c.author}</span>
+                    <span style={{ fontSize: 10, color: '#94A3B8' }}>{format(new Date(c.createdAt), "dd/MM HH:mm")}</span>
                   </div>
-                  <p style={{ color: '#3B0764', fontSize: 13, margin: 0, lineHeight: 1.5 }}>{c.text}</p>
+                  <p style={{ color: '#334155', fontSize: 13, margin: 0, lineHeight: 1.5 }}>{c.text}</p>
                 </div>
               ))}
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 <textarea value={text} onChange={e => setText(e.target.value)} placeholder="Escreva um comentário…" rows={2}
-                  style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: '1px solid rgba(139,92,246,0.25)', fontSize: 14, color: '#3B0764', background: 'rgba(245,243,255,0.6)', fontFamily: 'Inter, sans-serif', resize: 'none', outline: 'none' }}
-                  onKeyDown={e => { if (e.key==='Enter' && (e.ctrlKey||e.metaKey)) submitComment(); }} />
-                <button onClick={submitComment} disabled={saving||!text.trim()} style={{ padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', color: '#fff', alignSelf: 'flex-end', fontSize: 16, fontWeight: 700 }}>{saving?'…':'➤'}</button>
+                  style={{ ...inputStyle, flex: 1, resize: 'none' }}
+                  onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitComment(); }} />
+                <button onClick={submitComment} disabled={saving || !text.trim()} style={{
+                  padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                  background: 'linear-gradient(135deg,#4F46E5,#7C3AED)', color: '#fff', alignSelf: 'flex-end',
+                  fontSize: 16, fontWeight: 700, boxShadow: '0 4px 12px rgba(79,70,229,0.30)',
+                }}>
+                  {saving ? '…' : '➤'}
+                </button>
               </div>
             </div>
           )}
+
+          {/* ACTIONS TAB */}
           {tab === 'actions' && (
-            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#7C3AED', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Plataforma</label>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#5B21B6', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Plataforma</label>
                   <select value={editPlatform} onChange={e => setEditPlatform(e.target.value)} style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}>
-                    {ALL_PLATFORMS.map(p => <option key={p} value={p}>{PLATFORM_ICON[p]} {p.replace('_',' ')}</option>)}
-                  </select></div>
-                <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#7C3AED', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Data</label>
-                  <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} style={inputStyle} /></div>
+                    {ALL_PLATFORMS.map(p => <option key={p} value={p}>{p.replace('_',' ')}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#5B21B6', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Data</label>
+                  <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} style={inputStyle} />
+                </div>
               </div>
-              <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#7C3AED', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Status</label>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#5B21B6', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Status</label>
                 <select value={editStatus} onChange={e => setEditStatus(e.target.value)} style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}>
                   {STATUS_OPTIONS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-                </select></div>
-              <div><label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#7C3AED', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Legenda</label>
-                <textarea value={editCaption} onChange={e => setEditCaption(e.target.value)} rows={3} placeholder="Legenda do post…" style={{ ...inputStyle, resize: 'vertical' }} /></div>
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#5B21B6', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Campanha</label>
+                <input value={editCampaign} onChange={e => setEditCampaign(e.target.value)} placeholder="ID ou nome da campanha" style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#5B21B6', fontFamily: 'Plus Jakarta Sans, sans-serif', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Legenda</label>
+                <textarea value={editCaption} onChange={e => setEditCaption(e.target.value)} rows={3} placeholder="Legenda do post…" style={{ ...inputStyle, resize: 'vertical' }} />
+              </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
-                <button onClick={onClose} style={{ padding: '9px 18px', borderRadius: 10, border: '1px solid rgba(139,92,246,0.25)', background: 'rgba(245,243,255,0.8)', color: '#7C3AED', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600 }}>Cancelar</button>
-                <button onClick={handleSave} disabled={saving} style={{ padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, background: 'linear-gradient(135deg,#7C3AED,#4F46E5)', color: '#fff' }}>{saving?'…':'💾 Salvar'}</button>
+                <button onClick={onClose} style={{
+                  padding: '9px 18px', borderRadius: 10, cursor: 'pointer', fontSize: 13,
+                  fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 600,
+                  background: 'rgba(255,255,255,0.60)', backdropFilter: 'blur(8px)',
+                  WebkitBackdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255,255,255,0.50)', color: '#64748B',
+                }}>Cancelar</button>
+                <button onClick={handleSave} disabled={saving} style={{
+                  padding: '9px 18px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13,
+                  fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
+                  background: 'linear-gradient(135deg,#4F46E5,#7C3AED)', color: '#fff',
+                  boxShadow: '0 4px 12px rgba(79,70,229,0.30)',
+                }}>
+                  {saving ? '…' : <><Icon name="Check_Big" size={13} /> Salvar</>}
+                </button>
               </div>
             </div>
           )}
