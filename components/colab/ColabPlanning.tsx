@@ -185,11 +185,11 @@ function EntryCard({ entry, col, delay, onEdit, onDelete }: {
           <button onClick={onEdit}
             style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 7, padding: '3px 8px', cursor: 'pointer', fontSize: 12, color: '#64748B', transition: 'all 0.12s' }}
             onMouseEnter={e => { e.currentTarget.style.background = '#FFFFFF'; e.currentTarget.style.color = '#0F172A'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.color = '#64748B'; }}>✏️</button>
+            onMouseLeave={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.color = '#64748B'; }}><Icon name="Edit_Pencil_01" size={14} /></button>
           <button onClick={onDelete}
             style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 7, padding: '3px 8px', cursor: 'pointer', fontSize: 12, color: '#64748B', transition: 'all 0.12s' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.25)'; e.currentTarget.style.color = '#B91C1C'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.color = '#64748B'; }}>🗑️</button>
+            onMouseLeave={e => { e.currentTarget.style.background = '#F8FAFC'; e.currentTarget.style.borderColor = '#E2E8F0'; e.currentTarget.style.color = '#64748B'; }}><Icon name="Trash_Full" size={14} /></button>
         </div>
       </div>
       <h4 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 800, fontSize: 15, color: '#0F172A', marginBottom: 6, letterSpacing: '-0.01em' }}>
