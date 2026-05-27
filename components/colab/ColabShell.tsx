@@ -90,12 +90,12 @@ export default function ColabShell({ session, children, section, onNavigate }: P
           <div style={{ width: 1, height: 28, background: 'rgba(255,255,255,0.12)' }} />
           {/* Avatar */}
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg,#4F46E5,#9333EA)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: '#fff', fontFamily: 'Plus Jakarta Sans, sans-serif', flexShrink: 0 }}>
-            {initials(session.clientName)}
+            {initials(session?.clientName ?? "")}
           </div>
           {/* Name */}
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#F8FAFC', fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis' }}>{session.clientName}</div>
-            <div style={{ fontSize: 10, color: 'rgba(248,250,252,0.48)', whiteSpace: 'nowrap', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis' }}>{session.clientEmail}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#F8FAFC', fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis' }}>{session?.clientName}</div>
+            <div style={{ fontSize: 10, color: 'rgba(248,250,252,0.48)', whiteSpace: 'nowrap', maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis' }}>{session?.clientEmail}</div>
           </div>
           {/* Logout */}
           <button onClick={handleLogout} title="Sair" style={{
