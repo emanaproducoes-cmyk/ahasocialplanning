@@ -959,7 +959,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
               padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
               fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif',
               display: 'flex', alignItems: 'center', gap: 4,
-            }}>✏️ Editar Post</button>
+            }}><Icon name="Edit_Pencil_01" size={13} /> Editar Post</button>
             <button onClick={handleDelete} disabled={deleting} style={{
               background: 'rgba(239,68,68,0.10)', backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
@@ -967,7 +967,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
               padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
               fontSize: 12, fontWeight: 700, fontFamily: 'Plus Jakarta Sans, sans-serif',
               display: 'flex', alignItems: 'center', gap: 4,
-            }}>🗑️ Deletar</button>
+            }}><Icon name="Trash_Full" size={13} /> Deletar</button>
             <button onClick={onClose} style={{
               background: 'rgba(255,255,255,0.60)', backdropFilter: 'blur(8px)',
               WebkitBackdropFilter: 'blur(8px)',
