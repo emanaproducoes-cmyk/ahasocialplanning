@@ -10,6 +10,7 @@ export function useColabSession(): { session: ColabSession | null; loading: bool
 
   useEffect(() => {
     try {
+      if (typeof window === 'undefined') { setLoading(false); return; }
       const raw = sessionStorage.getItem(SESSION_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as ColabSession;
