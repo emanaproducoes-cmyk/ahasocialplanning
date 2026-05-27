@@ -703,7 +703,7 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
                     background: 'rgba(255,255,255,0.60)', backdropFilter: 'blur(8px)',
                     WebkitBackdropFilter: 'blur(8px)',
                     border: '1px solid rgba(109,40,217,0.30)', color: '#4F46E5',
-                  }}}><Icon name="Mail" size={13} /> Solicitar post neste dia</button>
+                  }}><Icon name="Mail" size={13} /> Solicitar post neste dia</button>
                 )}
               </div>
             </div>
