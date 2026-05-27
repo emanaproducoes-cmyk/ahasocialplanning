@@ -125,7 +125,7 @@ export default function ColabPlanning({ session }: Props) {
         <div style={{ textAlign: 'center', padding: 48, color: '#64748B' }}>Carregando…</div>
       ) : filtered.length === 0 ? (
         <div style={{ borderRadius: 18, padding: 48, textAlign: 'center', background: '#FFFFFF', border: `1px solid ${col.border}` }}>
-          <div style={{ fontSize: 38, marginBottom: 12 }}>{TABS.find(t => t.id === tab)?.icon}</div>
+          <div style={{ fontSize: 38, marginBottom: 12 }}><Icon name={TABS.find(t => t.id === tab)?.icon ?? ''} size={38} /></div>
           <h3 style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700, fontSize: 16, color: '#0F172A', marginBottom: 6 }}>
             Nenhum planejamento para {TABS.find(t => t.id === tab)?.label.toLowerCase()}
           </h3>
