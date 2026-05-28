@@ -1,267 +1,745 @@
-'use client';
-import { useState, useEffect } from 'react';
-import { getColabRatings, saveColabRating } from '@/lib/colab/firestore';
+"use client";
 
-const RATING_CATEGORIES = [
-  { id: 'themes',       label: 'Temas',          icon: '🎯', description: 'Relevância e criatividade dos temas', details: 'Avalia se os temas são relevantes para o seu público, alinhados ao momento de mercado e trabalhados com criatividade.' },
-  { id: 'titles',       label: 'Títulos',         icon: '✍️', description: 'Clareza e impacto dos títulos', details: 'Avalia se os títulos são claros, atrativos e capazes de gerar curiosidade. Um bom título interrompe o scroll.' },
-  { id: 'digital_arts', label: 'Artes Digitais',  icon: '🎨', description: 'Qualidade visual das artes', details: 'Avalia a qualidade gráfica: composição, paleta de cores, tipografia e identidade visual.' },
-  { id: 'captions',     label: 'Legendas',        icon: '💬', description: 'Engajamento e qualidade das legendas', details: 'Avalia se as legendas têm tom de voz adequado, CTA clara e capacidade de gerar conversa.' },
-  { id: 'hashtags',     label: 'Hashtags',        icon: '#️⃣', description: 'Relevância e alcance das hashtags', details: 'Avalia se as hashtags são estratégicas para maximizar o alcance orgânico.' },
-  { id: 'strategy',     label: 'Estratégia',      icon: '📊', description: 'Coerência estratégica do planejamento', details: 'Avalia o equilíbrio entre conteúdo educativo, comercial e de relacionamento.' },
+import { useState, useEffect } from "react";
+import { db } from "@/lib/firebase";
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  Timestamp,
+} from "firebase/firestore";
+import { ColabSession } from "@/lib/colab/types";
+
+// ─── Coolicons SVG components ────────────────────────────────────────────────
+
+const IconTarget = ({ size = 18, className = "" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="6" />
+    <circle cx="12" cy="12" r="2" />
+  </svg>
+);
+
+const IconPencil = ({ size = 18, className = "" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+  </svg>
+);
+
+const IconImage = ({ size = 18, className = "" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <circle cx="8.5" cy="8.5" r="1.5" />
+    <polyline points="21 15 16 10 5 21" />
+  </svg>
+);
+
+const IconChat = ({ size = 18, className = "" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    <circle cx="8" cy="10" r="1" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="10" r="1" fill="currentColor" stroke="none" />
+    <circle cx="16" cy="10" r="1" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+const IconHash = ({ size = 18, className = "" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <line x1="4" y1="9" x2="20" y2="9" />
+    <line x1="4" y1="15" x2="20" y2="15" />
+    <line x1="10" y1="3" x2="8" y2="21" />
+    <line x1="16" y1="3" x2="14" y2="21" />
+  </svg>
+);
+
+const IconBarChart = ({ size = 18, className = "" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <rect x="18" y="3" width="4" height="18" rx="1" />
+    <rect x="10" y="8" width="4" height="13" rx="1" />
+    <rect x="2" y="13" width="4" height="8" rx="1" />
+  </svg>
+);
+
+const IconStar = ({
+  size = 18,
+  filled = false,
+  className = "",
+}: {
+  size?: number;
+  filled?: boolean;
+  className?: string;
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill={filled ? "currentColor" : "none"}
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+  </svg>
+);
+
+const IconHistory = ({ size = 16, className = "" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <polyline points="1 4 1 10 7 10" />
+    <path d="M3.51 15a9 9 0 1 0 .49-4.95" />
+    <polyline points="12 7 12 12 15 15" />
+  </svg>
+);
+
+const IconCheck = ({ size = 14, className = "" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.5"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
+);
+
+const IconSend = ({ size = 16, className = "" }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={className}
+    aria-hidden="true"
+  >
+    <line x1="22" y1="2" x2="11" y2="13" />
+    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+  </svg>
+);
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Props {
+  adminUid: string;
+  session?: ColabSession;
+}
+
+interface RatingCategory {
+  key: string;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+}
+
+interface RatingData {
+  month: string; // "2026-05"
+  ratings: Record<string, number>;
+  comment: string;
+  clientName: string;
+  clientEmail: string;
+  createdAt: Timestamp;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const CATEGORIES: RatingCategory[] = [
+  {
+    key: "temas",
+    label: "Temas",
+    description: "Relevância e criatividade dos temas",
+    icon: <IconTarget size={18} />,
+  },
+  {
+    key: "titulos",
+    label: "Títulos",
+    description: "Clareza e impacto dos títulos",
+    icon: <IconPencil size={18} />,
+  },
+  {
+    key: "artes",
+    label: "Artes Digitais",
+    description: "Qualidade visual das artes",
+    icon: <IconImage size={18} />,
+  },
+  {
+    key: "legendas",
+    label: "Legendas",
+    description: "Engajamento e qualidade das legendas",
+    icon: <IconChat size={18} />,
+  },
+  {
+    key: "hashtags",
+    label: "Hashtags",
+    description: "Relevância e alcance das hashtags",
+    icon: <IconHash size={18} />,
+  },
+  {
+    key: "estrategia",
+    label: "Estratégia",
+    description: "Coerência estratégica do planejamento",
+    icon: <IconBarChart size={18} />,
+  },
 ];
 
-const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-
-function currentMonthKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-}
-function monthLabel(key: string) {
-  const [y, m] = key.split('-');
-  return `${MONTHS[parseInt(m)-1]} de ${y}`;
+function getCurrentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function StarRow({ value, onChange, readonly }: { value: number; onChange?: (v: number) => void; readonly?: boolean }) {
+function formatMonthLabel(monthKey: string): string {
+  const [year, month] = monthKey.split("-");
+  const date = new Date(Number(year), Number(month) - 1, 1);
+  return date.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+}
+
+function avg(vals: number[]): number {
+  if (!vals.length) return 0;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+// ─── Star Rating Input ────────────────────────────────────────────────────────
+
+function StarInput({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  disabled: boolean;
+}) {
   const [hovered, setHovered] = useState(0);
-  const display = hovered || value;
+
   return (
-    <div style={{ display: 'flex', gap: 3 }}>
-      {[1,2,3,4,5].map(i => (
-        <button key={i} type="button"
-          onClick={e => { e.stopPropagation(); !readonly && onChange?.(i); }}
-          onMouseEnter={() => !readonly && setHovered(i)}
-          onMouseLeave={() => !readonly && setHovered(0)}
-          style={{ background: 'none', border: 'none', cursor: readonly ? 'default' : 'pointer', fontSize: 18, lineHeight: 1, padding: '2px', opacity: i <= display ? 1 : 0.18, transform: !readonly && i === display ? 'scale(1.28)' : 'scale(1)', transition: 'all 0.12s' }}>⭐</button>
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <button
+          key={i}
+          type="button"
+          disabled={disabled}
+          onMouseEnter={() => !disabled && setHovered(i)}
+          onMouseLeave={() => setHovered(0)}
+          onClick={() => !disabled && onChange(i)}
+          className={`transition-colors ${
+            disabled ? "cursor-default" : "cursor-pointer hover:scale-110"
+          }`}
+          style={{ color: i <= (hovered || value) ? "#f59e0b" : "#d1d5db" }}
+        >
+          <IconStar size={20} filled={i <= (hovered || value)} />
+        </button>
       ))}
     </div>
   );
 }
 
-function ScoreDonut({ avg }: { avg: number }) {
-  const r = 36, circ = 2 * Math.PI * r, dash = (avg / 5) * circ;
-  const color = avg >= 4.5 ? '#059669' : avg >= 3.5 ? '#4F46E5' : avg >= 2.5 ? '#D97706' : '#DC2626';
+// ─── Star Display (read-only) ─────────────────────────────────────────────────
+
+function StarDisplay({ value }: { value: number }) {
   return (
-    <div style={{ position: 'relative', width: 88, height: 88, flexShrink: 0 }}>
-      <svg width="88" height="88" viewBox="0 0 88 88">
-        <circle cx="44" cy="44" r={r} fill="none" stroke="#E2E8F0" strokeWidth="8" />
-        <circle cx="44" cy="44" r={r} fill="none" stroke={color} strokeWidth="8" strokeLinecap="round"
-          strokeDasharray={`${dash} ${circ}`} strokeDashoffset={circ / 4}
-          style={{ transition: 'stroke-dasharray 0.8s ease' }} />
-      </svg>
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1 }}>{avg.toFixed(1)}</span>
-        <span style={{ fontSize: 9, color: '#94A3B8', marginTop: 1 }}>/5.0</span>
-      </div>
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <span
+          key={i}
+          style={{ color: i <= Math.round(value) ? "#f59e0b" : "#d1d5db" }}
+        >
+          <IconStar size={14} filled={i <= Math.round(value)} />
+        </span>
+      ))}
     </div>
   );
 }
 
-interface Props { adminUid: string; session?: import('@/lib/colab/types').ColabSession }
+// ─── Circular Score ───────────────────────────────────────────────────────────
 
-export default function ColabRatings({ adminUid, session }: Props) {
-  const monthKey = currentMonthKey();
-  const [tab, setTab] = useState<'rate' | 'history'>('rate');
-  const [ratings, setRatings] = useState<Record<string, number>>(() => Object.fromEntries(RATING_CATEGORIES.map(c => [c.id, 0])));
-  const [comment, setComment] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [history, setHistory] = useState<any[]>([]);
-  const [expanded, setExpanded] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!adminUid && !session?.adminUid) return;
-getColabRatings(session?.adminUid ?? adminUid).then(data => {
-      setHistory(data);
-      const existing = data.find((r: any) => r.month === monthKey);
-      if (existing) { setRatings(existing.ratings); setComment(existing.comment ?? ''); setSubmitted(true); }
-    });
-  }, [adminUid]);
-
-  const avg = (() => { const vals = Object.values(ratings).filter(v => v > 0); return vals.length ? vals.reduce((a,b) => a+b, 0) / vals.length : 0; })();
-  const allFilled = RATING_CATEGORIES.every(c => ratings[c.id] > 0);
-
-  const handleSubmit = async () => {
-    if (!allFilled || saving) return;
-    setSaving(true);
-    try {
-      await saveColabRating({ adminUid: session?.adminUid ?? adminUid, clientEmail: session?.clientEmail ?? '', clientName: session?.clientName ?? '', month: monthKey, ratings, average: parseFloat(avg.toFixed(2)), comment: comment.trim(), submittedAt: new Date().toISOString() });
-      setSubmitted(true);
-      const data = await getColabRatings(adminUid);
-      setHistory(data);
-    } finally { setSaving(false); }
-  };
+function CircularScore({
+  score,
+  size = 80,
+}: {
+  score: number;
+  size?: number;
+}) {
+  const r = (size - 8) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (score / 5) * circ;
+  const color =
+    score >= 4
+      ? "#6366f1"
+      : score >= 3
+      ? "#f59e0b"
+      : score >= 2
+      ? "#f97316"
+      : "#ef4444";
 
   return (
-    <div style={{ padding: '28px 24px', minHeight: '100%', background: '#F1F5F9' }}>
-      <div style={{ marginBottom: 24 }}>
-        <h2 style={{ fontWeight: 800, fontSize: 22, color: '#0F172A', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Avaliações & Feedback</h2>
-        <p style={{ color: '#64748B', fontSize: 13, margin: 0 }}>Avalie a qualidade do trabalho — sua opinião melhora o nosso desempenho</p>
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke="#e5e7eb"
+        strokeWidth="4"
+      />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth="4"
+        strokeDasharray={circ}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        transform={`rotate(-90 ${size / 2} ${size / 2})`}
+      />
+      <text
+        x="50%"
+        y="50%"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={size * 0.22}
+        fontWeight="700"
+        fill={color}
+      >
+        {score > 0 ? score.toFixed(1) : "—"}
+      </text>
+    </svg>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export default function ColabRatings({ adminUid, session }: Props) {
+  const [tab, setTab] = useState<"rate" | "history">("rate");
+  const [ratings, setRatings] = useState<Record<string, number>>({});
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [history, setHistory] = useState<RatingData[]>([]);
+  const [currentMonthRating, setCurrentMonthRating] =
+    useState<RatingData | null>(null);
+
+  const currentMonth = getCurrentMonth();
+
+  // Load history from Firestore
+  useEffect(() => {
+    if (!adminUid || !session?.clientEmail) return;
+
+    const q = query(
+      collection(db, "colab_ratings"),
+      where("adminUid", "==", adminUid),
+      where("clientEmail", "==", session.clientEmail),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      const data = snap.docs.map((d) => d.data() as RatingData);
+      setHistory(data);
+      const thisMonth = data.find((d) => d.month === currentMonth);
+      setCurrentMonthRating(thisMonth ?? null);
+      if (thisMonth) setSubmitted(true);
+    });
+
+    return unsub;
+  }, [adminUid, session?.clientEmail, currentMonth]);
+
+  const allFilled = CATEGORIES.every((c) => (ratings[c.key] ?? 0) > 0);
+
+  async function handleSubmit() {
+    if (!allFilled || submitting || submitted) return;
+    setSubmitting(true);
+    try {
+      await addDoc(collection(db, "colab_ratings"), {
+        adminUid,
+        clientName: session?.clientName ?? "",
+        clientEmail: session?.clientEmail ?? "",
+        month: currentMonth,
+        ratings,
+        comment,
+        createdAt: Timestamp.now(),
+      });
+      setSubmitted(true);
+      setTab("history");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Overall average across all categories for current month
+  const overallScore =
+    currentMonthRating
+      ? avg(Object.values(currentMonthRating.ratings))
+      : submitted
+      ? avg(Object.values(ratings))
+      : 0;
+
+  const overallLabel =
+    overallScore >= 4.5
+      ? "Excelente"
+      : overallScore >= 3.5
+      ? "Bom trabalho"
+      : overallScore >= 2.5
+      ? "Regular"
+      : overallScore > 0
+      ? "Precisa melhorar"
+      : "";
+
+  return (
+    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">
+          Avaliações &amp; Feedback
+        </h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Avalie a qualidade do trabalho — sua opinião melhora o nosso desempenho
+        </p>
       </div>
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 24 }}>
-        {(['rate', 'history'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{ padding: '8px 20px', borderRadius: 10, border: tab === t ? 'none' : '1px solid #E2E8F0', cursor: 'pointer', fontWeight: 600, fontSize: 13, transition: 'all 0.15s', background: tab === t ? '#0F172A' : '#FFFFFF', color: tab === t ? '#FFFFFF' : '#64748B', boxShadow: tab === t ? '0 2px 8px rgba(15,23,42,0.2)' : 'none' }}>
-            {t === 'rate' ? '⭐ Avaliar' : `📈 Histórico (${history.length})`}
-          </button>
-        ))}
+      {/* Tabs */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setTab("rate")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === "rate"
+              ? "bg-indigo-600 text-white"
+              : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+          }`}
+        >
+          <IconStar size={15} filled={tab === "rate"} />
+          Avaliar
+        </button>
+        <button
+          onClick={() => setTab("history")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === "history"
+              ? "bg-indigo-600 text-white"
+              : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"
+          }`}
+        >
+          <IconHistory size={15} />
+          Histórico ({history.length})
+        </button>
       </div>
 
-      {tab === 'rate' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: submitted ? '1fr 320px' : '1fr', gap: 20, alignItems: 'start' }}>
-          <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.08)', overflow: 'hidden' }}>
+      {/* Rate tab */}
+      {tab === "rate" && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Rating form */}
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             {/* Month header */}
-            <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderBottom: '1px solid #F1F5F9' }}>
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Avaliação de</div>
-                <div style={{ fontWeight: 800, fontSize: 16, color: '#0F172A', textTransform: 'capitalize' }}>{monthLabel(monthKey)}</div>
-                {submitted && <div style={{ fontSize: 11, color: '#059669', fontWeight: 600, marginTop: 3 }}>✅ Avaliação enviada</div>}
+                <p className="text-xs text-gray-400 uppercase tracking-wider font-medium">
+                  Avaliação de
+                </p>
+                <p className="text-lg font-semibold text-gray-900 capitalize">
+                  {formatMonthLabel(currentMonth)}
+                </p>
               </div>
-              {avg > 0 && <ScoreDonut avg={avg} />}
+              {submitted && (
+                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-full">
+                  <IconCheck size={12} />
+                  Avaliação enviada
+                </span>
+              )}
+              {!submitted && (
+                <CircularScore
+                  score={avg(
+                    CATEGORIES.map((c) => ratings[c.key] ?? 0).filter(
+                      (v) => v > 0
+                    )
+                  )}
+                  size={56}
+                />
+              )}
             </div>
 
             {/* Categories */}
-            <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {RATING_CATEGORIES.map(cat => {
-                const val = ratings[cat.id] ?? 0;
-                const isOpen = expanded === cat.id;
-                const barColor = val >= 4 ? '#10B981' : val >= 3 ? '#4F46E5' : val > 0 ? '#D97706' : 'transparent';
+            <div className="divide-y divide-gray-50">
+              {CATEGORIES.map((cat) => {
+                const val = submitted
+                  ? (currentMonthRating?.ratings[cat.key] ??
+                    ratings[cat.key] ??
+                    0)
+                  : (ratings[cat.key] ?? 0);
+
                 return (
-                  <div key={cat.id} onClick={() => setExpanded(isOpen ? null : cat.id)}
-                    style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${isOpen ? '#C7D2FE' : '#F1F5F9'}`, background: isOpen ? '#EEF2FF' : '#FAFAFA', cursor: 'pointer', transition: 'all 0.15s' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px' }}>
-                      <span style={{ fontSize: 16, flexShrink: 0, width: 28, textAlign: 'center' }}>{cat.icon}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: '#0F172A', marginBottom: 2 }}>{cat.label}</div>
-                        <div style={{ fontSize: 11, color: '#94A3B8' }}>{cat.description}</div>
-                        <div style={{ height: 3, background: '#E2E8F0', borderRadius: 2, overflow: 'hidden', marginTop: 5 }}>
-                          <div style={{ height: '100%', borderRadius: 2, width: `${(val/5)*100}%`, background: barColor, transition: 'width 0.5s ease' }} />
-                        </div>
-                      </div>
-                      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                        <StarRow value={val} onChange={v => !submitted && setRatings(r => ({...r, [cat.id]: v}))} readonly={submitted} />
-                        <span style={{ color: '#CBD5E1', fontSize: 12, transition: 'transform 0.2s', transform: isOpen ? 'rotate(180deg)' : 'none' }}>▾</span>
+                  <div
+                    key={cat.key}
+                    className="px-6 py-4 flex items-center gap-4"
+                  >
+                    {/* Progress bar background */}
+                    <div className="absolute left-0 right-0 h-full pointer-events-none" />
+
+                    {/* Icon */}
+                    <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                      {cat.icon}
+                    </div>
+
+                    {/* Label */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800">
+                        {cat.label}
+                      </p>
+                      <p className="text-xs text-gray-400">{cat.description}</p>
+                      {/* Progress bar */}
+                      <div className="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${(val / 5) * 100}%`,
+                            background:
+                              val >= 4
+                                ? "#6366f1"
+                                : val >= 3
+                                ? "#f59e0b"
+                                : val >= 2
+                                ? "#f97316"
+                                : val > 0
+                                ? "#ef4444"
+                                : "#e5e7eb",
+                          }}
+                        />
                       </div>
                     </div>
-                    {isOpen && (
-                      <div style={{ padding: '10px 14px 12px 54px', borderTop: '1px solid #F1F5F9', background: '#F8FAFC' }}>
-                        <p style={{ fontSize: 12, color: '#64748B', lineHeight: 1.65, margin: 0 }}>{cat.details}</p>
-                      </div>
-                    )}
+
+                    {/* Stars */}
+                    <StarInput
+                      value={val}
+                      onChange={(v) =>
+                        setRatings((prev) => ({ ...prev, [cat.key]: v }))
+                      }
+                      disabled={submitted}
+                    />
                   </div>
                 );
               })}
             </div>
 
             {/* Comment */}
-            <div style={{ padding: '16px 20px', borderTop: '1px solid #F1F5F9' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Comentário geral (opcional)</div>
-              <textarea value={comment} onChange={e => !submitted && setComment(e.target.value)} readOnly={submitted}
-                placeholder="Compartilhe sua opinião geral sobre o trabalho deste mês…" rows={3}
-                style={{ width: '100%', borderRadius: 10, border: '1px solid #E2E8F0', padding: '10px 14px', fontSize: 13, color: '#0F172A', background: '#F8FAFC', resize: 'vertical', fontFamily: 'inherit', outline: 'none', lineHeight: 1.6, boxSizing: 'border-box' }} />
+            <div className="px-6 py-4 border-t border-gray-100 space-y-3">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Comentário geral (opcional)
+              </label>
+              <textarea
+                rows={3}
+                disabled={submitted}
+                value={
+                  submitted
+                    ? (currentMonthRating?.comment ?? comment)
+                    : comment
+                }
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Compartilhe sua opinião sobre o trabalho deste mês..."
+                className="w-full text-sm text-gray-700 border border-gray-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-gray-50 disabled:text-gray-400"
+              />
             </div>
 
-            {/* Button */}
-            {!submitted ? (
-              <div style={{ padding: '0 20px 20px' }}>
-                <button onClick={handleSubmit} disabled={!allFilled || saving}
-                  style={{ width: '100%', padding: '13px', borderRadius: 12, border: 'none', cursor: !allFilled || saving ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: !allFilled || saving ? '#E2E8F0' : 'linear-gradient(135deg, #4F46E5, #7C3AED)', color: !allFilled || saving ? '#94A3B8' : '#FFFFFF', boxShadow: !allFilled || saving ? 'none' : '0 4px 14px rgba(79,70,229,0.35)', transition: 'all 0.15s' }}>
-                  {saving ? '...' : '⭐'} {saving ? 'Enviando...' : allFilled ? 'Enviar avaliação' : `Preencha todas as ${RATING_CATEGORIES.length} categorias`}
+            {/* Submit */}
+            {!submitted && (
+              <div className="px-6 pb-5">
+                <button
+                  onClick={handleSubmit}
+                  disabled={!allFilled || submitting}
+                  className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
+                >
+                  {submitting ? (
+                    "Enviando..."
+                  ) : (
+                    <>
+                      <IconSend size={15} />
+                      Enviar avaliação
+                    </>
+                  )}
                 </button>
-              </div>
-            ) : (
-              <div style={{ margin: '0 20px 20px', padding: '14px', borderRadius: 12, background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', textAlign: 'center' }}>
-                <div style={{ fontSize: 24, marginBottom: 6 }}>🎉</div>
-                <div style={{ fontWeight: 700, fontSize: 14, color: '#059669' }}>Avaliação enviada!</div>
-                <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>Obrigado pelo seu feedback.</div>
+                {!allFilled && (
+                  <p className="text-center text-xs text-gray-400 mt-2">
+                    Avalie todas as categorias para enviar
+                  </p>
+                )}
               </div>
             )}
           </div>
 
-          {/* Summary sidebar */}
-          {submitted && (
-            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 16, padding: '24px 20px', position: 'sticky', top: 80, boxShadow: '0 1px 3px rgba(15,23,42,0.08)' }}>
-              <div style={{ textAlign: 'center', marginBottom: 20 }}>
-                <ScoreDonut avg={avg} />
-                <div style={{ fontWeight: 800, fontSize: 15, color: '#0F172A', marginTop: 12 }}>Média Geral</div>
-                <div style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{avg >= 4.5 ? '⭐ Excelente!' : avg >= 3.5 ? '👍 Bom trabalho' : avg >= 2.5 ? '👌 Regular' : '⚠️ Precisa melhorar'}</div>
+          {/* Summary panel */}
+          <div className="space-y-4">
+            {/* Overall score */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-center gap-3">
+              <CircularScore score={overallScore} size={90} />
+              <div className="text-center">
+                <p className="font-semibold text-gray-800">Média Geral</p>
+                {overallLabel && (
+                  <p className="text-xs text-gray-400 mt-0.5">{overallLabel}</p>
+                )}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {RATING_CATEGORIES.map(cat => {
-                  const val = ratings[cat.id] ?? 0;
+            </div>
+
+            {/* Per-category summary */}
+            {overallScore > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+                {CATEGORIES.map((cat) => {
+                  const val = currentMonthRating?.ratings[cat.key] ??
+                    ratings[cat.key] ??
+                    0;
                   return (
-                    <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 15, width: 22, textAlign: 'center', flexShrink: 0 }}>{cat.icon}</span>
-                      <span style={{ flex: 1, fontSize: 12, color: '#475569', fontWeight: 600 }}>{cat.label}</span>
-                      <div style={{ display: 'flex', gap: 2 }}>{[1,2,3,4,5].map(i => <span key={i} style={{ fontSize: 12, opacity: i <= val ? 1 : 0.15 }}>⭐</span>)}</div>
+                    <div
+                      key={cat.key}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <div className="flex items-center gap-2 text-gray-600">
+                        <span className="text-indigo-500">{cat.icon}</span>
+                        <span className="text-sm">{cat.label}</span>
+                      </div>
+                      <StarDisplay value={val} />
                     </div>
                   );
                 })}
               </div>
-              {comment && (
-                <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Comentário</div>
-                  <p style={{ color: '#64748B', fontSize: 12, lineHeight: 1.6, margin: 0, fontStyle: 'italic' }}>"{comment}"</p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {history.length === 0 ? (
-            <div style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 16, padding: '48px 24px', textAlign: 'center', boxShadow: '0 1px 3px rgba(15,23,42,0.06)' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>📈</div>
-              <h3 style={{ fontWeight: 700, fontSize: 16, color: '#0F172A', marginBottom: 6 }}>Sem histórico ainda</h3>
-              <p style={{ color: '#64748B', fontSize: 13, margin: 0 }}>Envie sua primeira avaliação para ver o histórico aqui.</p>
-            </div>
-          ) : history.map((r: any) => <HistoryCard key={r.id} rating={r} />)}
+            )}
+          </div>
         </div>
       )}
-    </div>
-  );
-}
 
-function HistoryCard({ rating }: { rating: any }) {
-  const [open, setOpen] = useState(false);
-  const avg = rating.average ?? 0;
-  const color = avg >= 4.5 ? '#059669' : avg >= 3.5 ? '#4F46E5' : avg >= 2.5 ? '#D97706' : '#DC2626';
-  const bg    = avg >= 4.5 ? '#ECFDF5' : avg >= 3.5 ? '#EEF2FF' : avg >= 2.5 ? '#FFFBEB' : '#FEF2F2';
-  const border= avg >= 4.5 ? '#A7F3D0' : avg >= 3.5 ? '#C7D2FE' : avg >= 2.5 ? '#FDE68A' : '#FECACA';
-  const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-  const label = (() => { try { const [y,m] = rating.month.split('-'); return `${MONTHS[parseInt(m)-1]} de ${y}`; } catch { return rating.month; } })();
-
-  return (
-    <div onClick={() => setOpen(o => !o)} style={{ background: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', boxShadow: '0 1px 3px rgba(15,23,42,0.06)', transition: 'box-shadow 0.15s' }}>
-      <div style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-        <div style={{ width: 48, height: 48, borderRadius: 12, background: bg, border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <span style={{ fontSize: 16, fontWeight: 900, color }}>{avg.toFixed(1)}</span>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, color: '#0F172A', textTransform: 'capitalize', marginBottom: 2 }}>{label}</div>
-          <div style={{ fontSize: 11, color: '#94A3B8' }}>{rating.clientName || 'Cliente'}</div>
-        </div>
-        <div style={{ display: 'flex', gap: 2 }}>{[1,2,3,4,5].map(i => <span key={i} style={{ fontSize: 13, opacity: i <= Math.round(avg) ? 1 : 0.15 }}>⭐</span>)}</div>
-        <span style={{ color: '#CBD5E1', fontSize: 13, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none', marginLeft: 4 }}>▾</span>
-      </div>
-      {open && (
-        <div style={{ padding: '0 18px 16px', borderTop: '1px solid #F1F5F9' }}>
-          <div style={{ paddingTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
-            {[{id:'themes',icon:'🎯',label:'Temas'},{id:'titles',icon:'✍️',label:'Títulos'},{id:'digital_arts',icon:'🎨',label:'Artes Digitais'},{id:'captions',icon:'💬',label:'Legendas'},{id:'hashtags',icon:'#️⃣',label:'Hashtags'},{id:'strategy',icon:'📊',label:'Estratégia'}].map(cat => {
-              const val = rating.ratings?.[cat.id] ?? 0;
+      {/* History tab */}
+      {tab === "history" && (
+        <div className="space-y-4">
+          {history.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center text-gray-400 text-sm">
+              Nenhuma avaliação enviada ainda.
+            </div>
+          ) : (
+            history.map((entry, idx) => {
+              const entryAvg = avg(Object.values(entry.ratings));
               return (
-                <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14 }}>{cat.icon}</span>
-                  <span style={{ flex: 1, fontSize: 12, color: '#475569', fontWeight: 500 }}>{cat.label}</span>
-                  <div style={{ display: 'flex', gap: 1 }}>{[1,2,3,4,5].map(i => <span key={i} style={{ fontSize: 11, opacity: i <= val ? 1 : 0.15 }}>⭐</span>)}</div>
+                <div
+                  key={idx}
+                  className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+                >
+                  <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+                    <p className="font-semibold text-gray-800 capitalize">
+                      {formatMonthLabel(entry.month)}
+                    </p>
+                    <CircularScore score={entryAvg} size={52} />
+                  </div>
+                  <div className="px-6 py-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {CATEGORIES.map((cat) => (
+                      <div key={cat.key} className="flex items-center gap-2">
+                        <span className="text-indigo-500 flex-shrink-0">
+                          {cat.icon}
+                        </span>
+                        <div>
+                          <p className="text-xs text-gray-500">{cat.label}</p>
+                          <StarDisplay
+                            value={entry.ratings[cat.key] ?? 0}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {entry.comment && (
+                    <div className="px-6 pb-4">
+                      <p className="text-xs text-gray-400 italic">
+                        &ldquo;{entry.comment}&rdquo;
+                      </p>
+                    </div>
+                  )}
                 </div>
               );
-            })}
-          </div>
-          {rating.comment && (
-            <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #F1F5F9' }}>
-              <span style={{ fontSize: 12, color: '#64748B', fontStyle: 'italic' }}>"{rating.comment}"</span>
-            </div>
+            })
           )}
         </div>
       )}
