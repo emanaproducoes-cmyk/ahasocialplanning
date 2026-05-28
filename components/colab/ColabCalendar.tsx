@@ -74,13 +74,13 @@ export default function ColabCalendar({ session }: Props) {
   const reload = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, 'users', session.adminUid, 'posts'));
+      const q = query(collection(db, 'users', session?.adminUid, 'posts'));
       const snap = await getDocs(q);
       const items: ColabPost[] = snap.docs.map(d => {
         const data = d.data();
         return {
           id: d.id,
-          adminUid: session.adminUid,
+          adminUid: session?.adminUid,
           title: data.title ?? '',
           caption: data.caption,
           hashtags: data.hashtags,
@@ -98,7 +98,7 @@ export default function ColabCalendar({ session }: Props) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { reload(); }, [session.adminUid]);
+  useEffect(() => { reload(); }, [session?.adminUid]);
 
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(month), { weekStartsOn: 0 });
@@ -571,7 +571,7 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
   day: Date; existingPosts: ColabPost[]; session: ColabSession;
   onClose: () => void; onSaved: () => void; onViewPost: (p: ColabPost) => void;
 }) {
-  const [mode, setMode]           = useState<'list' | 'create' | 'request'>(existingPosts.length > 0 ? 'list' : (session.canCreate ? 'create' : 'request'));
+  const [mode, setMode]           = useState<'list' | 'create' | 'request'>(existingPosts.length > 0 ? 'list' : (session?.canCreate ? 'create' : 'request'));
   const [title, setTitle]         = useState('');
   const [caption, setCaption]     = useState('');
   const [status, setStatus]       = useState('rascunho');
@@ -586,10 +586,10 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
     if (!title.trim()) return;
     setSaving(true);
     try {
-      await addDoc(collection(db, 'users', session.adminUid, 'posts'), {
+      await addDoc(collection(db, 'users', session?.adminUid, 'posts'), {
         title: title.trim(), caption: caption.trim(), status, platforms,
         scheduledAt: day.toISOString(), hashtags: [],
-        createdByClient: true, clientName: session.clientName,
+        createdByClient: true, clientName: session?.clientName,
         createdAt: new Date().toISOString(),
       });
       onSaved();
@@ -599,12 +599,12 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
   const handleRequest = async () => {
     setSaving(true);
     try {
-      await addDoc(collection(db, 'users', session.adminUid, 'posts'), {
+      await addDoc(collection(db, 'users', session?.adminUid, 'posts'), {
         title: `[Solicitação] ${requestNote.trim() || format(day, "dd/MM")}`,
         caption: requestNote.trim(), status: 'rascunho',
         platforms: ['instagram'], scheduledAt: day.toISOString(),
-        requestedByClient: true, clientName: session.clientName,
-        clientEmail: session.clientEmail, createdAt: new Date().toISOString(),
+        requestedByClient: true, clientName: session?.clientName,
+        clientEmail: session?.clientEmail, createdAt: new Date().toISOString(),
       });
       setRequested(true); setSaving(false);
     } catch(e) { console.error(e); setSaving(false); }
@@ -689,7 +689,7 @@ function DayModal({ day, existingPosts, session, onClose, onSaved, onViewPost }:
                 );
               })}
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                {session.canCreate ? (
+                {session?.canCreate ? (
                   <button onClick={() => setMode('create')} style={{
                     flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13,
                     fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: 700,
@@ -852,7 +852,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
   useEffect(() => {
     const fetchComments = async () => {
       try {
-        const snap = await getDocs(collection(db, 'users', session.adminUid, 'posts', post.id, 'comments'));
+        const snap = await getDocs(collection(db, 'users', session?.adminUid, 'posts', post.id, 'comments'));
         setComments(snap.docs.map(d => ({ id: d.id, ...d.data() } as PostComment)));
       } catch {}
     };
@@ -863,12 +863,12 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
     if (!text.trim()) return;
     setSaving(true);
     try {
-      const ref = await addDoc(collection(db, 'users', session.adminUid, 'posts', post.id, 'comments'), {
-        postId: post.id, adminUid: session.adminUid,
-        author: session.clientName, text: text.trim(),
+      const ref = await addDoc(collection(db, 'users', session?.adminUid, 'posts', post.id, 'comments'), {
+        postId: post.id, adminUid: session?.adminUid,
+        author: session?.clientName, text: text.trim(),
         createdAt: new Date().toISOString(),
       });
-      setComments(prev => [...prev, { id: ref.id, postId: post.id, adminUid: session.adminUid, author: session.clientName, text: text.trim(), createdAt: new Date().toISOString() }]);
+      setComments(prev => [...prev, { id: ref.id, postId: post.id, adminUid: session?.adminUid, author: session?.clientName, text: text.trim(), createdAt: new Date().toISOString() }]);
       setText('');
     } catch {}
     setSaving(false);
@@ -877,7 +877,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updateDoc(doc(db, 'users', session.adminUid, 'posts', post.id), {
+      await updateDoc(doc(db, 'users', session?.adminUid, 'posts', post.id), {
         status: editStatus, platforms: [editPlatform],
         scheduledAt: editDate ? new Date(editDate + 'T12:00:00').toISOString() : (post.scheduledAt ?? null),
         caption: editCaption,
@@ -891,7 +891,7 @@ function PostModal({ post, session, onClose, onUpdated, onDeleted, onZoom }: {
     if (!confirm('Tem certeza que deseja excluir este post?')) return;
     setDeleting(true);
     try {
-      await deleteDoc(doc(db, 'users', session.adminUid, 'posts', post.id));
+      await deleteDoc(doc(db, 'users', session?.adminUid, 'posts', post.id));
       onDeleted();
     } catch(e) { console.error(e); setDeleting(false); }
   };

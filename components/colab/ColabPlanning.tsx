@@ -32,7 +32,7 @@ export default function ColabPlanning({ session }: Props) {
   const reload = async () => {
     setLoading(true);
     try {
-      const snap = await getDocs(collection(db, 'users', session.adminUid, 'planning'));
+      const snap = await getDocs(collection(db, 'users', session?.adminUid, 'planning'));
       const items: PlanningEntry[] = snap.docs.map(d => ({ id: d.id, ...d.data() } as PlanningEntry));
       // ordena por updatedAt desc
       items.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
@@ -41,21 +41,21 @@ export default function ColabPlanning({ session }: Props) {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { if (session?.adminUid && tab) reload(); }, [session.adminUid, tab]);
+  useEffect(() => { if (session?.adminUid && tab) reload(); }, [session?.adminUid, tab]);
 
   const filtered = tab ? entries.filter(e => e.period === tab) : [];
   const col = PERIOD_COLORS[tab];
 
   const handleSave = async (e: PlanningEntry) => {
     if (e.id) {
-      await updateDoc(doc(db, 'users', session.adminUid, 'planning', e.id), {
+      await updateDoc(doc(db, 'users', session?.adminUid, 'planning', e.id), {
         period: e.period, periodLabel: e.periodLabel, theme: e.theme,
         emphasis: e.emphasis, notes: e.notes, updatedAt: new Date().toISOString(),
       });
     } else {
       if (!session?.adminUid) { console.error('adminUid missing'); return; }
-    await addDoc(collection(db, 'users', session.adminUid, 'planning'), {
-        adminUid: session.adminUid, period: e.period, periodLabel: e.periodLabel,
+    await addDoc(collection(db, 'users', session?.adminUid, 'planning'), {
+        adminUid: session?.adminUid, period: e.period, periodLabel: e.periodLabel,
         theme: e.theme, emphasis: e.emphasis, notes: e.notes,
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       });
@@ -66,7 +66,7 @@ export default function ColabPlanning({ session }: Props) {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Excluir este planejamento?')) return;
-    await deleteDoc(doc(db, 'users', session.adminUid, 'planning', id));
+    await deleteDoc(doc(db, 'users', session?.adminUid, 'planning', id));
     setEntries(prev => prev.filter(e => e.id !== id));
   };
 
@@ -149,7 +149,7 @@ export default function ColabPlanning({ session }: Props) {
       {editing !== null && (
         <EntryModal
           entry={editing === 'new' ? null : editing}
-          adminUid={session.adminUid}
+          adminUid={session?.adminUid}
           currentPeriod={tab}
           onSave={handleSave}
           onClose={() => setEditing(null)}
