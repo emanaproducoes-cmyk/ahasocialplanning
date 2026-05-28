@@ -59,7 +59,7 @@ function ScoreDonut({ avg }: { avg: number }) {
 
 interface Props { adminUid: string; session?: import('@/lib/colab/types').ColabSession }
 
-export default function ColabRatings({ adminUid }: Props) {
+export default function ColabRatings({ adminUid, session }: Props) {
   const monthKey = currentMonthKey();
   const [tab, setTab] = useState<'rate' | 'history'>('rate');
   const [ratings, setRatings] = useState<Record<string, number>>(() => Object.fromEntries(RATING_CATEGORIES.map(c => [c.id, 0])));
