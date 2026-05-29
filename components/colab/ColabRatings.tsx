@@ -411,6 +411,7 @@ export default function ColabRatings({ adminUid, session }: Props) {
     useState<RatingData | null>(null);
 
   const currentMonth = getCurrentMonth();
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
 
   // Load history from Firestore
   useEffect(() => {
@@ -426,13 +427,36 @@ export default function ColabRatings({ adminUid, session }: Props) {
     const unsub = onSnapshot(q, (snap) => {
       const data = snap.docs.map((d) => d.data() as RatingData);
       setHistory(data);
-      const thisMonth = data.find((d) => d.month === currentMonth);
+      const thisMonth = data.find((d) => d.month === selectedMonth);
       setCurrentMonthRating(thisMonth ?? null);
       if (thisMonth) setSubmitted(true);
     });
 
     return unsub;
   }, [adminUid, session?.clientEmail, currentMonth]);
+
+  async function handleDelete(entryId: string) {
+    const { deleteDoc, doc } = await import('firebase/firestore');
+    await deleteDoc(doc(db, 'colab_ratings', entryId));
+  }
+
+  function handleEdit(entry: RatingData) {
+    setRatings(entry.ratings);
+    setComment(entry.comment ?? '');
+    setSubmitted(false);
+    setTab('rate');
+    setSelectedMonth(entry.month);
+  }
+
+  function handleShare(method: 'link' | 'email') {
+    const url = `${window.location.origin}/colab/invite?adminUid=${adminUid}&month=${selectedMonth}`;
+    if (method === 'link') {
+      navigator.clipboard.writeText(url);
+      alert('Link copiado!');
+    } else {
+      window.location.href = `mailto:?subject=Avaliação ${formatMonthLabel(selectedMonth)}&body=Acesse para avaliar: ${url}`;
+    }
+  }
 
   const allFilled = CATEGORIES.every((c) => (ratings[c.key] ?? 0) > 0);
 
@@ -444,7 +468,7 @@ export default function ColabRatings({ adminUid, session }: Props) {
         adminUid,
         clientName: session?.clientName ?? "",
         clientEmail: session?.clientEmail ?? "",
-        month: currentMonth,
+        month: selectedMonth,
         ratings,
         comment,
         createdAt: Timestamp.now(),
