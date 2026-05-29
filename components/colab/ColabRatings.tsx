@@ -433,7 +433,7 @@ export default function ColabRatings({ adminUid, session }: Props) {
     });
 
     return unsub;
-  }, [adminUid, session?.clientEmail, currentMonth]);
+  }, [adminUid, session?.clientEmail, selectedMonth]);
 
   async function handleDelete(entryId: string) {
     const { deleteDoc, doc } = await import('firebase/firestore');
@@ -513,6 +513,27 @@ export default function ColabRatings({ adminUid, session }: Props) {
         </p>
       </div>
 
+      {/* Month selector + Share */}
+      <div className="flex items-center gap-2 flex-wrap mt-2">
+        <select
+          value={selectedMonth}
+          onChange={(e) => { setSelectedMonth(e.target.value); setSubmitted(false); setRatings({}); setComment(''); }}
+          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+        >
+          {Array.from({ length: 12 }, (_, i) => {
+            const d = new Date(); d.setMonth(d.getMonth() - i);
+            const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+            return <option key={key} value={key}>{formatMonthLabel(key)}</option>;
+          })}
+        </select>
+        <button onClick={() => handleShare('link')} className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors">
+          🔗 Copiar link
+        </button>
+        <button onClick={() => handleShare('email')} className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors">
+          ✉️ E-mail
+        </button>
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-2">
         <button
@@ -551,7 +572,7 @@ export default function ColabRatings({ adminUid, session }: Props) {
                   Avaliação de
                 </p>
                 <p className="text-lg font-semibold text-gray-900 capitalize">
-                  {formatMonthLabel(currentMonth)}
+                  {formatMonthLabel(selectedMonth)}
                 </p>
               </div>
               {submitted && (
