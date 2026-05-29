@@ -706,7 +706,63 @@ export default function ColabRatings({ adminUid, session }: Props) {
             )}
           </div>
 
-          {/* Summary panel */}
+    
+      {/* Liquid glass card pós-avaliação */}
+      {submitted && (
+        <div className="mt-4 rounded-2xl overflow-hidden"
+          style={{
+            backdropFilter: "blur(18px)",
+            WebkitBackdropFilter: "blur(18px)",
+            background: "rgba(255,255,255,0.45)",
+            border: "1px solid rgba(255,255,255,0.6)",
+            boxShadow: "0 8px 32px rgba(99,102,241,0.15), 0 2px 8px rgba(99,102,241,0.08)",
+          }}
+        >
+          <div className="flex items-center gap-2 px-5 pt-5 pb-3">
+            <span className="flex items-center gap-1.5 bg-green-100 text-green-700 text-sm font-medium px-3 py-1 rounded-full">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Avaliação enviada
+            </span>
+          </div>
+          <div className="mx-5 border-t border-white/50" />
+          <p className="px-5 pt-3 pb-1 text-sm font-semibold text-indigo-700 tracking-wide uppercase">
+            O que deseja fazer?
+          </p>
+          <div className="grid grid-cols-2 gap-3 px-5 pb-5 pt-2">
+            <button
+              onClick={() => handleShare("link")}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 text-sm font-medium transition-colors"
+            >
+              <img src="/icons/Link.svg" alt="Link" className="w-4 h-4" />
+              Copiar link
+            </button>
+            <button
+              onClick={() => handleShare("email")}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 text-sm font-medium transition-colors"
+            >
+              <img src="/icons/Mail.svg" alt="E-mail" className="w-4 h-4" />
+              Enviar por e-mail
+            </button>
+            <button
+              onClick={() => { setSubmitted(false); setRatings({}); setComment(""); }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-50/80 hover:bg-purple-100 text-purple-700 text-sm font-medium transition-colors"
+            >
+              <img src="/icons/Redo.svg" alt="Refazer" className="w-4 h-4" />
+              Refazer avaliação
+            </button>
+            <button
+              onClick={handleDelete}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-50/80 hover:bg-red-100 text-red-600 text-sm font-medium transition-colors"
+            >
+              <img src="/icons/Trash_Empty.svg" alt="Deletar" className="w-4 h-4" />
+              Deletar avaliação
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Summary panel */}
           <div className="space-y-4">
             {/* Overall score */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-center gap-3">
