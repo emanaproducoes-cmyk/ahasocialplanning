@@ -117,11 +117,6 @@ export default function ColabShell({ session, children, section, onNavigate }: P
 
       <main style={{ flex: 1, overflow: 'auto' }}>{children}</main>
 
-      <footer style={{ background: '#0F172A', height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <span style={{ fontSize: 11, color: 'rgba(248,250,252,0.38)', fontFamily: 'Inter, sans-serif' }}>
-          © 2026 AHA Social Colab. Todos os direitos reservados.
-        </span>
-      </footer>
     </div>
   );
 }
