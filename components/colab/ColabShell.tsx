@@ -31,7 +31,7 @@ export default function ColabShell({ session, children, section, onNavigate }: P
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#F1F5F9' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F1F5F9' }}>
 
       {/* TOPBAR */}
       <header style={{
