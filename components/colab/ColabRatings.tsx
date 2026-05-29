@@ -526,11 +526,11 @@ export default function ColabRatings({ adminUid, session }: Props) {
             return <option key={key} value={key}>{formatMonthLabel(key)}</option>;
           })}
         </select>
-        <button onClick={() => handleShare('link')} className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors">
-          🔗 Copiar link
+        <button onClick={() => handleShare('link')} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors">
+          <img src="/icons/Link.svg" className="w-4 h-4 opacity-60" /> Copiar link
         </button>
-        <button onClick={() => handleShare('email')} className="text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors">
-          ✉️ E-mail
+        <button onClick={() => handleShare('email')} className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors">
+          <img src="/icons/Mail.svg" className="w-4 h-4 opacity-60" /> E-mail
         </button>
       </div>
 
@@ -588,6 +588,12 @@ export default function ColabRatings({ adminUid, session }: Props) {
                       (v) => v > 0
                     )
                   )}
+                  size={56}
+                />
+              )}
+              {submitted && (
+                <CircularScore
+                  score={avg(Object.values(currentMonthRating?.ratings ?? ratings).filter(v => v > 0))}
                   size={56}
                 />
               )}
